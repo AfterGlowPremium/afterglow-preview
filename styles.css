@@ -665,3 +665,21 @@ body.in-archive .hero{outline:1px dashed rgba(181,169,255,.5)}
 @media (min-width:1600px) and (pointer:fine),(min-width:1600px) and (pointer:none){
   .readout .rc{padding:10px 12px}
 }
+/* Location page: Sunrise | Sunset segmented toggle under the spot name (top-left of the render; clear of the score, ✕, Wave info and the bottom readout) */
+.stage .ev-toggle{display:inline-flex;gap:2px;margin-top:9px;padding:3px;border-radius:999px;background:rgba(10,7,22,.5);border:1px solid rgba(255,255,255,.2);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 4px 16px rgba(0,0,0,.25);position:relative;z-index:4}
+.stage .ev-toggle a{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;text-decoration:none;color:#fff;font:600 12px/1 Inter,sans-serif;padding:7px 11px;border-radius:999px;opacity:.78;transition:background .2s,color .2s,opacity .2s;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.stage .ev-toggle a:hover{opacity:1}
+.stage .ev-toggle a.on{opacity:1;color:#1a1030;cursor:default}
+.stage .ev-toggle a[data-ev="sunrise"].on{background:linear-gradient(135deg,#ffd08a,#f7a8b8)}
+.stage .ev-toggle a[data-ev="sunset"].on{background:linear-gradient(135deg,#ff8a3d,#ff4f9a);color:#fff}
+.stage .ev-toggle a:focus-visible{outline:2px solid #fff;outline-offset:1px}
+.stage .ev-toggle.busy{opacity:.85;pointer-events:none}
+@media (max-width:640px){.stage .ev-toggle{margin-top:8px}.stage .ev-toggle a{font-size:11.5px;padding:7px 10px}}
+html.ag-desk .stage .ev-toggle{margin-top:11px}
+html.ag-desk .stage .ev-toggle a{font-size:13px;padding:8px 14px}
+/* 95+ pins: smooth glowing pulse (~1.2 s) on a composited pseudo-element — transform + opacity only, no repaint; pauses while the map moves */
+.pin.hot{z-index:2}
+.pin.hot::before{content:"";position:absolute;inset:-3px;border-radius:50%;pointer-events:none;border:2px solid #fff;box-shadow:0 0 14px 4px var(--c),inset 0 0 8px var(--c);opacity:0;transform:scale(1);will-change:transform,opacity;animation:hotpulse 1.2s cubic-bezier(.4,0,.2,1) infinite}
+@keyframes hotpulse{0%{opacity:.95;transform:scale(1)}70%{opacity:0;transform:scale(1.75)}100%{opacity:0;transform:scale(1.75)}}
+#map.moving .pin.hot::before{animation-play-state:paused!important}
+@media (prefers-reduced-motion:reduce){.pin.hot::before{animation:none!important;opacity:1;transform:scale(1.22);border-color:rgba(255,255,255,.9)}}

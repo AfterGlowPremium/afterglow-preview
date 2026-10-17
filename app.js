@@ -304,11 +304,14 @@
   const markers = {};
   window.__agRender = () => renderMarkers();
   function renderMarkers() {
+    // 95+ pins pulse; ?demo=hot shows the pulse on the top 3 spots (pin label forced to ≥ 96 for the demo only — scores elsewhere untouched)
+    const hotDemo = /[?&]demo=hot\b/.test(location.search) ? new Set(state.results.slice().sort((a, b) => b.ev.score - a.ev.score).slice(0, 3).map(x => x.spot.id)) : null;
     state.results.forEach(r => {
-      const lb = label(r.ev.score);
+      const pScore = hotDemo && hotDemo.has(r.spot.id) ? Math.max(96, r.ev.score) : r.ev.score, hot = pScore >= 95;
+      const lb = label(pScore);
       const B = r.ev.bonus, T = r.ev.tri, ic = pinIcons(r);
       const bx = (B.dog.p >= BONUS_MIN ? `<em class="pb dog" title="Sun dogs ${B.dog.p}%">◉</em>` : "") + ((window.AGX && AGX.badges(r.spot)) || "");
-      const html = `<div class="pin${T.on ? " tri" : ""}" style="--c:${lb.c}"><span>${r.ev.score}</span>${bx}${T.on ? `<em class="ptri" title="Trifecta">✦</em>` : ""}${ic.length ? `<div class="pwx">${ic.map(x => `<i class="${x.c}" title="${x.t}">${x.i}</i>`).join("")}</div>` : ""}</div>`;
+      const html = `<div class="pin${T.on ? " tri" : ""}${hot ? " hot" : ""}" style="--c:${lb.c}"${hot ? ` title="${pScore} — top-tier sky"` : ""}><span>${pScore}</span>${bx}${T.on ? `<em class="ptri" title="Trifecta">✦</em>` : ""}${ic.length ? `<div class="pwx">${ic.map(x => `<i class="${x.c}" title="${x.t}">${x.i}</i>`).join("")}</div>` : ""}</div>`;
       const icon = L.divIcon({ className: "pin-wrap", html, iconSize: [30, 30], iconAnchor: [15, 15] });
       if (markers[r.spot.id]) { if (markers[r.spot.id]._agHtml !== html) markers[r.spot.id].setIcon(icon); }   // d14: skip unchanged pins (was rebuilding all ~70 pin DOM nodes on every refresh)
       else markers[r.spot.id] = L.marker(vPos(r.spot), { icon, riseOnHover: true }).addTo(map)
@@ -316,7 +319,7 @@
         .bindTooltip("", { direction: "top", offset: [0, -16], className: "tip" });
       markers[r.spot.id]._agHtml = html;
       markers[r.spot.id].setTooltipContent(`<b>${r.spot.name}</b>${r.spot.vantage ? `<br><small>☀ from ${r.spot.vantage.name}</small>` : ""}<br>${lb.t} · ${fmtTime(r.ev.tSet, r.tz)}${r.ev.bonus.bow.p >= BONUS_MIN ? `<br>🌈 ${r.ev.bonus.bow.name} ${r.ev.bonus.bow.p}%` : ""}${r.ev.bonus.dog.p >= BONUS_MIN ? `<br>◉ Sun dogs ${r.ev.bonus.dog.p}% — 22° either side of the sun, needs thin cirrus/cirrostratus with the sun under ~${RISE?"20":"20"}° up` : ""}${(window.AGX && AGX.tip(r.spot)) || ""}${r.ev.wx.items.map(w => `<br>${w.icon} ${w.name}${w.p ? " " + w.p + "%" : ""}`).join("")}${r.ev.tri.on ? `<br><b class="tt-tri">✦ TRIFECTA</b>` : ""}`);
-      if (markers[r.spot.id].setZIndexOffset) markers[r.spot.id].setZIndexOffset(r.ev.tri.on ? 1000 : ic.length ? 200 : 0);
+      if (markers[r.spot.id].setZIndexOffset) markers[r.spot.id].setZIndexOffset(r.ev.tri.on ? 1000 : hot ? 900 : ic.length ? 200 : 0);
     });
   }
 
@@ -336,7 +339,7 @@
       const lb = label(best);
       return `<button class="day ${i === state.day ? "on" : ""}${state.arch ? " past" : ""}" data-day="${i}"><span class="d1">${fmtDay(t + 43200, S0.timezone, i)}</span><span class="d2">${fmtDate(t + 43200, S0.timezone)}</span><span class="d3" style="--c:${lb.c}">best ${best}</span></button>`;
     }).join("");
-    document.querySelectorAll(".day[data-day]").forEach(b => b.addEventListener("click", () => { state.day = +b.dataset.day; update(); if (state.arch) renderArchBar(); }));
+    document.querySelectorAll(".day[data-day]").forEach(b => b.addEventListener("click", () => { state.day = +b.dataset.day; state.autoDay = false; update(); if (state.arch) renderArchBar(); }));
     const ex = $("#day-exit"); if (ex) ex.onclick = exitArchive;
   }
   function filtered() {
@@ -416,6 +419,21 @@
   }
   // ---------- Predicted-sunset stage + time scrubber ----------
   function scrubRange(T) { if (RISE) return [(T.civilEnd || T.sunset - 1800) - 600, (T.golden || T.sunset + 3600) + 600]; const t0 = (T.golden || T.sunset - 3600) - 600, t1 = (T.civilEnd || T.sunset + 1800) + 600; return [t0, t1]; }
+  // Location-page Sunrise | Sunset toggle: reopen the SAME spot in the other mode (same pin; sunrise uses the spot's east view / vantage).
+  // The app reloads inside the shell iframe, so the music and the outer page keep going; demo params are kept, day carried when not "today".
+  function evHref(m, id) {
+    const q = new URLSearchParams(location.search); ["mode", "spot", "day", "t", "play", "b"].forEach(k => q.delete(k));
+    q.set("mode", m); q.set("spot", id); if (state.day > 0 && !state.autoDay) q.set("day", state.day);   // an automatic "this morning is over → tomorrow" jump goes back to tonight
+    return "?" + q.toString();
+  }
+  function wireEvToggle() {
+    document.querySelectorAll(".ev-toggle a").forEach(a => a.addEventListener("click", e => {
+      e.preventDefault(); if (a.classList.contains("on")) return;
+      const g = a.parentNode; g.querySelectorAll("a").forEach(x => x.classList.toggle("on", x === a)); g.classList.add("busy");
+      const L = $("#loading"); if (L) { const p = L.querySelector("p"); if (p) p.textContent = (a.dataset.ev === "sunrise" ? "Turning east for sunrise…" : "Turning west for sunset…"); L.classList.remove("done"); }
+      setTimeout(() => location.replace(a.getAttribute("href")), 120);
+    }));
+  }
   function stage(r) {
     const sp = r.spot, ev = r.ev, T = ev.timing, s = ev.s, lb = label(ev.score), [t0, t1] = scrubRange(T);
     const pct = t => ((t - t0) / (t1 - t0) * 100).toFixed(2);
@@ -435,7 +453,7 @@
         <canvas id="pv" aria-label="Illustrated forecast of the ${EV} at ${sp.name}"></canvas>
         <img id="pv-ph0" class="pv-photo" alt=""><img id="pv-ph1" class="pv-photo" alt=""><canvas id="pv-back" class="pv-back" hidden aria-label="180° view behind you"></canvas><canvas id="pv-wx" class="pv-wx" aria-hidden="true"></canvas><div id="pv-wxl" class="pv-wxl" hidden></div>
         <div class="stage-top">
-          <div><div class="d-kick">${sp.type} · ${sp.state}${r.mi != null ? " · " + Math.round(r.mi) + " mi away" : ""} · ${fmtDay(ev.tSet, r.tz, state.day)} ${fmtDate(ev.tSet, r.tz)}</div><h2>${sp.name}</h2>${sp.vantage ? `<div class="d-kick vant">📍 ${Ev} view from ${sp.vantage.name}</div>` : ""}</div>
+          <div><div class="d-kick">${sp.type} · ${sp.state}${r.mi != null ? " · " + Math.round(r.mi) + " mi away" : ""} · ${fmtDay(ev.tSet, r.tz, state.day)} ${fmtDate(ev.tSet, r.tz)}</div><h2>${sp.name}</h2>${sp.vantage ? `<div class="d-kick vant">📍 ${Ev} view from ${sp.vantage.name}</div>` : ""}${state.arch ? "" : `<div class="ev-toggle" role="group" aria-label="Sunrise or sunset at this spot"><a href="${evHref("sunrise", sp.id)}" data-ev="sunrise" class="${RISE ? "on" : ""}"${RISE ? ' aria-current="true"' : ""} title="Same spot facing east at sunrise">🌅 Sunrise</a><a href="${evHref("sunset", sp.id)}" data-ev="sunset" class="${RISE ? "" : "on"}"${RISE ? "" : ' aria-current="true"'} title="Same spot facing west at sunset">🌇 Sunset</a></div>`}</div>
           <div class="stage-score"><b>${ev.score}</b><i>${lb.t}</i></div>
         </div>
         <div id="pv-gen" class="pv-gen" hidden></div>
@@ -752,6 +770,7 @@
     if (isDesk()) { deskTop(); setTimeout(() => map.invalidateSize({ pan: false }), 480); }   // v21: docked panel narrows the map
     el.scrollTop = keepScroll ? scroll : 0;
     wireStage(r, keepScroll && state.pvSpot === id ? state.pvT : null);
+    wireEvToggle();
     $("#zoomto").onclick = () => { closeDetail(); map.flyTo(vPos(sp), 10, { duration: 1.2 }); };
     if (state.arch) { const bx = $("#satread"); if (bx) bx.innerHTML = `<p>Satellite read is only for live forecasts — this is a past prediction.</p>`; return; }
     const elevNow = sunPos(Date.now() / 1000, sp.lat, sp.lng).elev;
@@ -930,7 +949,7 @@
   // boot
   Promise.all([loadData(), loadNoaa(), loadMarine()]).then(([d, N, MW]) => {
     applyMarine(d, MW); state.noaa = N; window.AGNoaa = N; window.AGDay = () => state.day; applyNoaa(d, N); state.data = d;
-    if (RISE && d.S[0] && d.S[0].daily.sunrise[0] + 3600 < Date.now() / 1000) state.day = 1;   // this morning's sunrise is over → show tomorrow
+    if (RISE && d.S[0] && d.S[0].daily.sunrise[0] + 3600 < Date.now() / 1000) { state.day = 1; state.autoDay = true; }   // this morning's sunrise is over → show tomorrow
     archSaveAll(); update();
     $("#loading").classList.add("done");
     // Draft: refresh forecast + renderings every 15 min (skipped while replaying the archive)
@@ -942,7 +961,7 @@
     obsTick(); setInterval(() => { if (!document.hidden) obsTick(); }, 10 * 60 * 1000);
     // Afterglow Real deep link: ?mode=sunset&spot=clearwater&t=peak&play=1
     { const q = new URLSearchParams(location.search), id = q.get("spot");
-      if (q.get("day") != null && state.data.S[0].daily.time[+q.get("day")] != null) { state.day = +q.get("day"); update(); }
+      if (q.get("day") != null && state.data.S[0].daily.time[+q.get("day")] != null) { state.day = +q.get("day"); state.autoDay = false; update(); }
       if (id && state.results.some(x => x.spot.id === id)) Promise.resolve(openDetail(id)).then(() => { const sl = $("#scrub"); if (q.get("t") && sl) { const T = state.results.find(x => x.spot.id === id).ev.timing; const R2 = state.results.find(x => x.spot.id === id).ev, bw = R2.bonus && R2.bonus.bow && R2.bonus.bow.win; sl.value = q.get("t") === "peak" ? T.peak : q.get("t") === "bow" && bw ? (bw.start + bw.end) / 2 : +q.get("t"); sl.dispatchEvent(new Event("input")); } if (q.get("play") === "1") setTimeout(() => { const b = $("#pv-play"); if (b) b.click(); }, 700); }); }
     $("#updated").innerHTML = "Forecast updated " + new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZoneName: "short" }).format(new Date(d.at)) +
       (d.snapshot ? ` · <span class="src fb">Snapshot</span> live forecast busy — showing NOAA data saved ${fmtClock(new Date(d.at).toISOString())}` : d.stale ? ` · <span class="src fb">Cached</span> live forecast busy — using last download` : "") +

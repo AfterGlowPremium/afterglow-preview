@@ -258,3 +258,6 @@ Object.assign(window.SUNRISE_VIEW, {
   G("pensacola", "Pensacola Beach Pier", "FL", 30.3270, -87.1420, "Gulf surf on tropical swell; sunset southwest along the Gulf.");
   G("galveston", "Galveston 61st St Jetty", "TX", 29.2700, -94.8200, "Texas Gulf surf; sun sets down the beach.");
 })();
+// Lions Bridge (Mariners' Museum Park): sunrise looks east across Lake Maury to the park's wooded far shore (same pin, no vantage jump)
+window.SUNRISE_VIEW.lionsbridge = [60, 140, 3, true, "Sunrise across Lake Maury from the bridge — the sun clears the Mariners' Museum Park treeline on the far shore a few minutes after official sunrise."];
+window.SCENE.lionsbridge = ["lowshore", "Park", "trees"];
