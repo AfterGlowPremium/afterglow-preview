@@ -604,7 +604,7 @@
       let o = backWater ? PhotoStage.draw(cv, Object.assign({}, sp, { far: sp.behind.far || "open", water: true, type: sp.type === "Pier" ? "Pier" : "Beach" }), ev, t, Object.assign({ lq: dragging, sunAzOff: 180 }, wOpt())) : null;
       if (o && o.mode !== "live") o = null;
       const aq = anim ? { scale: AN.scale, dprCap: isDesk() ? 2 : 1.5, fast: AN.scale < 0.62 ? 1 : 0 } : {};   // v21: desktop animated frames keep DPR up to 2   // d14: animated frames: capped DPR + adaptive scale; stills stay full quality
-      if (!o) o = turned ? Object.assign(Preview.state(sp, ev, t), Preview.drawBehind(back, sp, ev, t), { mode: "behind" }) : PhotoStage.draw(cv, sp, ev, t, Object.assign(dragging && isDesk() ? { scale: 0.75 } : { lq: dragging }, wOpt(), aq));   // v21: desktop drags render at the 0.75 floor (phones 0.42)
+      if (!o) o = turned ? Object.assign(Preview.state(sp, ev, t), Preview.drawBehind(back, sp, ev, t), { mode: "behind" }) : PhotoStage.draw(cv, sp, ev, t, Object.assign(playing && window.__agPlayQ ? playOpt() : dragging && isDesk() ? { scale: 0.75 } : { lq: dragging }, wOpt(), aq));   // v21: desktop drags render at the 0.75 floor (phones 0.42)
       if (anim) return;   // d14: animation frames only redraw the WebGL scene — no DOM/label/weather recompute
       { const gy = window.AGObs && AGObs.sceneAt ? AGObs.sceneAt(sp, ev, t).gray : ev.obs ? ev.obs.gray : 0; const fl = o.mode !== "live" && gy > 0 ? `saturate(${(1 - 0.9 * gy).toFixed(2)}) brightness(${(1 - 0.2 * gy).toFixed(2)})` : ""; if (cv.style.filter !== fl) cv.style.filter = fl; }   // d15: illustrated fallback goes gray too
       const turnedIll = turned && o.mode === "behind";
@@ -669,13 +669,22 @@
     sl.addEventListener("input", () => { stop(); dragging = true; clearTimeout(hqT); hqT = 0; queue(); });
     document.querySelectorAll(".scrub .mk").forEach(b => b.addEventListener("click", () => { stop(); sl.value = b.dataset.t; queue(); }));
     const stop = () => { if (playing) { cancelAnimationFrame(playing); playing = 0; $("#pv-play").textContent = PLAY; } };
+    // d21: Play renders at an adaptive resolution with a raised floor (was the 0.42 drag preview): effective CSS-pixel density
+    // phones 0.9–1.3 (DPR cap 2), desktop 1.0–1.6; if a phone still can't hold ~30 fps at the floor it drops to the short ray-march (fast)
+    const playOpt = () => { const Q = window.__agPlayQ, cap = 2, dpr = Math.min(window.devicePixelRatio || 1, cap); return { scale: Math.min(1, Q.eff / dpr), dprCap: cap, fast: Q.fast ? 1 : 0 }; };
+    const playTick = ts => { const desk = isDesk(), Q = window.__agPlayQ || (window.__agPlayQ = { eff: desk ? 1.3 : 1.0, ema: 33, last: 0, slow: 0, fast: false }), lo = desk ? 1.0 : 0.9, hi = desk ? 1.6 : 1.3, tgt = desk ? 22 : 33;
+      if (Q.last) { Q.ema = Q.ema * 0.8 + Math.min(250, ts - Q.last) * 0.2;
+        if (Q.ema > tgt * 1.25) { if (Q.eff > lo) Q.eff = Math.max(lo, Q.eff * 0.93); else if (!desk && ++Q.slow > 20) Q.fast = true; }
+        else if (Q.ema < tgt * 1.05) { Q.slow = 0; if (Q.fast) Q.fast = false; else Q.eff = Math.min(hi, Q.eff * 1.02); } }
+      Q.last = ts; };
     $("#pv-play").onclick = () => {
       if (playing) return stop();
+      if (window.__agPlayQ) window.__agPlayQ.last = 0;
       const t0 = +sl.min, t1 = +sl.max, dur = 9000; let start = null;
       if (+sl.value >= t1 - 60) sl.value = t0;
       const from = +sl.value;
       $("#pv-play").textContent = "❚❚ Pause";
-      const step = ts => { if (start == null) start = ts; const f = Math.min(1, (ts - start) / (dur * (t1 - from) / (t1 - t0))); sl.value = from + (t1 - from) * f; dragging = f < 1; render(); playing = f < 1 ? requestAnimationFrame(step) : (stop(), 0); };
+      const step = ts => { playTick(ts); if (start == null) start = ts; const f = Math.min(1, (ts - start) / (dur * (t1 - from) / (t1 - t0))); sl.value = from + (t1 - from) * f; dragging = f < 1; render(); playing = f < 1 ? requestAnimationFrame(step) : (stop(), 0); };
       playing = requestAnimationFrame(step);
     };
     render();
