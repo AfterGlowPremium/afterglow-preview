@@ -410,7 +410,7 @@ void main(){
   BMe = max(uAod, .01) / HM; BMs = BMe * .9;
   vec3 ro = vec3(0., R0 + uCamH, 0.);
   vec3 col; vec3 T;
-  float sunVis = cloudTowardSun(ro, uSunA);
+  float sunVis = cloudTowardSun(ro, uSunA) * (1. - uGray);   // d16: blocked sun → no direct light anywhere (no glints, lit lips, spindrift glow, sun disk)
   vec3 sunAtm; { vec3 tmp; skyRay(ro, uSunA, .004, false, tmp); sunAtm = sunT(ro, uSunA); }
 
   // horizon geometry

@@ -55,10 +55,11 @@
     aod *= 1 + Math.max(0, (ev.rhLow || 60) - 70) / 50;
     const seed = (g.Photoreal ? g.Photoreal.hash : () => 0.5)(spot.id + ":" + ev.tSet);
     const C = cloudsAt(spot, ev, t);
+    const OB = g.AGObs && g.AGObs.sceneAt ? g.AGObs.sceneAt(spot, ev, t) : { gray: ev.obs ? ev.obs.gray : 0, haze: 0 };
     return Object.assign({
       elev: pos.elev, sunAzOff: clamp(off + 3, -14, 14),
       high: C.high, mid: C.mid, low: C.low, midKm: C.midKm, gap: C.gap, cloudSrc: C.src,
-      block: clamp(ev.slotBlock || 0), gray: ev.obs ? ev.obs.gray : 0,   // d15: observed blocked sun → flat gray aod: clamp(aod, 0.02, 1.2), rh: (ev.rhLow || 60) / 100,
+      block: Math.max(clamp(ev.slotBlock || 0), OB.gray), gray: OB.gray,   // d16: blocked sun AT THE TIME SHOWN (obs near now, model otherwise) → flat gray aod: clamp(aod + 0.6 * OB.haze, 0.02, 1.2), rh: Math.max((ev.rhLow || 60) / 100, OB.haze > 0 ? 0.9 + 0.08 * OB.haze : 0),
       water: spot.water !== false, pier: spot.type === "Pier" || spot.type === "Boardwalk",
       // horizon features from the geography table (spots.js SCENE) for the direction you face
       shore: spot.water !== false ? ({ open: 0, lowshore: 0.45, islands: 0.6, skyline: 0.35, bridge: 0.3, trees: 0.8, town: 0.6, hills: 0.4 }[spot.far] ?? (spot.obst >= 0.5 ? clamp(spot.obst / 2, 0.25, 1) : 0)) : 0,

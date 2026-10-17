@@ -534,7 +534,8 @@
       raf = 0; const t = +sl.value; state.pvT = t; state.pvSpot = sp.id;
       const back = $("#pv-back"), turned = !!state.turn && back;
       // Draft: when the view behind you is open water, render it with the same photoreal sky+water shader (sun behind camera)
-      const wNow = Model.windAt(ev, t) || {};   // d13: wind speed, gust and direction for the slider time (was: sunset/sunrise instant for direction)
+      const wNow = Object.assign({}, Model.windAt(ev, t) || {});
+      { const Nw = window.AGObs && AGObs.now[sp.id], mo = Nw && Nw.metar; if (mo && mo.mph != null && Math.abs(t - Date.now() / 1000) < 7200) { wNow.wind = Math.max(wNow.wind || 0, mo.mph); if (mo.gust != null) wNow.gust = Math.max(wNow.gust || 0, mo.gust); if (mo.wdir != null) wNow.wdir = mo.wdir; } }   // d16: observed wind (gales) near now   // d13: wind speed, gust and direction for the slider time (was: sunset/sunrise instant for direction)
       const wOpt = () => { const m = window.AGX ? AGX.sea(sp, { dir: wNow.wdir, mph: wNow.wind }) : null; const zf = { fovMul: 1 / (state.zoom || 1) }; if (/[?&]sky=clear/.test(location.search)) Object.assign(zf, { high: 0.12, mid: 0, low: 0, block: 0, gap: 1, midKm: 4.5 }); if (/[?&]sky=overcast/.test(location.search)) Object.assign(zf, { high: 0.4, mid: 0.95, low: 0.85, block: 1, gap: 0 });
       { const wxq = new URLSearchParams(location.search).get("wx");
         if (wxq === "haze") Object.assign(zf, { high: 0.25, mid: 0.15, low: 0.1, aod: 0.55, rh: 0.88, block: 0.3, gap: 0.6 });
@@ -562,7 +563,7 @@
       const aq = anim ? { scale: AN.scale, dprCap: 1.5, fast: AN.scale < 0.62 ? 1 : 0 } : {};   // d14: animated frames: capped DPR + adaptive scale; stills stay full quality
       if (!o) o = turned ? Object.assign(Preview.state(sp, ev, t), Preview.drawBehind(back, sp, ev, t), { mode: "behind" }) : PhotoStage.draw(cv, sp, ev, t, Object.assign({ lq: dragging }, wOpt(), aq));
       if (anim) return;   // d14: animation frames only redraw the WebGL scene — no DOM/label/weather recompute
-      { const gy = ev.obs ? ev.obs.gray : 0; const fl = o.mode !== "live" && gy > 0 ? `saturate(${(1 - 0.9 * gy).toFixed(2)}) brightness(${(1 - 0.2 * gy).toFixed(2)})` : ""; if (cv.style.filter !== fl) cv.style.filter = fl; }   // d15: illustrated fallback goes gray too
+      { const gy = window.AGObs && AGObs.sceneAt ? AGObs.sceneAt(sp, ev, t).gray : ev.obs ? ev.obs.gray : 0; const fl = o.mode !== "live" && gy > 0 ? `saturate(${(1 - 0.9 * gy).toFixed(2)}) brightness(${(1 - 0.2 * gy).toFixed(2)})` : ""; if (cv.style.filter !== fl) cv.style.filter = fl; }   // d15: illustrated fallback goes gray too
       const turnedIll = turned && o.mode === "behind";
       if (o.mode === "live" && !/[?&]still=1/.test(location.search) && (window.PhotoStage && PhotoStage.last && PhotoStage.last.surf) && !dragging && !playing) startAnim();   // d14: keep the surf breaking at a steady 30 fps (was setTimeout 70 ms full re-render, ~12 fps, kept running behind the map)
       if (back) back.hidden = !turnedIll;
@@ -591,7 +592,7 @@
       $("#pv-phase").textContent = phaseName(o.phase);
       $("#pv-elev").textContent = `sun ${o.elev >= 0 ? "+" : "−"}${Math.abs(o.elev).toFixed(1)}°`;
       const parts = [["high", ev.s.high, "Cirrus"], ["mid", ev.s.mid, "Mid cloud"], ["low", ev.s.low, "Low cloud"]].filter(x => x[1] >= 10).map(x => `${x[2]} ${word(o.lit[x[0]])}`);
-      $("#pv-what").textContent = parts.length ? parts.join(" · ") : (o.elev > 0 ? "Clear sky: clean gradient, little canvas" : "Clear sky: horizon band fading");
+      { const gw = window.AGObs && AGObs.sceneAt ? AGObs.sceneAt(sp, ev, t).gray : 0; if (gw > 0.5) { $("#pv-what").textContent = "Sun blocked by low/mid overcast: flat gray light, no color"; } else $("#pv-what").textContent = parts.length ? parts.join(" · ") : (o.elev > 0 ? "Clear sky: clean gradient, little canvas" : "Clear sky: horizon band fading"); }
       document.querySelectorAll(".scrub .mk").forEach(b => b.classList.toggle("on", Math.abs(+b.dataset.t - t) < 90));
     };
     const queue = () => { if (!raf) raf = requestAnimationFrame(render); }; window.__agQueue = queue;
@@ -603,7 +604,7 @@
     const ph = [$("#pv-ph0"), $("#pv-ph1")], badge = $("#pv-badge"), modeBtn = $("#pv-mode"), gen = $("#pv-gen");
     const [t0, t1] = scrubRange(ev.timing);
     function showPhotos(t) {
-      const set = PhotoStage.photoSet(sp, ev), mix = photoOn && !(ev.obs && ev.obs.gray > 0.3) ? PhotoStage.photoMix(set, t) : null;   // d15: no colourful AI photo finish over an observed-gray sky
+      const set = PhotoStage.photoSet(sp, ev), mix = photoOn && !((window.AGObs && AGObs.sceneAt ? AGObs.sceneAt(sp, ev, t).gray : ev.obs ? ev.obs.gray : 0) > 0.3) ? PhotoStage.photoMix(set, t) : null;   // d15: no colourful AI photo finish over an observed-gray sky
       ph.forEach((im, k) => { const m = mix && mix[k]; if (m) { if (im.getAttribute("src") !== m[0]) im.src = m[0]; im.style.opacity = m[1]; } else im.style.opacity = 0; });
       if (badge) badge.textContent = mix ? "AI photo finish · not a real photo" : PhotoStage.live() ? "Forecast render · not a photo" : "Illustrated forecast · not a photo";
     }
@@ -635,6 +636,7 @@
       playing = requestAnimationFrame(step);
     };
     render();
+    if (window.AGObs && AGObs.ensureNow) AGObs.ensureNow(sp, ev, () => { if (state.spot === sp.id) queue(); });   // d16: current METAR/GOES for the shown spot
     if (!window._pvVis) { window._pvVis = true; document.addEventListener("visibilitychange", () => { if (!document.hidden && state.spot && window.__agQueue) window.__agQueue(); }); }   // d14: resume after tab comes back
     if (!window._pvResize) { window._pvResize = true; window.addEventListener("resize", () => { const s2 = $("#scrub"); if (s2 && state.spot) s2.dispatchEvent(new Event("input")); }); }
   }

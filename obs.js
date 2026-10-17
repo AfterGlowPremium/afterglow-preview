@@ -38,7 +38,9 @@
     for (const l of L) { if (l.ft != null && l.ft > 20000) continue; clear *= 1 - l.cov * (l.ft != null && l.ft > 6500 ? 0.85 : 1); if (l.cov >= 0.75 && (ceil == null || l.ft < ceil)) ceil = l.ft; }
     const raw = p.rawMessage || "", wx = /(^|\s)[-+]?(RA|DZ|SHRA|TSRA|SN|FG|BR)\b/.test(raw) || (p.presentWeather || []).length > 0;
     const vis = p.visibility && p.visibility.value != null ? p.visibility.value / 1609 : null;
-    return { lm: clamp(1 - clear + (wx ? 0.1 : 0) + (vis != null && vis < 3 ? 0.15 : 0)), ceil, layers: L.map(l => l.amt + (l.ft != null ? Math.round(l.ft / 100).toString().padStart(3, "0") : "")).join(" "), wx, t: Date.parse(p.timestamp) / 1000, raw };
+    const kmh = q => q && q.value != null ? q.value / 1.609344 : null;
+    return { vis, mph: kmh(p.windSpeed), gust: kmh(p.windGust), wdir: p.windDirection ? p.windDirection.value : null, fog: /(^|\s)(FG|BR|HZ)\b/.test(raw),
+      lm: clamp(1 - clear + (wx ? 0.1 : 0) + (vis != null && vis < 3 ? 0.15 : 0)), ceil, layers: L.map(l => l.amt + (l.ft != null ? Math.round(l.ft / 100).toString().padStart(3, "0") : "")).join(" "), wx, t: Date.parse(p.timestamp) / 1000, raw };
   }
   async function metar(sp, tSet) {
     const s = await station(sp); if (!s) return null;
@@ -92,8 +94,12 @@
   const base = g.Model.evaluate;
   g.Model.evaluate = function (sp) {
     const ev = base.apply(this, arguments);
+    try { Object.defineProperty(ev, "_h", { value: arguments[1] && arguments[1].hourly, enumerable: false }); } catch (e) {}   // d16: hourly clouds for grayAt(t)
     try {
-      if (/[?&]obs=0/.test(location.search) || !ev || !inWindow(ev.tSet)) return ev;
+      if (/[?&]obs=0/.test(location.search) || !ev) return ev;
+      { const mgE = Math.max(O.modelGray ? O.modelGray(ev, ev.tSet) : 0, clamp(((ev.slotBlock || 0) - 0.6) / 0.28));   // d16: score agrees with the gray render for any day
+        if (mgE > 0) { const cap = Math.round(ev.score + (12 - ev.score) * mgE); if (cap < ev.score) { ev.scoreModel = ev.score; ev.score = cap; } } }
+      if (!inWindow(ev.tSet)) return ev;
       const m = O.metar[sp.id], s = O.sat[sp.id];
       if (m === undefined && s === undefined) return ev;
       const ob = ev.obs = combine(ev, m, s);
@@ -105,6 +111,39 @@
       }
     } catch (e) { console.warn("obs", e); }
     return ev;
+  };
+  // ---- d16: conditions AT THE TIME SHOWN (any hour, incl. now) ----
+  // now-obs for the opened spot: latest METAR (ceiling, sky cover, visibility, rain/fog, wind) + GOES at the spot and toward the sun
+  O.now = {};
+  O.ensureNow = async (sp, ev, cb) => {
+    const c = O.now[sp.id]; if (c && Date.now() - c.at < 10 * 60e3) return c;
+    const n = NOW(), out = { at: Date.now() };
+    try { const s = await station(sp);
+      if (s) { const f = ((await (await fetch(`https://api.weather.gov/stations/${s.id}/observations?limit=4`, { headers: H })).json()).features || []).map(x => x.properties).filter(p => (p.cloudLayers || []).length || p.rawMessage);
+        if (f.length) { const o = readOb(f[0]); Object.assign(out, { metar: Object.assign(o, { station: s.id, name: s.name, dist: s.d }) }); } } } catch (e) {}
+    try { out.sat = await sat(sp, Object.assign({}, ev, { tSet: n })); } catch (e) {}
+    O.now[sp.id] = out; cb && cb(out); return out;
+  };
+  // model low/mid cloud at time t → gray. ≥ ~95% low/mid deck = fully gray; < 80% = no effect
+  const modelLM = (ev, t) => { const h = ev._h; if (!h || !g.Model.at) return Math.max(ev.s.low || 0, 0.95 * (ev.s.mid || 0)) / 100;
+    return Math.max(g.Model.at(h, "cloud_cover_low", t) || 0, 0.95 * (g.Model.at(h, "cloud_cover_mid", t) || 0)) / 100; };
+  // ≥ 90% low/mid deck (mid weighted 0.95) = fully gray; ≤ 75% = no effect
+  function modelGray(ev, t) { return clamp((modelLM(ev, t) - 0.75) / 0.15); }
+  O.modelGray = modelGray;
+  // returns { gray 0..1, haze 0..1, src, metar } for the scene at time t
+  O.sceneAt = (sp, ev, t) => {
+    if (/[?&]obs=0/.test(location.search) || !ev) return { gray: 0, haze: 0 };
+    let mg = modelGray(ev, t);
+    if (ev.obs && Math.abs(t - ev.tSet) < 5400) mg = Math.max(mg, ev.obs.gray);          // event-window observed blend (d15)
+    else if (Math.abs(t - ev.tSet) < 5400) mg = Math.max(mg, clamp(((ev.slotBlock || 0) - 0.6) / 0.28));
+    const N = O.now[sp.id], dt = Math.abs(t - NOW()), w = N ? 1 - clamp((dt - 3600) / 7200) : 0;   // obs fully trusted ±1 h of now, fading out by ±3 h
+    if (!w) return { gray: mg, haze: 0, src: "model" };
+    const m = N.metar, s = N.sat;
+    let ob = 0;
+    if (m) { ob = clamp((m.lm - 0.6) / 0.28); if (m.lm >= 0.85 && m.ceil != null && m.ceil < 10000) ob = 1; }
+    if (s) ob = Math.max(ob, m ? clamp((0.5 * s.path + 0.5 * s.here - 0.6) / 0.28) : clamp((Math.max(s.here, s.path) - 0.6) / 0.28));
+    const haze = m ? clamp((m.vis != null ? (3 - m.vis) / 2.5 : 0) + (m.wx ? 0.35 : 0) + (m.fog ? 0.35 : 0)) : 0;
+    return { gray: clamp(w * ob + (1 - w) * mg), haze: w * haze, src: m ? `METAR ${m.station} ${m.layers || "CLR"}` : "GOES", metar: m, w };
   };
   O.refresh = async (spots, results, day) => {
     if (day !== 0) return false;
