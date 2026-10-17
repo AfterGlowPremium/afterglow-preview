@@ -277,19 +277,21 @@
       // §7.2 22° halo (partial arcs near sunset)
       const ph = 0.4 * pw(cir, [[0, 0], [0.2, 0.3], [0.5, 0.9], [0.9, 1], [1, 0.8]]) * sunVis * (pos.elev < 40 ? 1 : 0.6);
       if (ph > halo.p) halo = { p: ph, t };
-      // §6 rainbows: sun < 42°, rain to the east 1–30 km, clear west (<30% low/mid), viewer dry
-      if (pos.elev < 42) {
-        const ep = at(e, "precipitation", t) || 0, epp = (at(e, "precipitation_probability", t) || 0) / 100;
+      // §6 rainbows (d23p, stricter + data-driven): a bow needs (1) actual precipitation opposite the sun 5–40 km out — model rain
+      // >= 0.25 mm/h in the anti-solar cells (10 + 30 km, merged max), not cloudiness, a %-chance or virga alone; (2) the sun visible at the
+      // spot (light path open: clear sun-side sky or the sun under the deck); (3) sun 0–42° up. Observed radar/METAR evidence is added in obs.js.
+      if (pos.elev > 0 && pos.elev < 42 && Math.abs(t - tSet) <= 3600) {   // near the event (±60 min)
+        // Open-Meteo precipitation is the PRECEDING hour's total, so the rain falling at t is the value stamped at the next whole hour
+        // (no interpolating a shower that ended into the next hour)
+        const ep = at(e, "precipitation", Math.ceil(t / 3600) * 3600) || 0;
         const ec = atCode(e, t), sc = atCode(h, t);
-        // d23r: light showers / virga count (0.3 mm or a 40% chance with mid cloud on the anti-solar side); sun path from the light geometry
-        // (low cloud far along the azimuth), not the 40 km point — at a low sun the light comes in UNDER a deck (Virginia Beach Oct 17 miss)
-        const eMid = (at(e, "cloud_cover_mid", t) || 0) / 100, virga = epp >= 0.3 && eMid >= 0.4 ? 0.35 + 0.4 * epp : 0;
-        const rainEast = clamp(Math.max(ep / 0.6, epp * 0.85, virga));
-        const conv = isShowery(ec) || isShowery(sc) ? 1 : isRain(ec) || isRain(sc) ? 0.75 : 0.5;   // d23r: Sc-deck drizzle/showers offshore made tonight's VB double bow
+        const rainEast = ep >= 0.25 ? clamp(0.45 + ep / 1.5) : 0;
+        const conv = isShowery(ec) || isShowery(sc) ? 1 : 0.75;
         const clearW0 = pw(Math.max(WL, WM * 0.8), [[0, 1], [0.3, 0.8], [0.6, 0.25], [0.9, 0]]);
         const clearW = Math.max(clearW0, gapOpen * clamp((12 - pos.elev) / 8) * (1 - 0.6 * clamp((L - 0.85) / 0.15) * clamp((pos.elev - 4) / 8)));
-        const dry = pr > 1 ? 0.35 : pr > 0.3 ? 0.7 : 1;   // d23r: a passing shower overhead with the sun out is classic rainbow weather
-        const pb = 0.7 * Math.pow(rainEast, 0.7) * conv * Math.pow(clearW, 0.7) * dry * (pos.elev < 6 && gapLit > 0.3 ? 1.25 : 1);   // d23r: softer product (each factor is uncertain); low sun under a lit deck = classic sunset bow
+        const sunOpen = clearW >= 0.3 && (clearW0 >= 0.5 || gapOpen >= 0.2);   // sun actually reaching the spot at that elevation
+        const dry = pr > 1 ? 0.35 : pr > 0.3 ? 0.7 : 1;   // a passing shower overhead with the sun out is still rainbow weather
+        const pb = sunOpen ? 0.6 * rainEast * conv * Math.pow(clamp(clearW / 0.6), 0.5) * dry : 0;
         bowSer.push({ t, p: pb });
         if (pb > bow.p) bow = { p: pb, t, elev: pos.elev, red: RISE ? t <= tSet + 15 * 60 : t >= tSet - 15 * 60, rainEast, clearW, shower: conv === 1, dry };
       }
@@ -362,7 +364,7 @@
         why: dog.p >= 0.03 ? `Sun dogs ${P100(dog.p)}% — ${Math.round((dog.cir || 0) * 100)}% thin cirrus/ice cloud with the sun at ${dog.elev.toFixed(0)}° and ${Math.round((dog.sunVis || 0) * 100)}% sun-disk visibility. Look ~22° left & right of the sun.`
           : `Sun dogs ~0% — needs thin cirrus/ice cloud and a visible sun below ~25°; ${Math.round(hi * 100)}% high cloud ${RISE ? "this morning" : "today"}.`,
         look: "22° either side of the sun" },
-      bow: { id: "bow", name: bow.red ? "Red rainbow" : "Rainbow", icon: "🌈", p: P100(bow.p), t: bow.t, red: !!bow.red, win: bowWin,
+      bow: { id: "bow", name: bow.red ? "Red rainbow" : "Rainbow", icon: "🌈", p: P100(bow.p), t: bow.t, red: !!bow.red, win: bowWin, rainEast: bow.rainEast || 0,
         why: bow.p >= 0.03 ? `Rainbow ${P100(bow.p)}% — ${Math.round((bow.rainEast || 0) * 100)}% rain signal to the ${ANTI}${bow.shower ? " (showers)" : ""}, ${SUNSIDE} sky ${Math.round((bow.clearW || 0) * 100)}% clear for sunlight, sun at ${bow.elev.toFixed(0)}° (< 42°). Look ${ANTI}, opposite the sun.${bow.red ? ` Sun this low turns the bow red/orange.` : ""}`
           : `Rainbow ~0% — needs showers to the ${ANTI}, a clear ${SUNSIDE} sky and the sun under 42°; no rain is forecast on the ${ANTI} side.`,
         look: `${ANTI}, opposite the sun` },

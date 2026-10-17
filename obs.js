@@ -43,7 +43,7 @@
     const wnd = L.find(x => x.mph != null);
     return Object.assign({}, L[0], { lm: 0.5 * mean + 0.5 * mx, ceil: ceils.length ? Math.min(...ceils) : null, layers: L.map(x => `${x.station}:${x.layers || "CLR"}`).join(" "),
       // d23: wet only if the nearest station (≤ 12 km) or most stations report precip — KORF rain 17 km away across the water must not gray Buckroe
-      cloudiestLayers: cloudiest.layers, wx: L.some(x => x.wx), dry: !((L[0].dist <= 12 && L[0].dry === false) || L.filter(x => x.dry === false).length > L.length / 2), mph: wnd ? wnd.mph : null, gust: wnd ? wnd.gust : null, wdir: wnd ? wnd.wdir : null,
+      cloudiestLayers: cloudiest.layers, wx: L.some(x => x.wx), shower: L.some(x => x.shower), dry: !((L[0].dist <= 12 && L[0].dry === false) || L.filter(x => x.dry === false).length > L.length / 2), mph: wnd ? wnd.mph : null, gust: wnd ? wnd.gust : null, wdir: wnd ? wnd.wdir : null,
       station: L.map(x => x.station).join("+"), n: L.length });
   }
   // low/mid sky cover from one observation: layers below 20,000 ft (ASOS reports to 12,000 ft; "CLR" = nothing below 12k)
@@ -55,7 +55,8 @@
     const raw = p.rawMessage || "", body = raw.split(" RMK")[0], wx = raw ? /(^|\s)[-+]?(VC)?(SH|TS)?(RA|DZ|SN|FG|BR)\b/.test(body) : (p.presentWeather || []).length > 0;
     const vis = p.visibility && p.visibility.value != null ? p.visibility.value / 1609 : null;
     const kmh = q => q && q.value != null ? q.value / 1.609344 : null;
-    return { vis, mph: kmh(p.windSpeed), gust: kmh(p.windGust), wdir: p.windDirection ? p.windDirection.value : null, fog: /(^|\s)(FG|BR|HZ)\b/.test(raw),
+    const shower = /(^|\s)([-+]?(VC)?SH|[-+]?(TS)?RA\b|TS)/.test(body);   // d23p: rain or showers at / near (VC) the station
+    return { shower, vis, mph: kmh(p.windSpeed), gust: kmh(p.windGust), wdir: p.windDirection ? p.windDirection.value : null, fog: /(^|\s)(FG|BR|HZ)\b/.test(raw),
       lm: clamp(1 - clear + (wx ? 0.1 : 0) + (vis != null && vis < 3 ? 0.15 : 0)), ceil, layers: L.map(l => l.amt + (l.ft != null ? Math.round(l.ft / 100).toString().padStart(3, "0") : "")).join(" "), wx, t: Date.parse(p.timestamp) / 1000, raw };
   }
   async function metar1(s, tSet, retry = 1) {
@@ -67,7 +68,7 @@
       const near = obs.slice(0, 3), lm = near.reduce((q, o) => q + o.lm, 0) / near.length;   // average the 3 reports nearest the event
       const ref = Math.min(n, tSet), recent = obs.filter(o => o.t >= ref - 2400 && o.t <= ref + 900);   // d23: dry = no precip in the reports of the last ~40 min
       const w = obs.find(o => o.mph != null);
-      return { station: s.id, name: s.name, dist: s.d, lm, ceil: obs[0].ceil, layers: obs[0].layers, wx: obs[0].wx, dry: recent.length ? !recent.some(o => o.wx && !o.fog) : null,
+      return { station: s.id, name: s.name, dist: s.d, lm, ceil: obs[0].ceil, layers: obs[0].layers, wx: obs[0].wx, shower: obs.slice(0, 2).some(o => o.shower), dry: recent.length ? !recent.some(o => o.wx && !o.fog) : null,
         mph: w ? w.mph : null, gust: w ? w.gust : null, wdir: w ? w.wdir : null, t: obs[0].t, raw: obs[0].raw };
     } catch (e) { if (retry) { await new Promise(r => setTimeout(r, 1200)); return metar1(s, tSet, 0); } return null; }
   }
@@ -106,7 +107,9 @@
     const az = ((ev.sunsetAz || 270) + 180) % 360;
     const r = await Promise.all([8, 18, 30, 40].map(d => g.Sat.samplePt("radar", ...Object.values(g.Model.offset(sp.lat, sp.lng, az, d)))));
     const ok = r.filter(Boolean); if (!ok.length) return null;
-    return { echo: Math.max(...ok.map(x => x.echo)), heavy: Math.max(...ok.map(x => x.heavy)), at: n };
+    // d23p: per-point >= ~20 dBZ (rain, not drizzle/clutter) fractions; 'wide' = rain at >= 3 of the 4 points and >= 50% on average
+    const rp = r.map(x => x ? x.rain : null), hits = rp.filter(v => v != null && v >= 0.2).length, mean = ok.reduce((a, x) => a + x.rain, 0) / ok.length;
+    return { echo: Math.max(...ok.map(x => x.echo)), rain: mean, pts: rp, hits, wide: hits >= 3 && mean >= 0.5, heavy: Math.max(...ok.map(x => x.heavy)), at: n };
   }
   O.radarAnti = radarAnti;
   // Combine → block 0..1 (sun's light blocked) and gray 0..1 (how far the render/score go flat)
@@ -138,14 +141,19 @@
       if (m0 && m0.dry && ev.wx && ev.wx.items) { ev.wx.items = ev.wx.items.filter(x => x.id !== "rain"); ev.obsDry = true; }
       { const mgE = Math.max(O.modelGray ? O.modelGray(ev, ev.tSet) : 0, clamp(((ev.geoBlock != null ? Math.min(ev.slotBlock || 0, ev.geoBlock + 0.25) : ev.slotBlock || 0) - 0.6) / 0.28));   // d16: score agrees with the gray render for any day (d23: gap-aware)
         if (mgE > 0) { const cap = Math.round(ev.score + (12 - ev.score) * mgE); if (cap < ev.score) { ev.scoreModel = ev.score; ev.score = cap; } } }
-      // d23r: observed showers on the anti-solar side + sun path open + sun under 42° → raise the rainbow odds (and the 🌈 pin)
-      { const R = inW && O.radar[sp.id], B = ev.bonus && ev.bonus.bow;
-        const S0 = O.sat[sp.id], op = Math.max(ev.gapOpen || 0, S0 && S0.path != null ? 1 - clamp((S0.path - 0.15) / 0.45) : 0);
-        if (R && B && R.echo >= 0.06 && op >= 0.25) { const tb = ev.tSet - (g.AG_MODE === "sunrise" ? -900 : 900), el = g.Model.sunPos(tb, sp.lat, sp.lng).elev;
-          if (el < 42) { const p = Math.round(100 * clamp(0.3 + 0.5 * clamp(R.echo * 2.5) * clamp(op * 1.5) + 0.1 * clamp(R.heavy * 5))); if (p > (B.p || 0)) {
+      // d23p: rainbow from OBSERVED evidence (stricter, data-driven). Needs ALL of: (1) rain opposite the sun 8–40 km out — NEXRAD >= ~20 dBZ
+      // at >= 3 of 4 anti-solar points (>= 50% coverage), or, with no radar, a nearby METAR reporting rain/showers (RA/SHRA/VCSH) while the
+      // model has rain there; (2) the sun's light path open (GOES or model); (3) sun 0–42°. Radar that shows NO rain there vetoes a model bow.
+      { const R = inW && O.radar[sp.id], B = ev.bonus && ev.bonus.bow, M0 = inW && O.metar[sp.id];
+        const S0 = O.sat[sp.id], op = S0 && S0.path != null ? 0.6 * (1 - clamp((S0.path - 0.15) / 0.45)) + 0.4 * (ev.gapOpen || 0) : ev.gapOpen || 0;
+        const tb = ev.tSet - (g.AG_MODE === "sunrise" ? -900 : 900), el = g.Model.sunPos(tb, sp.lat, sp.lng).elev;
+        if (B && R && R.hits === 0 && (B.p || 0) > 4) { B.pModel = B.p; B.p = 4; B.why = `Rainbow unlikely — radar shows no rain ${g.AG_MODE === "sunrise" ? "west" : "east"} of here (opposite the sun) near ${g.AG_MODE === "sunrise" ? "sunrise" : "sunset"}.`; if (ev.bow) ev.bow.p = 4; }
+        const evid = R ? R.wide : !!(M0 && M0.shower && (B && B.rainEast > 0));
+        if (B && evid && op >= 0.5 && el > 0 && el < 42) { const p = Math.round(100 * clamp(0.3 + 0.4 * clamp(R ? R.rain : 0.5) * clamp(op) + 0.15 * clamp(R ? R.heavy * 5 : 0)));
+          if (p > (B.p || 0)) {
             B.p = p; B.t = tb; B.red = true; B.win = B.win && B.win.start ? B.win : { start: ev.tSet - (g.AG_MODE === "sunrise" ? 0 : 1800), end: ev.tSet + (g.AG_MODE === "sunrise" ? 1800 : 0) };
-            B.why = `Rainbow ${p}% — radar shows showers ${g.AG_MODE === "sunrise" ? "west" : "east"} (opposite the sun, 8–40 km) while the ${g.AG_MODE === "sunrise" ? "eastern" : "western"} light path is open; low sun = a tall, red-tinged bow. Look ${g.AG_MODE === "sunrise" ? "west" : "east"}.`;
-            if (ev.bow) ev.bow.p = Math.max(ev.bow.p || 0, p); ev.bowObs = R; } } } }
+            B.why = `Rainbow ${p}% — ${R ? `radar shows rain ${g.AG_MODE === "sunrise" ? "west" : "east"} (opposite the sun) at ${R.hits} of 4 points 8–40 km out` : `nearby station reports showers and the model has rain ${g.AG_MODE === "sunrise" ? "west" : "east"}`} while the ${g.AG_MODE === "sunrise" ? "eastern" : "western"} light path is open (${Math.round(op * 100)}%); low sun = a tall, red-tinged bow. Look ${g.AG_MODE === "sunrise" ? "west" : "east"}.`;
+            if (ev.bow) ev.bow.p = Math.max(ev.bow.p || 0, p); ev.bowObs = R || { metar: M0.station }; } } }
       if (!inW) return ev;
       const m = O.metar[sp.id], s = O.sat[sp.id];
       if (m === undefined && s === undefined) return ev;

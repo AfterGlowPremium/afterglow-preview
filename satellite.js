@@ -88,7 +88,7 @@
   }
   // d15: one point → { vis: readVis, ir: readIR } fractions (tiles cached per 5 min)
   // d23r: NEXRAD n0q (IEM) — transparent where no echo; echo = share of pixels with a return, heavy = share in the yellow/red range
-  function readRadar(px) { if (!px.length) return null; const e = px.filter(p => p[3] > 60), hv = e.filter(p => p[0] > 200 && p[1] > 150 && p[2] < 90 || p[0] > 200 && p[1] < 90); return { echo: e.length / px.length, heavy: hv.length / px.length }; }
+  function readRadar(px) { if (!px.length) return null; const e = px.filter(p => p[3] > 60), hv = e.filter(p => p[0] > 200 && p[1] > 150 && p[2] < 90 || p[0] > 200 && p[1] < 90); return { echo: e.length / px.length, rain: e.filter(p => p[1] > p[2] + 10 || p[0] > p[2] + 40).length / px.length, heavy: hv.length / px.length }; }   // d23p rain: green/yellow/red (>= ~20 dBZ), not the blue/cyan drizzle-clutter shades
   async function samplePt(layer, lat, lng) { try { const px = await sample(layer, lat, lng, 6, 4); return layer === "ir" ? readIR(px) : layer === "radar" ? readRadar(px) : readVis(px); } catch (e) { return null; } }
   g.Sat = { tileUrl, readSpot, samplePt, LAYERS };
 })(window);
