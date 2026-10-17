@@ -1,9 +1,9 @@
 // Background music, owned by the shell page (index.html) so it plays straight through every page/view of the app (which runs in the iframe).
 // Track: audio/song2.m4a (Sean's song) with audio/song2.mp3 as fallback — replace both files to change songs.
 // Tries to start as the startup/welcome screen loads; if the browser blocks autoplay, starts on the first touch/click/key anywhere
-// (in the shell or inside the app iframe). 🎵 toggles mute. Fades in/out, loops, remembers "off" (localStorage "afterglow-music").
+// (in the shell or inside the app iframe). 🎵 toggles mute. Fades in/out, loops, remembers "off" (localStorage "afterglow-music2").
 (function () {
-  const KEY = "afterglow-music", VOL = 0.55, FADE = 1200;
+  const KEY = "afterglow-music2", VOL = 0.55, FADE = 1200;
   const SRC = new Audio().canPlayType('audio/mp4; codecs="mp4a.40.2"') ? "audio/song2.m4a" : "audio/song2.mp3";
   const EVS = ["pointerdown", "touchstart", "touchend", "keydown", "click", "wheel"];
   let au = null, raf = 0, on = false, waiting = false;
