@@ -339,6 +339,12 @@ float soupAmt(vec2 xz){
   float band = smoothstep(.0, 1.5, dz) * (1. - smoothstep(gHD - 4., gHD + 2., dz));
   return clamp(pat * band * uMess * 1.6 * smoothstep(.25, .55, uChop), 0., 1.);
 }   // foam distance from the last heroSDF call (foam is volumetric, not a surface)
+// d21 barrel: from ~3 ft up the tube is a pocket in FRONT of the crest (its back wall is the solid face, nothing to see through)
+// and the lip is a thick poured sheet with a rounded edge; 2 ft keeps the v17 geometry
+float tubeB(){ return smoothstep(.6, 1.6, uSurf); }
+vec2 heroC(float Hh){ return mix(vec2(.18, .5), vec2(.38, .55), tubeB()) * Hh; }
+float heroLR(float Hh){ return mix(.5, .59, tubeB()) * Hh; }   /* d21b: lip circle passes through the crest */
+float heroR(float Hh){ return mix(.5, .37, tubeB()) * Hh; }
 float heroSDF(vec3 p, float camM, out float mat, out vec4 info){
   { float cz = p.z + gHD; p = vec3(p.x * .927 + cz * .375, p.y, -p.x * .375 + cz * .927 - gHD); }   // ~22° down-the-line view
   // 2D profile swept along the crest. Phase from distance to the peel point (rel<0 = unbroken, peel moves right→left):
@@ -358,17 +364,17 @@ float heroSDF(vec3 p, float camM, out float mat, out vec4 info){
   float dB = (y - top) * .6;
   dB = max(dB, .02 - y);
   // hollow tube: carve a disc in front, below the crest
-  vec2 q = vec2(s, y), c = vec2(.18 * Hh, .5 * Hh); float r = .5 * Hh;
+  vec2 q = vec2(s, y), c = heroC(Hh); float r = heroR(Hh);
   float carve = pitch * (1. - broke);
   if (carve > .02) dB = max(dB, -(length(q - c) - r * (.55 + .45 * carve)));
   // lip: annulus arc from the back of the crest round past vertical; tip angle falls with pitch
   float dL = 1e3;
   if (pitch > .02 && broke < .95){
-    float a0 = 3.0; float a1 = mix(1.5, -1.25, pitch);
+    float tb = tubeB(); r = mix(r, heroLR(Hh), tb); float a0 = mix(3.0, 2.27, tb); float a1 = mix(mix(1.5, -1.25, pitch), mix(1.1, -1.05, pitch), tb);
     float rag = fbm(vec2(p.x * .9, uSurfT * .7), 0., 3);   // d20: lower-frequency ragged throw (was 2.3 → ribbed stripes)
     a1 += (rag - .5) * .25 * pitch;                                     // ragged, uneven throw along the crest
     float ang = atan(q.y - c.y, q.x - c.x); float u = clamp((a0 - ang) / max(a0 - a1, .1), 0., 1.);
-    float th = (mix(.06, .008, u) * Hh + .008) * (1. - broke) * (.85 + .3 * rag);   // thin sheet, feathered tip
+    float th = mix((mix(.06, .008, u) * Hh + .008) * (1. - broke) * (.85 + .3 * rag), mix(.12, .05, u) * Hh * (1. - .75 * broke) * (.9 + .2 * rag) * smoothstep(.08, .5, pitch), tb);   // thin sheet, feathered tip → (3 ft+) thick poured lip, rounded end cap
     vec2 tip = c + r * vec2(cos(a1), sin(a1));
     dL = (ang < a0 && ang > a1) ? abs(length(q - c) - r) - th : length(q - tip) - th;
   }
@@ -698,14 +704,14 @@ void main(){
         c = refl * F + trans * (1. - F);
         c += sL * pow(max(dot(rv, uSunA), 0.), 120.) * 3. + refl * .12;   // wet: sun glint + sky sheen
         c *= .7 + .45 * fbm(vec2(p.x * 3.5 + y * .4, y * .7 - uSurfT * .3), 0., 4);   // streaks running down the face
-        float pk = mix(1., .35, b * smoothstep(.3 * Hh, -.05, length(vec2(s, y) - vec2(.18 * Hh, .5 * Hh)) - .25 * Hh));   // shadowed pocket
+        float pk = mix(1., .35, b * smoothstep(.3 * Hh, -.05, length(vec2(s, y) - heroC(Hh)) - .5 * heroR(Hh)));   // shadowed pocket
         c *= pk;
         c += sL * front * vec3(1., .85, .62) * .6 * (1. - F);                                   // evening sun on the face
         if (rz > 0.){   // d20 real water: capillary + wind-combed normal detail, fresnel sky reflection, dark deep water at the trough
                         // turning translucent green-gold up the face, golden light scattering through the thin top, foam streaks pulled down from the lip
           vec2 cq = vec2(p.x * 12., y * 17. - uSurfT * 1.4);
           float g1 = 0., g2 = 0.; if (uFast < .5){ g1 = fbm(cq, 0., 3) - .5; g2 = fbm(cq * vec2(2.1, 2.6) + 7.3, 0., 3) - .5; }   // capillaries skipped when the phone drops to fast mode
-          float ov = max(smoothstep(.05, -.45, n.y), smoothstep(.62 * Hh, .4 * Hh, length(vec2(s, y) - vec2(.18 * Hh, .5 * Hh))) * (1. - smoothstep(.5, 3., relT)) * smoothstep(-5., -2., relT) * .9);   // overhang: ceiling / back wall of the tube (normal points down) — the throat
+          float ov = max(smoothstep(.05, -.45, n.y), smoothstep(1.2 * heroR(Hh), .75 * heroR(Hh), length(vec2(s, y) - heroC(Hh))) * (1. - smoothstep(.5, 3., relT)) * smoothstep(-5., -2., relT) * .9);   // overhang: ceiling / back wall of the tube (normal points down) — the throat
           float comb = sin(y * 19. + fbm(vec2(p.x * .2, y * .4), 0., 3) * 6. - uSurfT * .7) * (1. - ov);
           vec3 nd = normalize(n + vec3(g1 * .2, g2 * .12 + comb * .05 * uOff, g1 * .07));
           vec3 rv2 = reflect(rd, nd); rv2.y = max(rv2.y, .004);
@@ -717,10 +723,11 @@ void main(){
           vec3 cr = refl * rmod * (F2 * 1.15 + (.1 + .3 * smoothstep(.3, 1., yr)) * (1. - F2)) + mix(body, sssL, thin) * (1. - F2) * (.85 + .3 * (rmod - 1.));   // fresnel + broad sky sheen on the tilted upper wall
           cr += sL * pow(max(dot(rv2, uSunA), 0.), 90.) * 2.5;                       // sparkle on the capillaries
           cr += sL * front * vec3(1., .85, .62) * .28 * (1. - F2) * (.35 + .65 * yr);  // warm low sun on the wall (not a painted gold)
-          float fs = smoothstep(.56, .8, fbm(vec2(p.x * 1.4 + uSeed.x, y * .22 - uSurfT * .25), 0., 4)) * smoothstep(.35, .95, yr) * (.3 + .4 * uOff);
+          float fs = smoothstep(.56, .8, fbm(vec2(p.x * 1.4 + uSeed.x, y * .22 - uSurfT * .25), 0., 4)) * smoothstep(.35, .95, yr) * (1. - smoothstep(.92, 1.05, y / max(Hh, .1)) * tubeB()) * (.3 + .4 * uOff);   /* d21b: no foam blotches on the poured lip */
           cr = mix(cr, fc * .9, fs * .5);
           float thr = max(clamp((1. - pk) / .65, 0., 1.), ov);   // inside the tube: dark green throat, no mirror-like sky (was concentric reflection rings)
           cr = mix(cr, hz2 * vec3(.03, .06, .055) + sssL * .22, thr * .9);
+          float lipS = smoothstep(.97, 1.1, y / max(Hh, .1)) * tubeB(); cr = mix(cr, cr * vec3(.62, .72, .74) + sL * pow(fwd, 3.) * vec3(.25, .4, .18) * .6, lipS);   /* d21b: lip reads as backlit translucent water, not pale paint */
           c = mix(c, cr * mix(1., pk, .5), rz); }
         float relp = (mod(p.x * .927 + (p.z + gHD) * .375 - heroPX() + 9., 15.) - 9.) * 1.7; float crestFoam = smoothstep(.93, 1., yr) * smoothstep(.45, .75, tex) * (.3 + .7 * smoothstep(-6., 0., relp)) + smoothstep(1., 4., relp) * (1. - smoothstep(5., 9.5, relp)) * smoothstep(.35, .7, tex);
         if (uMess > .01){ float fz = smoothstep(.5, .8, fbm(vec2(p.x * .8 - uSurfT * .5, y * 2.1 + s * 1.4 - uSurfT * .8), 0., 5));   // v17: foam streaks / lace all over the crumbling face + whitecaps on the back
@@ -739,10 +746,10 @@ void main(){
         c = mix(c, fc, smoothstep(.5, .8, tex) * .6);
         { float rz = smoothstep(.6, 1.6, uSurf); if (rz > 0.){   // d20: thrown lip = thin translucent sheet: golden light through it, shaded underside, feathering white edge
           vec3 ol2 = mix(vec3(dot(olive, vec3(.3, .5, .2))), olive, .5) * vec3(.82, 1., 1.08);
-          vec3 sss2 = sky * ol2 * (.8 + .9 * tex) + sL * (front * .45 + pow(fwd, 2.) * 2.) * vec3(.5, .75, .35);
+          float tb2 = tubeB(); vec3 sss2 = sky * ol2 * mix(.8 + .9 * tex, .5 + .5 * tex, tb2) + sL * (front * .45 + pow(fwd, 2.) * 2.) * vec3(.5, .75, .35);
           vec3 cl = refl * F * 1.3 + sss2 * (1. - F) + rim * (sky * vec3(.3, .4, .26) + sL * vec3(.6, .8, .4) * (.3 + fwd));
           cl *= mix(.5, 1., smoothstep(-.3, .4, n.y));
-          cl = mix(cl, fc * 1.05, clamp(smoothstep(.58, .8, tex) * .45 + smoothstep(.55, .75, fbm(vec2(p.x * 2.6 + uSeed.x, p.y * 7. - uSurfT * 1.5), 0., 4)) * .55, 0., .9));   // feathering, spray-torn whitewater along the throwing lip
+          cl = mix(cl, fc * 1.05, clamp(smoothstep(.58, .8, tex) * .45 + smoothstep(.55, .75, fbm(vec2(p.x * 2.6 + uSeed.x, p.y * 7. - uSurfT * 1.5), 0., 4)) * .55, 0., .9) * mix(1., .3, tb2));   /* d21b: thick poured lip keeps its water colour; whitewater only as light feathering */   // feathering, spray-torn whitewater along the throwing lip
           cl *= .78 + .44 * fbm(vec2(p.x * 1.8 + uSeed.y, p.y * 2.6 - uSurfT * .5), 0., 4);   // uneven sheet thickness
           c = mix(c, cl, rz); } }
       } else if (mat < 2.5 && uMess > .01) {   // v17: inside soup — bright bubbly whitewater with lacy holes showing dark water
