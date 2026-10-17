@@ -437,19 +437,20 @@ vec3 aces(vec3 x){ return clamp((x*(2.51*x+.03))/(x*(2.43*x+.59)+.14), 0., 1.); 
 vec3 antiTw(vec3 col, vec3 rd, float e){
   float sEl = asin(clamp(uSun.y, -1., 1.));
   float anti = smoothstep(.15, .85, -dot(normalize(rd.xz + 1e-5), normalize(uSun.xz + 1e-5)));
-  float tw = smoothstep(.075, .01, sEl) * smoothstep(-.15, -.085, sEl) * (1. - uGray) * anti;
+  float tw = smoothstep(.05, .0, sEl) * smoothstep(-.15, -.085, sEl) * (1. - uGray) * anti;
   if (tw <= 0.) return col;
   float shTop = max(-sEl * .8, 0.) + .002, L = dot(col, vec3(.2126,.7152,.0722));
   float shA = smoothstep(.004, -.02, sEl);                                   // the shadow only exists once the sun is down
-  vec3 beltC = L * mix(vec3(1.06, .95, .92), vec3(1.14, .88, .97), smoothstep(.03, -.02, sEl));
-  vec3 shC = L * vec3(.62, .72, 1.02) * .8;
+  vec3 beltC = L * mix(vec3(1.05, .96, .95), vec3(1.12, .86, .98), smoothstep(.02, -.02, sEl)) * .92;   // dusty rose (Sean's Buckroe palette #c9a3b0)
+  vec3 shC = L * vec3(.58, .70, 1.1) * .8;   // Earth's shadow blue-gray (#5e6a86)
   vec3 c = mix(beltC, shC, shA * (1. - smoothstep(shTop - .006, shTop + .01, e)));
   float w = 1. - smoothstep(shTop + .05, shTop + .2, e);
   return mix(col, c, tw * w * .9);
 }
 // ---------- d23: lit ground + shoreline (180° Turn and land views) ----------
 // Lambert surfaces lit by the real sun (Earth-shadowed, cloud-gated transmittance) plus the sky they face; aerial perspective.
-float fsDist(float az){ float k = clamp(abs(az) / .6, 0., 1.); return mix(uFS.x, az < 0. ? uFSv.x : uFSv.y, k) * (smoothstep(uFSv.z - .04, uFSv.z + .04, az) * (1. - smoothstep(uFSv.w - .04, uFSv.w + .04, az))); }
+float fsDist(float az){ float k = clamp(abs(az) / .6, 0., 1.); return mix(uFS.x, az < 0. ? uFSv.x : uFSv.y, k); }
+float fsMask(float az){ return smoothstep(uFSv.z - .05, uFSv.z + .05, az) * (1. - smoothstep(uFSv.w - .05, uFSv.w + .05, az)); }   // shore tapers off into open water
 // facade height (m above the water / ground) at shore coordinate x (m along the shore); kind: 0 trees, 1 house, 2 dune
 float fsTop(float x, out float kind, out float hv){
   float c = floor(x / 16.), hc = h12(vec2(c, 7.3) + uSeed);
@@ -498,18 +499,18 @@ vec3 shadeGround(vec3 ro, vec3 rd, float t, vec2 xz, float type, float sunVis, v
   vec3 alb; float dirT;
   if (type < 1.5){   // sand: grain, wind ripples, footprints; wet sand darker and mirror-like
     float gr = fbm(xz * 9., fp * 9., 3), rip = sin(dot(xz, vec2(.35, 3.1)) + 2. * fbm(xz * .4, fp * .4, 3)) * .5 + .5, fpN = fbm(xz * .9 + 3., fp, 4);
-    alb = vec3(.52, .45, .34) * (.82 + .2 * gr + .08 * rip) * mix(1., .78, smoothstep(.55, .75, fpN));
+    alb = vec3(.52, .46, .36) * (.8 + .26 * gr + .04 * rip) * mix(1., .78, smoothstep(.55, .75, fpN));
     alb = mix(alb, vec3(.24, .21, .16), wet);
     // micro-relief (wind ripples, footprints, scuffs): a low sun rakes across it, so every bump shows — slope from a height field
-    float e = .12; vec2 sd = vec2(0.);
+    float e = .06; vec2 sd = vec2(0.);
     for (int k = 0; k < 2; k++){ vec2 o2 = k == 0 ? vec2(e, 0.) : vec2(0., e);
-      float h0 = fbm(xz * .7, fp * .7, 4) * .25 + (1. - smoothstep(.0, .35, worley(xz * .55 + 11.))) * -.12;
-      float h1 = fbm((xz + o2) * .7, fp * .7, 4) * .25 + (1. - smoothstep(.0, .35, worley((xz + o2) * .55 + 11.))) * -.12;
+      float h0 = fbm(xz * 1.6, fp * 1.6, 4) * .06 + (1. - smoothstep(.0, .3, worley(xz * 1.8 + 11.))) * -.035;
+      float h1 = fbm((xz + o2) * 1.6, fp * 1.6, 4) * .06 + (1. - smoothstep(.0, .3, worley((xz + o2) * 1.8 + 11.))) * -.035;
       sd[k] = (h1 - h0) / e; }
     vec3 N = normalize(vec3(-sd.x, 1., -sd.y) + vec3(0., 0., .0));
     float lam = max(dot(N, uSunA), 0.), keep = 1. - smoothstep(.0, 1.2, fp);   // far away the relief averages out
-    dirT = mix(max(uSunA.y, 0.) + .05 * front * ce, lam, keep * .85);
-    alb *= mix(1., .8 + .4 * smoothstep(-.1, .1, -sd.y * front), keep * .6);
+    dirT = mix(max(uSunA.y, 0.) + .05 * front * ce, lam, keep * .5);
+    alb *= mix(1., .88 + .24 * smoothstep(-.1, .1, -sd.y * front), keep * .5);
     if (uGnd.w > .5){ float dg = smoothstep(uGnd.y - 12., uGnd.y - 3., t) * smoothstep(.42, .62, fbm(xz * vec2(.9, 1.6), fp, 4));   // dune grass / sea oats at the back of the beach
       alb = mix(alb, mix(vec3(.17, .16, .07), vec3(.30, .25, .12), vn(xz * 3.)), dg); dirT = mix(dirT, front * ce * .5 + max(uSunA.y, 0.) * .5, dg); }
   } else {           // grass: blades are near-vertical, so a low sun facing them lights them (front light) — golden-green tips, darker bases
@@ -578,7 +579,7 @@ void main(){
   float gT = rd.y < 0. ? camM0 / -rd.y : 1e9;
   float fsD = uFS.x > 0. ? fsDist(az) : 0.;
   float fsK = 0., fsHv = 0., fsTopH = 0.; vec2 fsLP = vec2(0.); bool fsHit = false;
-  if (fsD > 1. && gT > fsD){ float yH = camM0 + rd.y * fsD; fsLP = vec2(az * fsD + uSeed.x * 3., yH); fsTopH = fsTop(fsLP.x, fsK, fsHv); fsHit = yH < fsTopH; }
+  if (fsD > 1. && gT > fsD){ float yH = camM0 + rd.y * fsD; fsLP = vec2(az * fsD + uSeed.x * 3., yH); fsTopH = fsTop(fsLP.x, fsK, fsHv) * fsMask(az); fsHit = yH < fsTopH; }
   bool gnear = uGnd.x > .5 && rd.y < 0. && gT < uGnd.y && !fsHit;
   bool gfar = uGnd.w > .5 && rd.y < 0. && !fsHit && !gnear;
 
@@ -671,7 +672,7 @@ void main(){
     if (uFS.x > 0.){   // d23: the lit shoreline mirrored in the water
       vec3 rL = reflect(rd, normalize(mix(vec3(0., 1., 0.), n, .45))); rL.y = max(rL.y, .0005);   // rough water smears the land's reflection vertically, it doesn't shred it
       float azr = atan(rL.x, -rL.z), Ds = fsDist(azr), Dr = Ds - tW;
-      if (Dr > 1.){ float yr = rL.y * Dr, kk, hv2; vec2 lp2 = vec2(azr * Ds + uSeed.x * 3., yr); float tp2 = fsTop(lp2.x, kk, hv2);
+      if (Dr > 1.){ float yr = rL.y * Dr, kk, hv2; vec2 lp2 = vec2(azr * Ds + uSeed.x * 3., yr); float tp2 = fsTop(lp2.x, kk, hv2) * fsMask(azr);
         if (yr < tp2){ vec3 Ta2; vec3 hz2 = antiTw(skyRay(ro, normalize(vec3(rr.x, .004, rr.z)), pixA * 2., false, Ta2), rr, .004);
           refl = shadeFacade(ro, rL, Ds, lp2, tp2, kk, hv2, sunVis, hz2, hz2 * 1.15, Ds * pixA * 3.); } } }
     // reflected sun: microfacet glitter
