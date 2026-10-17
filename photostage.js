@@ -55,11 +55,16 @@
     aod *= 1 + Math.max(0, (ev.rhLow || 60) - 70) / 50;
     const seed = (g.Photoreal ? g.Photoreal.hash : () => 0.5)(spot.id + ":" + ev.tSet);
     const C = cloudsAt(spot, ev, t);
-    const OB = g.AGObs && g.AGObs.sceneAt ? g.AGObs.sceneAt(spot, ev, t) : { gray: ev.obs ? ev.obs.gray : 0, haze: 0 };
-    return Object.assign({
+    let OB = g.AGObs && g.AGObs.sceneAt ? g.AGObs.sceneAt(spot, ev, t) : { gray: ev.obs ? ev.obs.gray : 0, haze: 0 };
+    // d17: sky demos (?sky=clear|partly|broken|overcast, ?wx=partly|rain|storm…) show that sky, not today's observations
+    const qp = new URLSearchParams(location.search), skq = qp.get("sky"), wxq = qp.get("wx");
+    const DEMO = { broken: { high: 0.3, mid: 0.75, low: 0.45, block: 0.12, gap: 0.9, midKm: 4 }, partly: { high: 0.35, mid: 0.3, low: 0.2, block: 0.15, gap: 0.8 } }[skq];
+    if (skq || wxq) OB = { gray: skq === "overcast" || wxq === "rain" || wxq === "storm" ? 1 : 0, haze: wxq === "fog" || wxq === "rain" ? 0.6 : 0 };
+    const P = Object.assign({
       elev: pos.elev, sunAzOff: clamp(off + 3, -14, 14),
       high: C.high, mid: C.mid, low: C.low, midKm: C.midKm, gap: C.gap, cloudSrc: C.src,
-      block: Math.max(clamp(ev.slotBlock || 0), OB.gray), gray: OB.gray,   // d16: blocked sun AT THE TIME SHOWN (obs near now, model otherwise) → flat gray aod: clamp(aod + 0.6 * OB.haze, 0.02, 1.2), rh: Math.max((ev.rhLow || 60) / 100, OB.haze > 0 ? 0.9 + 0.08 * OB.haze : 0),
+      // d16: blocked sun AT THE TIME SHOWN (obs near now, model otherwise) → flat gray. d17 fix: aod/rh were commented out by the d15/d16 edit
+      block: Math.max(clamp(ev.slotBlock || 0), OB.gray), gray: OB.gray, aod: clamp(aod + 0.6 * OB.haze, 0.02, 1.2), rh: Math.max((ev.rhLow || 60) / 100, OB.haze > 0 ? 0.9 + 0.08 * OB.haze : 0),
       water: spot.water !== false, pier: spot.type === "Pier" || spot.type === "Boardwalk",
       // horizon features from the geography table (spots.js SCENE) for the direction you face
       shore: spot.water !== false ? ({ open: 0, lowshore: 0.45, islands: 0.6, skyline: 0.35, bridge: 0.3, trees: 0.8, town: 0.6, hills: 0.4 }[spot.far] ?? (spot.obst >= 0.5 ? clamp(spot.obst / 2, 0.25, 1) : 0)) : 0,
@@ -68,7 +73,23 @@
       camH: spot.type === "Summit" ? 0.47 : spot.type === "Bluff" ? 0.025 : spot.type === "Dunes" ? 0.03 : 0.0025,
       ...seaP(spot, ev, t),
       seed, wind: seed * 6.283, dog: ev.dog && ev.dog.p >= 15 && pos.elev > 0.3 && pos.elev < 15 ? clamp(ev.dog.p / 60) : 0,
-    }, opt);
+    }, DEMO || {}, opt);
+    // d17 afterglow regimes (renderer reads glow / under / tops):
+    //  (a) UNDER-LIT: a low/mid deck with an open slot on the horizon toward the sun → light filters underneath, deck bases glow
+    //  (b) TOPS/EDGES: a broken/patchy deck → sunlight catches edges and the higher (mid/high) clouds lit from below/behind
+    //  solid deck with no gap → d16 gray gating (gray = 1) wins; clear sky → gentle glow only
+    const cover = Math.max(P.low || 0, 0.95 * (P.mid || 0));
+    let gapH = Math.max(P.gap || 0, 1 - clamp(P.block || 0));
+    if (OB.w && OB.gapObs != null) gapH = gapH * (1 - OB.w) + OB.gapObs * OB.w;            // satellite: open path toward the sun now
+    const deck = clamp((cover - 0.3) / 0.4);
+    let broken = clamp((cover - 0.15) / 0.2) * (1 - clamp((cover - 0.8) / 0.12));
+    if (OB.w && OB.broken != null) broken = Math.max(broken * (1 - OB.w), OB.broken * OB.w); // METAR BKN/SCT (not OVC) near now
+    const under = deck * clamp((gapH - 0.25) / 0.45);
+    const tops = broken * clamp((P.mid || 0) + 0.7 * (P.high || 0) + 0.4 * (P.low || 0));
+    const clearSky = cover < 0.1 && (P.high || 0) < 0.15;
+    P.under = under * (1 - P.gray); P.tops = tops * (1 - P.gray);
+    P.glow = (1 - P.gray) * (clearSky ? 1.0 : 1.15 + 0.3 * under + 0.2 * tops);
+    return P;
   }
 
   function draw(canvas, spot, ev, t, opt = {}) {

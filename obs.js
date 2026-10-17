@@ -143,7 +143,9 @@
     if (m) { ob = clamp((m.lm - 0.6) / 0.28); if (m.lm >= 0.85 && m.ceil != null && m.ceil < 10000) ob = 1; }
     if (s) ob = Math.max(ob, m ? clamp((0.5 * s.path + 0.5 * s.here - 0.6) / 0.28) : clamp((Math.max(s.here, s.path) - 0.6) / 0.28));
     const haze = m ? clamp((m.vis != null ? (3 - m.vis) / 2.5 : 0) + (m.wx ? 0.35 : 0) + (m.fog ? 0.35 : 0)) : 0;
-    return { gray: clamp(w * ob + (1 - w) * mg), haze: w * haze, src: m ? `METAR ${m.station} ${m.layers || "CLR"}` : "GOES", metar: m, w };
+    const broken = m ? (m.lm >= 0.3 && m.lm < 0.85 && !/OVC|VV/.test(m.layers || "") ? 1 : 0) : null;   // d17: BKN/SCT deck with gaps
+    const gapObs = s ? clamp(1 - s.path) : null;
+    return { gray: clamp(w * ob + (1 - w) * mg), haze: w * haze, src: m ? `METAR ${m.station} ${m.layers || "CLR"}` : "GOES", metar: m, w, broken, gapObs };
   };
   O.refresh = async (spots, results, day) => {
     if (day !== 0) return false;

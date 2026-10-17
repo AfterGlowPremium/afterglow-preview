@@ -43,6 +43,7 @@ uniform float uOff;     // DRAFT: offshore wind 0..1 (grooms faces, spray blown 
 uniform float uSurfT;   // DRAFT: wave clock (s)
 uniform float uSurfL;
 uniform vec3 uTint; uniform float uBack;   // DRAFT: dials from looks.js — water tint, backlight scale
+uniform float uGlow; uniform float uUnder; uniform float uTops;   // d17 afterglow regimes
 uniform float uFast; uniform float uGray; uniform float uHero; uniform float uHeroD; uniform float uMess;
    // v17: uMess 0 clean … 1 blown-out onshore crumbler
     // DRAFT: 1 = hero curling barrel wave (own shape) at uHeroD metres   // DRAFT: breaker spacing (m)   // wave motion phase (advances with the slider / Play)
@@ -210,11 +211,14 @@ vec3 cloudShade(int L, vec3 P, vec3 rd, float t, float pixA, out float alpha){
   float shadow = exp(-tauS) ;
   float ms = .35 * exp(-tauS*.25);          // multiple scattering keeps cores glowing
   vec3 Ts = sunT(P + up*lh.y*.5, sun);
-  float lightIn = L == 2 ? 1. - .55*uBlock : 1. - .9*uBlock*uBlock;
+  float bEff = uBlock * (1. - .6 * uBlockGap);   // d17: an open slot on the horizon lets light under the deck
+  float lightIn = L == 2 ? 1. - .55*bEff : 1. - .9*bEff*bEff;
   float cs = dot(rd, sun);
   float ph = mix(phHG(cs, .65), phHG(cs, -.1), .45) ;
   float fwd = mix(1., .35, clamp(tauV*.25, 0., 1.)); // thick cores block the forward lobe
   vec3 direct = ESUN * Ts * lightIn * (ph*fwd*4.*PI*.12 + .05) * (shadow + ms) ;
+  // d17: (a) under-lit deck bases when the sun is below the deck and the horizon is open; (b) broken deck → lit edges/tops, higher layers lit from below
+  direct *= uGlow * (1. + uUnder * 1.2 * (1. - above) * (L < 2 ? 1. : .5) + uTops * (L >= 1 ? .7 : .3));
   // ambient: blue skylight from above + warm horizon light
   vec3 hA = sunT(P + up*2.5, sun), hB = sunT(P + up*12., sun);
   float skyLit = dot(hA, vec3(.25,.45,.3))*.75 + dot(hB, vec3(.25,.45,.3))*.25;
@@ -224,7 +228,7 @@ vec3 cloudShade(int L, vec3 P, vec3 rd, float t, float pixA, out float alpha){
   amb *= mix(L == 0 ? .6 : .8, 1., clamp(dot(Ts, vec3(.33)) * 25., 0., 1.));
   // internal texture: thin edges glow (silver lining), thick cores go darker when back-lit
   float tex = L == 0 ? (.8 + .4*fbm(xz*.08 + 3., fp*.08, 4)) : (.55 + .9*fbm(xz*(L == 1 ? 5. : 1.3) + 17., fp*(L == 1 ? 5. : 1.3), 5));
-  float rim = (1. - smoothstep(.0, .55, d)) * smoothstep(.2, 1., cs) * 2.5;
+  float rim = (1. - smoothstep(.0, .55, d)) * smoothstep(.2, 1., cs) * 2.5 * (1. + .8 * uTops);
   return (direct * (tex + rim) + amb * mix(1., tex, .6)) * (L == 0 ? 1.15 : 1.);
 }
 
@@ -783,7 +787,7 @@ void main(){
     const W = P.w || canvas.clientWidth || 600, H = P.h || canvas.clientHeight || 340;
     const w = Math.max(64, Math.round(W * dpr * sc)), h = Math.max(48, Math.round(H * dpr * sc));
     if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
-    gl.viewport(0, 0, w, h); gl.useProgram(pr); if (U.uFast) gl.uniform1f(U.uFast, P.fast ? 1 : 0); if (U.uGray) gl.uniform1f(U.uGray, clamp(P.gray || 0));
+    gl.viewport(0, 0, w, h); gl.useProgram(pr); if (U.uFast) gl.uniform1f(U.uFast, P.fast ? 1 : 0); if (U.uGray) gl.uniform1f(U.uGray, clamp(P.gray || 0)); if (U.uGlow) { gl.uniform1f(U.uGlow, P.glow != null ? P.glow : 1); gl.uniform1f(U.uUnder, P.under || 0); gl.uniform1f(U.uTops, P.tops || 0); }
     const d2r = Math.PI / 180, e = P.elev * d2r, ea = (P.elev + refr(P.elev)) * d2r, az = (P.sunAzOff || 0) * d2r;
     const dir = (el) => [Math.cos(el) * Math.sin(az), Math.sin(el), -Math.cos(el) * Math.cos(az)];
     gl.uniform2f(U.uRes, w, h);
