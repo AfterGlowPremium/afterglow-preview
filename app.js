@@ -642,6 +642,7 @@
       else showPhotos(t);
       if (dragging && o.mode === "live" && !hqT) hqT = setTimeout(() => { hqT = 0; dragging = false; queue(); }, 160);   // v17 fix: surf re-renders no longer cancel the full-res pass (scene stuck low-res after a drag)
       wxT = t; wxC = window.Wx && (o.mode === "live" || window.AGX) ? Wx.conditions(ev, t, o.elev) : null;
+      { const Nw = window.AGObs && AGObs.now[sp.id], mo = Nw && Nw.metar; if (wxC && wxC.rain && (ev.obsDry || (mo && mo.dry && Math.abs(t - Date.now() / 1000) < 7200))) { wxC.rain = 0; wxC.rainName = null; } }   // d23: no model rain drawn once every nearby station reports it has stopped
       if (wxC) { if (o.mode !== "live") { wxC.rain = wxC.snow = wxC.fog = wxC.bolt = wxC.bow = 0; }   // canvas fallback draws its own weather
         const fw = turned ? (sp.behind && sp.behind.water) : sp.water, s0 = ev.s || {};
         wxC.wdir = wNow.wdir; wxC.wind = wNow.wind != null ? wNow.wind : wxC.wind; { const dm = window.AGX && AGX.sea(sp, {}); if (dm && dm.demo && dm.mph != null) { wxC.wind = dm.mph; wxC.wdir = dm.wdir; } } wxC.faceAz = turned ? (ev.sunsetAz + 180) % 360 : ev.sunsetAz;

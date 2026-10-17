@@ -64,7 +64,7 @@
       elev: pos.elev, sunAzOff: clamp(off + 3, -14, 14),
       high: C.high, mid: C.mid, low: C.low, midKm: C.midKm, gap: C.gap, cloudSrc: C.src,
       // d16: blocked sun AT THE TIME SHOWN (obs near now, model otherwise) → flat gray. d17 fix: aod/rh were commented out by the d15/d16 edit
-      block: Math.max(clamp(ev.slotBlock || 0), OB.gray), gray: OB.gray, aod: clamp(aod + 0.6 * OB.haze, 0.02, 1.2), rh: Math.max((ev.rhLow || 60) / 100, OB.haze > 0 ? 0.9 + 0.08 * OB.haze : 0),
+      block: Math.max(clamp(ev.geoBlock != null ? Math.min(ev.slotBlock || 0, ev.geoBlock + 0.25) : ev.slotBlock || 0), OB.gray), gray: OB.gray,   // d23: light-geometry path (low cloud far out), not the near deck aod: clamp(aod + 0.6 * OB.haze, 0.02, 1.2), rh: Math.max((ev.rhLow || 60) / 100, OB.haze > 0 ? 0.9 + 0.08 * OB.haze : 0),
       water: spot.water !== false, pier: spot.type === "Pier" || spot.type === "Boardwalk",
       // horizon features from the geography table (spots.js SCENE) for the direction you face
       shore: spot.water !== false ? ({ open: 0, lowshore: 0.45, islands: 0.6, skyline: 0.35, bridge: 0.3, trees: 0.8, town: 0.6, hills: 0.4 }[spot.far] ?? (spot.obst >= 0.5 ? clamp(spot.obst / 2, 0.25, 1) : 0)) : 0,
@@ -79,8 +79,13 @@
     //  (a) UNDER-LIT: a low/mid deck with an open slot on the horizon toward the sun → light filters underneath, deck bases glow
     //  (b) TOPS/EDGES: a broken/patchy deck → sunlight catches edges and the higher (mid/high) clouds lit from below/behind
     //  solid deck with no gap → d16 gray gating (gray = 1) wins; clear sky → gentle glow only
+    // d23 gap lighting: once the sun is under the deck with an open path, the deck reads as BROKEN cells lit gold-orange from below with
+    // deep purple-blue gaps (Oct 17 Hampton ground truth), not a flat 100% sheet — open the rendered cover a little and light the edges.
+    const gw = !DEMO && !skq && !wxq ? clamp(OB.gapW || 0) : 0;
+    if (gw > 0) { P.low = Math.min(P.low || 0, 1 - 0.38 * gw); P.mid = Math.min(P.mid || 0, 1 - 0.22 * gw); }
     const cover = Math.max(P.low || 0, 0.95 * (P.mid || 0));
     let gapH = Math.max(P.gap || 0, 1 - clamp(P.block || 0));
+    if (ev.gapOpen != null && !DEMO && !skq) gapH = Math.max(gapH, ev.gapOpen);   // d23: model light-geometry gap (40/120/200 km low cloud)
     if (OB.w && OB.gapObs != null) gapH = gapH * (1 - OB.w) + OB.gapObs * OB.w;            // satellite: open path toward the sun now
     const deck = clamp((cover - 0.3) / 0.4);
     let broken = clamp((cover - 0.15) / 0.2) * (1 - clamp((cover - 0.8) / 0.12));
@@ -88,8 +93,8 @@
     const under = deck * clamp((gapH - 0.25) / 0.45);
     const tops = broken * clamp((P.mid || 0) + 0.7 * (P.high || 0) + 0.4 * (P.low || 0));
     const clearSky = cover < 0.1 && (P.high || 0) < 0.15;
-    P.under = under * (1 - P.gray); P.tops = tops * (1 - P.gray);
-    P.glow = (1 - P.gray) * (clearSky ? 1.0 : 1.15 + 0.3 * under + 0.2 * tops);
+    P.under = under * (1 - P.gray) * (gw > 0 ? 0.42 : 1); P.tops = Math.max(tops, 0.3 * gw) * (1 - P.gray);   // d23: visible, not a wall-to-wall orange wash
+    P.glow = (1 - P.gray) * (clearSky ? 1.0 : gw > 0 ? 0.92 + 0.12 * P.under + 0.1 * P.tops : 1.15 + 0.3 * under + 0.2 * tops);
     return P;
   }
 

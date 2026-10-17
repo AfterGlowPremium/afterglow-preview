@@ -134,13 +134,24 @@
     const peakMin = { high: 12, mid: 6, low: 2, clear: 5 }[dom];
     const depress = hKm ? Math.sqrt(2 * hKm / 6371) * DEG + 0.5 : 6; // §1.4 depression angle at which cloud stops being lit
     const glowEnd = RISE ? (timeBeforeBelow(tSet, lat, lng, -depress, 120) || tSet - 20 * 60) : (timeAtElev(tSet, lat, lng, -depress, 120) || tSet + 20 * 60);
-    const timing = { rise: RISE, golden, sunset: tSet, peak: tSet + (RISE ? -1 : 1) * peakMin * 60, glowEnd, civilEnd, dom, twilightMin: civilEnd ? Math.round(Math.abs(civilEnd - tSet) / 60) : null };
+    let timing = { rise: RISE, golden, sunset: tSet, peak: tSet + (RISE ? -1 : 1) * peakMin * 60, glowEnd, civilEnd, dom, twilightMin: civilEnd ? Math.round(Math.abs(civilEnd - tSet) / 60) : null };
 
     // ---- §2.4 western clear slot (low + ½ mid along the sun azimuth, 40/120/200 km) ----
     const blockAt = p => clamp((p.low + 0.5 * p.mid) / 100);
     const slotBlock = 0.45 * blockAt(path[0]) + 0.35 * blockAt(path[1]) + 0.2 * blockAt(path[2]);
     const pathLow = 0.45 * path[0].low + 0.35 * path[1].low + 0.2 * path[2].low;
     const slotQ = pw(slotBlock, [[0, 1], [0.3, 0.85], [0.5, 0.5], [0.7, 0.15], [0.9, 0]]);
+    // ---- d23 GAP LIGHTING (Buckroe, Oct 17 2026: deck overhead, open slot 110–140 km WSW → sun shone in under the deck, rated 94) ----
+    // Light geometry: at sunset the ray that lights a deck base h km up grazes the ground ~sqrt(2Rh) km out (≈200 km for 3 km,
+    // ≈130 km for 1.3 km) and is only a few hundred metres up 100+ km out. So what blocks it is LOW cloud far along the azimuth;
+    // mid cloud out there sits above the ray, and the near (40 km) point is mostly the deck we want lit (only its low cloud counts).
+    const blkGeo = p => clamp(((p.low || 0) + 0.35 * (p.mid || 0)) / 100);
+    const geoBlock = clamp(0.15 * clamp((path[0].low || 0) / 100) + 0.45 * blkGeo(path[1]) + 0.4 * blkGeo(path[2]));
+    const gapOpen = clamp((0.6 - geoBlock) / 0.45);                   // ≤ 0.15 blocked → fully open, ≥ 0.6 → shut
+    const deckQ = clamp((Math.max(lo, 0.95 * md) - 0.25) / 0.3);       // broken (≥ ~55%) or solid low/mid cloud overhead catches the light — broken Cu/Sc lit from below is TOP tier (Oct 17 batch 2)
+    const gapLit = gapOpen * deckQ;                                    // 0..1 strength of the under-the-deck regime
+    // under-lit deck afterglow runs ~0–25 min after sunset (purples/magenta/pink on the deck bases), peak ~8 min
+    if (gapLit >= 0.35) timing = Object.assign({}, timing, { peak: tSet + (RISE ? -1 : 1) * 8 * 60, glowEnd: tSet + (RISE ? -1 : 1) * 25 * 60, gapLit: true });
 
     // ---- §2.1/2.2 screen quality ----
     const highQ = pw(hi, [[0, 0], [0.1, 0.3], [0.2, 0.85], [0.3, 1], [0.7, 1], [0.9, 0.6], [1, 0.45]]);
@@ -197,12 +208,22 @@
     sky *= season;
 
     // ---- §0 gates ----
+    // d23: gap-lit deck — the classic "sun slips under the deck" sunset. Score from the gap, the deck and the air, not the overhead cover.
+    let gapSky = 0;
+    const covX = Math.max(lo, 0.95 * md), brkQ = clamp((covX - 0.35) / 0.15) * (1 - clamp((covX - 0.85) / 0.1));   // broken (not solid): lit edges + purple gaps everywhere
+    if (gapLit > 0.05) { gapSky = (48 + 38 * gapLit * (0.6 + 0.4 * clean) + 6 * syn + 7 * brkQ * gapOpen) * season; if (gapSky > sky) sky += (gapSky - sky) * clamp(gapLit * 1.4); }
     const gates = [];
     if (hi + md < 0.1) { sky = Math.min(sky, 55); gates.push("Clear sky: capped at 55 — pretty gradient, nothing to paint."); }
     if (s.vis != null && s.vis < 4830) { sky = Math.min(sky, 45); gates.push("Visibility under ~3 mi: capped at Fair."); }
-    if (pathLow >= 90 || Math.max(path[0].low, path[1].low) >= 95) { sky = Math.min(sky, 20); gates.push(`Low overcast along the ${EV} path (out to ~200 km): light can't reach the clouds — Poor.`); }
-    if ((s.precip || 0) >= 0.2 || [45, 48].includes(s.code)) { sky = Math.min(sky, 20); gates.push(`${[45, 48].includes(s.code) ? "Fog" : "Rain"} at the spot at ${EV} — Poor for color (rainbow scored separately).`); }
-    if (s.total >= 95 && slotBlock >= 0.85) { sky = Math.min(sky, 20); gates.push(`Full overcast with no ${dir} gap — Poor.`); }
+    // d23: a low deck at 40 km alone is the deck being lit, not a wall (Wickham/Windmill Pt Oct 17) — it blocks only with low cloud at 120 km too
+    if (pathLow >= 90 || path[1].low >= 95 || (path[0].low >= 95 && path[1].low >= 60)) { sky = Math.min(sky, 20); gates.push(`Low overcast along the ${EV} path (out to ~200 km): light can't reach the clouds — Poor.`); }
+    if (s.total >= 95 && slotBlock >= 0.85 && geoBlock >= 0.5) { sky = Math.min(sky, 20); gates.push(`Full overcast with no ${dir} gap — Poor.`); }
+    const skyDryR = Math.round(clamp(sky, 0, 100));   // d23: everything but the model-rain gate (obs.js lifts that gate when stations say the rain has stopped)
+    if ((s.precip || 0) >= 0.2 || [45, 48].includes(s.code)) {
+      // d23: rain ending with the sun under the deck = dramatic, not gray. Soft cap when the path is open and it's only light model rain.
+      const soft = [45, 48].includes(s.code) ? 0 : gapOpen >= 0.5 && (s.precip || 0) < 2 ? 55 + 20 * gapOpen : 0;
+      sky = Math.min(sky, Math.max(20, soft)); gates.push(soft ? `Model rain at ${EV} (${(s.precip || 0).toFixed(1)} mm) with an open ${dir} gap — showers ending under a lit deck; capped at ${Math.round(soft)} until observations confirm it's dry.` : `${[45, 48].includes(s.code) ? "Fog" : "Rain"} at the spot at ${EV} — Poor for color (rainbow scored separately).`);
+    }
     sky = Math.round(clamp(sky, 0, 100));
 
     // ---- §9 site fit ----
@@ -217,9 +238,11 @@
     const windQ = !sp.water ? 0.8 : mph < 5 ? 1 : mph < 15 ? 0.9 : 0.7;
     const site = Math.round(100 * (0.45 * alignQ + 0.25 * obstQ + 0.2 * waterQ + 0.1 * windQ));
     const score = Math.round(sky * (0.78 + 0.22 * site / 100));
+    const scoreDry = Math.max(score, Math.round(skyDryR * (0.78 + 0.22 * site / 100)));
 
     // ---- reasons ----
     const R = [];
+    if (gapLit >= 0.35) R.push(`Sun slips under the deck: ${Math.round(Math.max(lo, md) * 100)}% cloud overhead but the light path ${RISE ? "east" : "west"} is open (${Math.round(geoBlock * 100)}% blocked at low level out to ~200 km) — bright horizon band, lit cloud bottoms and edges, then purple/magenta/pink deck undersides ~0–25 min after ${EV}.`);
     if (slotBlock < 0.25) R.push(`${DIR} light path is open — sunlight can reach the clouds.`);
     else if (slotBlock < 0.55) R.push(`Partial ${dir} gap (${Math.round(slotBlock * 100)}% blocked along the ${EV} line).`);
     else R.push(`${DIR} light path mostly blocked (${Math.round(slotBlock * 100)}%) by low/mid cloud — biggest risk.`);
@@ -359,7 +382,7 @@
     else if (age >= 1.2 && age <= 4.5) badges.push({ id: "moon", name: "Crescent moon", p: 60, t: tSet + 20 * 60, icon: "🌒", why: "Thin crescent low in the west in the afterglow." });
 
     return { tSet, score, sky, site, s, path, priorRain, reasons: R, gates, comp, badges, bonus, wx, tri, dog: { p: pct(dog.p), t: dog.t }, bow: { p: pct(bow.p), t: bow.t },
-      sea, clouds: cloudTypes(s), sunsetAz: az, canvasCover, slotBlock, clean, rhLow, dewDep, dP6, dP24, dDew, fropaH, front, timing,
+      sea, clouds: cloudTypes(s), sunsetAz: az, canvasCover, slotBlock, geoBlock, gapOpen, gapLit, deckQ, scoreDry, clean, rhLow, dewDep, dP6, dP24, dDew, fropaH, front, timing,
       windSer, siteInfo: { inArc, off, alignQ, obst: sp.obst, water: sp.water, surface, arc: sp.arc }, season, screen };
   }
 
