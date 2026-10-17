@@ -22,6 +22,9 @@ uniform float uRH;      // low-level relative humidity 0..1
 uniform float uExpo;
 uniform float uWater, uPier, uShore, uHills;
 uniform float uCity, uBridge;
+uniform vec4 uGnd;   // d23 ground: x near-ground type (0 none, 1 sand beach, 2 marsh grass, 3 lawn/park), y near depth m, z far-ground type (land views), w 1 = land-only view
+uniform vec4 uFS;    // d23 lit shoreline/land facade: x distance m (0 = open water), y tree height m, z house fraction 0..1, w dune fraction 0..1
+uniform vec4 uFSv;   // d23: x distance at the left edge (m), y at the right edge, z/w azimuth range (rad) where the shore exists
 uniform float uCamH;    // camera height km
 uniform float uPitch, uFov;
 uniform vec2 uSeed;
@@ -58,6 +61,7 @@ const vec3 BR = vec3(5.802e-3, 13.558e-3, 33.1e-3);
 const vec3 BO = vec3(0.650e-3, 1.881e-3, 0.085e-3);
 const float ESUN = 22.0;
 float BMs, BMe;
+float gGnd = 0.;   // d23: 1 on lit ground/shore pixels (keeps some colour under overcast, like the real marsh grass)
 
 // ---------- noise ----------
 float h12(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * .1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
@@ -427,6 +431,100 @@ float heroSDF(vec3 p, float camM, out float mat, out vec4 info){
 
 vec3 aces(vec3 x){ return clamp((x*(2.51*x+.03))/(x*(2.43*x+.59)+.14), 0., 1.); }
 
+
+// d23 anti-twilight opposite the sun: pale cream-pink arch before sunset, then the rose Belt of Venus over the blue-gray Earth's
+// shadow rising from the horizon as the sun sinks (few-step single scattering otherwise smears it into an orange band). e = elevation above the horizon (rad)
+vec3 antiTw(vec3 col, vec3 rd, float e){
+  float sEl = asin(clamp(uSun.y, -1., 1.));
+  float anti = smoothstep(.15, .85, -dot(normalize(rd.xz + 1e-5), normalize(uSun.xz + 1e-5)));
+  float tw = smoothstep(.075, .01, sEl) * smoothstep(-.15, -.085, sEl) * (1. - uGray) * anti;
+  if (tw <= 0.) return col;
+  float shTop = max(-sEl * .8, 0.) + .002, L = dot(col, vec3(.2126,.7152,.0722));
+  float shA = smoothstep(.004, -.02, sEl);                                   // the shadow only exists once the sun is down
+  vec3 beltC = L * mix(vec3(1.06, .95, .92), vec3(1.14, .88, .97), smoothstep(.03, -.02, sEl));
+  vec3 shC = L * vec3(.62, .72, 1.02) * .8;
+  vec3 c = mix(beltC, shC, shA * (1. - smoothstep(shTop - .006, shTop + .01, e)));
+  float w = 1. - smoothstep(shTop + .05, shTop + .2, e);
+  return mix(col, c, tw * w * .9);
+}
+// ---------- d23: lit ground + shoreline (180° Turn and land views) ----------
+// Lambert surfaces lit by the real sun (Earth-shadowed, cloud-gated transmittance) plus the sky they face; aerial perspective.
+float fsDist(float az){ float k = clamp(abs(az) / .6, 0., 1.); return mix(uFS.x, az < 0. ? uFSv.x : uFSv.y, k) * (smoothstep(uFSv.z - .04, uFSv.z + .04, az) * (1. - smoothstep(uFSv.w - .04, uFSv.w + .04, az))); }
+// facade height (m above the water / ground) at shore coordinate x (m along the shore); kind: 0 trees, 1 house, 2 dune
+float fsTop(float x, out float kind, out float hv){
+  float c = floor(x / 16.), hc = h12(vec2(c, 7.3) + uSeed);
+  float house = step(1. - uFS.z, hc) * (1. - uFS.w);
+  float fx = fract(x / 16.);
+  float hh = (5.5 + 5. * h12(vec2(c, 2.1))) * smoothstep(.06, .12, fx) * (1. - smoothstep(.82, .88, fx));
+  float roof = hh > 0. ? hh + 2.2 * (1. - abs(fx - .47) * 2.4) : 0.;   // gable
+  float crowns = fbm(vec2(x * .05, 1.3) + uSeed, 0., 4), xw = x + 5. * fbm(vec2(x * .04, 2.2), 0., 3), cx = fract(xw / 6.) - .5, hc2 = h12(vec2(floor(xw / 6.), 1.7));
+  float bump = sqrt(max(0., 1. - 4. * cx * cx)) * (.55 + .45 * hc2) + .08 * vn(vec2(x * .35, 4.1));   // individual crowns, softly rounded
+  float tree = uFS.y * (.58 + .3 * crowns + .2 * bump) * (1. - uFS.w) * (1. - .55 * house * step(.001, roof));
+  float dune = uFS.w * (2.2 + 3.2 * fbm(vec2(x * .02, 9.) + uSeed, 0., 4) + .5 * vn(vec2(x * .9, 3.)));
+  float top = max(max(tree, house * roof), dune);
+  kind = house * roof >= tree && house > .5 ? 1. : dune > tree ? 2. : 0.; hv = house * hh;
+  return top;
+}
+vec3 landAlb(float kind, vec2 lp, float hv, float fp){
+  if (kind > 1.5){ float g = smoothstep(.45, .7, fbm(lp * vec2(.9, 2.6), fp, 4)) * smoothstep(.6, 2.5, lp.y);
+    return mix(vec3(.40, .35, .26), vec3(.20, .19, .09), g); }
+  if (kind > .5){ float c = floor(lp.x / 16.); vec3 wall = mix(mix(vec3(.62,.60,.56), vec3(.55,.50,.42), h12(vec2(c,3.))), vec3(.42,.50,.58), step(.75, h12(vec2(c,5.))));
+    float fx = fract(lp.x / 16.), wy = fract(lp.y / 3.), win = step(.3, fract(fx * 5.)) * step(fract(fx * 5.), .62) * step(.35, wy) * step(wy, .75);
+    if (lp.y > hv) return vec3(.07, .065, .06) * (.8 + .4 * vn(lp * vec2(2., 6.)));   // shingle roof
+    wall *= (.9 + .1 * step(.5, fract(lp.y * 3.3))) * (1. - .45 * smoothstep(hv - .7, hv, lp.y)) * (.85 + .3 * h12(vec2(c, 9.)));   // lap siding, shadow under the eave, per-house tone
+    return mix(wall, vec3(.03, .035, .04), win * .8 * step(.8, lp.y)); }
+  float n = fbm(lp * vec2(.12, .15), fp * .12, 4), n2 = vn(lp * vec2(.25, .3));
+  vec3 g0 = vec3(.04, .062, .032), g1 = vec3(.075, .095, .047), au = vec3(.115, .088, .05);   // pine/oak green → olive → late-October bronze
+  return mix(mix(g0, g1, n), au, smoothstep(.6, .85, n2) * .45);
+}
+// shade a vertical land facade point seen along rd at distance d (m); lp = (x along shore, y height) m
+vec3 shadeFacade(vec3 ro, vec3 rd, float d, vec2 lp, float top, float kind, float hv, float sunVis, vec3 hzS, vec3 amb, float fp){
+  vec3 alb = landAlb(kind, lp, hv, fp);
+  vec2 rh = normalize(rd.xz + 1e-5), sh = normalize(uSunA.xz + 1e-5);
+  float front = max(dot(-rh, sh), 0.), ce = sqrt(max(1. - uSunA.y * uSunA.y, 0.));
+  vec3 sunL = ESUN * sunT(ro, uSunA) * sunVis * smoothstep(-.012, .012, uSunA.y) / PI;
+  float relief = kind < .5 ? mix(1.08, .5, smoothstep(.2, .9, worley(lp * vec2(.24, .3) + 3. + 1.6 * vec2(fbm(lp * .08, fp * .08, 3), fbm(lp * .08 + 7., fp * .08, 3))))) * mix(.72, 1.12, fbm(lp * vec2(1.1, 1.4), fp * 1.2, 4)) : kind > 1.5 ? mix(.6, 1.1, fbm(lp * vec2(.3, 1.), fp, 3)) : 1.;   // crown bumps / dune ripples catch the light unevenly
+  float ao = mix(.45, 1., clamp(lp.y / max(top, 1.), 0., 1.));
+  float rim = kind < .5 ? smoothstep(top - 1.6, top, lp.y) * .35 : 0.;   // sunlit crown tops
+  vec3 c = alb * (sunL * (front * ce * relief + rim * front) + amb * ao * (kind > .5 && kind < 1.5 ? 1. : mix(.7, 1.05, relief)));
+  float fog = 1. - exp(-d * .001 * (BMe * 1.3 + BR.g));
+  return mix(c, hzS * .95, clamp(fog, 0., 1.));
+}
+// ground plane (y = 0) at world xz; type 1 sand, 2 marsh grass, 3 lawn; wet = 0..1 wet sand near the water line
+vec3 shadeGround(vec3 ro, vec3 rd, float t, vec2 xz, float type, float sunVis, vec3 amb, vec3 skyR, float fp, float wet){
+  vec2 rh = normalize(rd.xz + 1e-5), sh = normalize(uSunA.xz + 1e-5);
+  float front = max(dot(-rh, sh), 0.), ce = sqrt(max(1. - uSunA.y * uSunA.y, 0.));
+  vec3 sunL = ESUN * sunT(ro, uSunA) * sunVis * smoothstep(-.012, .012, uSunA.y) / PI;
+  vec3 alb; float dirT;
+  if (type < 1.5){   // sand: grain, wind ripples, footprints; wet sand darker and mirror-like
+    float gr = fbm(xz * 9., fp * 9., 3), rip = sin(dot(xz, vec2(.35, 3.1)) + 2. * fbm(xz * .4, fp * .4, 3)) * .5 + .5, fpN = fbm(xz * .9 + 3., fp, 4);
+    alb = vec3(.52, .45, .34) * (.82 + .2 * gr + .08 * rip) * mix(1., .78, smoothstep(.55, .75, fpN));
+    alb = mix(alb, vec3(.24, .21, .16), wet);
+    // micro-relief (wind ripples, footprints, scuffs): a low sun rakes across it, so every bump shows — slope from a height field
+    float e = .12; vec2 sd = vec2(0.);
+    for (int k = 0; k < 2; k++){ vec2 o2 = k == 0 ? vec2(e, 0.) : vec2(0., e);
+      float h0 = fbm(xz * .7, fp * .7, 4) * .25 + (1. - smoothstep(.0, .35, worley(xz * .55 + 11.))) * -.12;
+      float h1 = fbm((xz + o2) * .7, fp * .7, 4) * .25 + (1. - smoothstep(.0, .35, worley((xz + o2) * .55 + 11.))) * -.12;
+      sd[k] = (h1 - h0) / e; }
+    vec3 N = normalize(vec3(-sd.x, 1., -sd.y) + vec3(0., 0., .0));
+    float lam = max(dot(N, uSunA), 0.), keep = 1. - smoothstep(.0, 1.2, fp);   // far away the relief averages out
+    dirT = mix(max(uSunA.y, 0.) + .05 * front * ce, lam, keep * .85);
+    alb *= mix(1., .8 + .4 * smoothstep(-.1, .1, -sd.y * front), keep * .6);
+    if (uGnd.w > .5){ float dg = smoothstep(uGnd.y - 12., uGnd.y - 3., t) * smoothstep(.42, .62, fbm(xz * vec2(.9, 1.6), fp, 4));   // dune grass / sea oats at the back of the beach
+      alb = mix(alb, mix(vec3(.17, .16, .07), vec3(.30, .25, .12), vn(xz * 3.)), dg); dirT = mix(dirT, front * ce * .5 + max(uSunA.y, 0.) * .5, dg); }
+  } else {           // grass: blades are near-vertical, so a low sun facing them lights them (front light) — golden-green tips, darker bases
+    float b = fbm(xz * 2.2, fp * 2.2, 5), clump = fbm(xz * .18 + 7., fp * .18, 4);
+    float near = 1. - smoothstep(4., 18., t);   // up close, individual blades (screen-space strokes) instead of a smeared texture
+    float tip = mix(fbm(xz * 6.5 + 3., fp * 6.5, 3), vn(vec2(gl_FragCoord.x * .45 + floor(xz.y * 3.) * 17., gl_FragCoord.y * .035)), near * .7);
+    vec3 green = type < 2.5 ? vec3(.10, .12, .04) : vec3(.07, .11, .04), gold = type < 2.5 ? vec3(.24, .21, .09) : vec3(.15, .15, .06);
+    alb = mix(green, gold, smoothstep(.35, .75, tip * .6 + clump * .55)) * (.6 + .6 * b);
+    dirT = front * ce * .55 * (.5 + .7 * b) + max(uSunA.y, 0.) * .6;
+  }
+  vec3 c = alb * (sunL * dirT + amb * (type < 1.5 ? 1. : .85));
+  if (type < 1.5) c = mix(c, skyR * (.04 + .5 * pow(1. - abs(rd.y), 5.)), wet * .65);   // wet sand reflects the sky
+  float fog = 1. - exp(-t * .001 * (BMe * 1.3 + BR.g));
+  return mix(c, amb * .9, clamp(fog, 0., 1.) * .5);
+}
 void main(){
   gSwC = cos(uSwAng); gSwS = sin(uSwAng);
   gK = max(1., uSurf / 1.524); gSurf = uSurf / gK; gHD = uHeroD / gK;
@@ -475,13 +573,43 @@ void main(){
     if (inB > .5 && elevR < deck && elevR > dip && fract(az*70.) < .1) span = true;
   }
   float tP; float pier = uPier > 0. ? pierHit(vec3(0.,0.,0.), rd, tP) : 0.;
+  // d23: lit shoreline facade + ground plane (beach sand / marsh / lawn) — 180° Turn and land views
+  float camM0 = uCamH * 1000.;
+  float gT = rd.y < 0. ? camM0 / -rd.y : 1e9;
+  float fsD = uFS.x > 0. ? fsDist(az) : 0.;
+  float fsK = 0., fsHv = 0., fsTopH = 0.; vec2 fsLP = vec2(0.); bool fsHit = false;
+  if (fsD > 1. && gT > fsD){ float yH = camM0 + rd.y * fsD; fsLP = vec2(az * fsD + uSeed.x * 3., yH); fsTopH = fsTop(fsLP.x, fsK, fsHv); fsHit = yH < fsTopH; }
+  bool gnear = uGnd.x > .5 && rd.y < 0. && gT < uGnd.y && !fsHit;
+  bool gfar = uGnd.w > .5 && rd.y < 0. && !fsHit && !gnear;
 
   if (pier > .5){
     vec3 Tt; vec3 sk = skyRay(ro, normalize(vec3(rd.x, .02, rd.z)), pixA, false, Tt);
     col = sk * .03 + vec3(.0006,.0005,.0008);
+  } else if (fsHit || gnear || gfar){
+    gGnd = 1.;
+    vec3 Ta; vec3 hzS = antiTw(skyRay(ro, normalize(vec3(rd.x, .004, rd.z)), pixA, false, Ta), rd, .004);
+    vec2 rh = normalize(rd.xz + 1e-5);
+    vec3 Tb; vec3 amb = skyRay(ro, normalize(vec3(-rh.x * .8, .6, -rh.y * .8)), pixA * 4., false, Tb) * .45 + skyRay(ro, vec3(0., 1., 0.), pixA * 4., false, Tb) * .3 + hzS * .35;   // sky irradiance: sun-side sky (not the glare), zenith, horizon   // light from the sky the surface faces (the sun side)
+    if (fsHit) col = shadeFacade(ro, rd, fsD, fsLP, fsTopH, fsK, fsHv, sunVis, hzS, amb, fsD * pixA);
+    else {
+      vec2 xz = (rd * gT).xz; float fpG = gT * pixA / max(-rd.y, .002), typ = gnear ? uGnd.x : uGnd.z;
+      float wet = (uWater > .5 && gnear && typ < 1.5) ? smoothstep(uGnd.y * .5, uGnd.y * .97, gT + 1.2 * fbm(xz * .25, fpG * .25, 3)) : 0.;
+      vec3 Tr; vec3 skyR = wet > 0. ? skyRay(ro, normalize(vec3(rd.x, -rd.y, rd.z)), pixA * 2., false, Tr) : vec3(0.);
+      col = shadeGround(ro, rd, gT, xz, typ, sunVis, amb, skyR, fpG, wet);
+      if (uWater > .5 && gnear){   // swash: thin foam lace where the water runs up the sand
+        float sw = uGnd.y - 1.1 + .9 * sin(xz.x * .09 + uPhase * 1.7) * .5 + .6 * fbm(xz * vec2(.3, .8), fpG, 3);
+        float lace = smoothstep(.45, .7, fbm(xz * vec2(1.2, 3.), fpG * 3., 4)) * smoothstep(sw - .5, sw, gT);
+        col = mix(col, vec3(dot(hzS, vec3(.2126,.7152,.0722))) * 1.15, lace * .7);
+      }
+    }
   } else if (span){
     vec3 Ta; vec3 hzS = skyRay(ro, normalize(vec3(rd.x, dip + .004, rd.z)), pixA, false, Ta);
     col = mix(vec3(.0012,.0011,.0014) * (ESUN*.05), hzS*.45, .35 + .5*clamp(uAod*3.,0.,1.));
+    if (uFS.x > 0.){   // d23: concrete bridge lit by the real sun (front-lit when the sun is behind you)
+      vec2 rh = normalize(rd.xz + 1e-5), sh = normalize(uSunA.xz + 1e-5);
+      vec3 sunL = ESUN * sunT(ro, uSunA) * sunVis * smoothstep(-.012, .012, uSunA.y) / PI;
+      vec3 c = vec3(.36, .35, .33) * (sunL * max(dot(-rh, sh), 0.) * .9 + hzS * 1.1);
+      col = mix(c, hzS * .95, clamp(1. - exp(-1.2 * (BMe * 1.3 + BR.g)), 0., 1.)); }
   } else if (elevR > prof && elevR > dip + .0002){
     col = skyRay(ro, rd, pixA, uLQ < .5, T);
     // sun disc (limb darkened, flattened by refraction near the horizon)
@@ -493,6 +621,7 @@ void main(){
     float disc = (1. - smoothstep(.0044, .0049, ang)) * step(0., dot(rd, sa));   // only toward the sun (fixes mirrored dot)
     float limb = .45 + .55*sqrt(max(0., 1. - (ang/.0047)*(ang/.0047)));
     col += T * disc * limb * ESUN * 9000.;
+    col = antiTw(col, rd, elevR - dip);
     // sun dogs (parhelia) ~22° either side of a low sun, in thin ice cloud
     if (uDog > .01){
       float se = asin(clamp(sa.y,-1.,1.));
@@ -538,6 +667,13 @@ void main(){
     vec3 rr = reflect(rd, n); rr.y = max(rr.y, .002); rr = normalize(rr);
     float tPr; float pr = uPier > 0. ? pierHit(pw*vec3(1,0,1) + vec3(0,-2.0+.0,0)*0. + vec3(0,-2.,0)*-0., rr, tPr) : 0.;
     vec3 Tr; vec3 refl = skyRay(ro, rr, pixA*2., false, Tr);
+    refl = antiTw(refl, rr, asin(rr.y));
+    if (uFS.x > 0.){   // d23: the lit shoreline mirrored in the water
+      vec3 rL = reflect(rd, normalize(mix(vec3(0., 1., 0.), n, .45))); rL.y = max(rL.y, .0005);   // rough water smears the land's reflection vertically, it doesn't shred it
+      float azr = atan(rL.x, -rL.z), Ds = fsDist(azr), Dr = Ds - tW;
+      if (Dr > 1.){ float yr = rL.y * Dr, kk, hv2; vec2 lp2 = vec2(azr * Ds + uSeed.x * 3., yr); float tp2 = fsTop(lp2.x, kk, hv2);
+        if (yr < tp2){ vec3 Ta2; vec3 hz2 = antiTw(skyRay(ro, normalize(vec3(rr.x, .004, rr.z)), pixA * 2., false, Ta2), rr, .004);
+          refl = shadeFacade(ro, rL, Ds, lp2, tp2, kk, hv2, sunVis, hz2, hz2 * 1.15, Ds * pixA * 3.); } } }
     // reflected sun: microfacet glitter
     vec3 sa = uSunA;
     float sunUp = smoothstep(-.006, .004, sa.y);
@@ -554,7 +690,7 @@ void main(){
     col = refl * F * 1.0 + glit + body * (1.-F);
     col *= mix(1., .5 + .5*smoothstep(.32, .62, h0), uChop * .75 * (1. - .6*far));   // wind chop: shadowed wave backs break up the mirror
     // aerial perspective over the water
-    vec3 Ta; vec3 hzS = skyRay(ro, normalize(vec3(rd.x, .001, rd.z)), pixA, false, Ta);
+    vec3 Ta; vec3 hzS = antiTw(skyRay(ro, normalize(vec3(rd.x, .001, rd.z)), pixA, false, Ta), rd, .001);
     { float sa0 = soupAmt(wp); if (sa0 > .01){   // v17 inside soup: bubbly lace, brighter than the water at dusk, lit by the sun when it gets through
         float b2 = fbm(wp * vec2(6.5, 8.) + vec2(0., -uSurfT * 2.), fpW * 8., 3), strk = fbm(vec2(wp.x * .5 + uSeed.x, wp.y * 4.5 - uSurfT * 1.2), fpW * 4.5, 4);
         float lace = smoothstep(.3, .7, sa0 * (.6 + .5 * b2 + .3 * strk));
@@ -605,7 +741,7 @@ void main(){
         sprayA += exp(-max(dy, 0.) / (.6 + 2.2 * uOff)) * behind * e * smoothstep(.3, .7, nz) * uOff * .25 * min(uSurf, 4.6) * max(.25, min(t*.004, 1.)); }
       float st = max(.12, min(dy * .5, 6.)) * (t > 60. ? 1.4 : 1.); t += st; if (t > 420.) break;
     }
-    vec3 Ta; vec3 hz2 = skyRay(ro, normalize(vec3(rd.x, .001, rd.z)), pixA, false, Ta);
+    vec3 Ta; vec3 hz2 = antiTw(skyRay(ro, normalize(vec3(rd.x, .001, rd.z)), pixA, false, Ta), rd, .001);
     bool pierFirst = pier > .5 && tP < (hitT > 0. ? hitT : 1e9);
     if (hitT > 0. && !pierFirst){
       vec3 p = rd * hitT; vec2 q = p.xz; float e2 = .12;
@@ -615,7 +751,7 @@ void main(){
       float rr1 = fbm(q * vec2(.9, 2.2) + uSeed, 0., 4) - .5, rr2 = fbm(q * vec2(3.5, 6.) + 3., 0., 3) - .5;
       n = normalize(n + vec3(rr2 * .05, 0., rr1 * .12) * mix(1.3, .45, uOff) * (.4 + uChop));
       vec3 rv = reflect(rd, n); rv.y = max(rv.y, .004); rv = normalize(rv);
-      vec3 Tr; vec3 refl = skyRay(ro, rv, pixA * 2., false, Tr);
+      vec3 Tr; vec3 refl = skyRay(ro, rv, pixA * 2., false, Tr); refl = antiTw(refl, rv, asin(clamp(rv.y, -1., 1.)));
       float cosI = max(dot(-rd, n), .02), F = .02 + .98 * pow(1. - cosI, 5.);
       float x = surfX(q), d = -q.y, sec = surfSec(q), brk = smoothstep(150., 70., d) * sec;
       float faceZ = smoothstep(.8, .97, x), thin = smoothstep(.93, 1., x) * smoothstep(.0, .6, n.z);
@@ -696,7 +832,7 @@ void main(){
       if (gFoamD < .35){ float dn = smoothstep(.35, -.35, gFoamD) * stp * 2.2; fDen += dn; fY += dn * clamp(I.y / max(I.z, .1), 0., 1.3); }
       t += stp; if (t > 120. || fDen > 6. || (rd.y > 0. && p.y + camM > gSurf * 3.8)) break;
     }
-    vec3 Ta; vec3 hz2 = skyRay(ro, normalize(vec3(rd.x, .001, rd.z)), pixA, false, Ta);
+    vec3 Ta; vec3 hz2 = antiTw(skyRay(ro, normalize(vec3(rd.x, .001, rd.z)), pixA, false, Ta), rd, .001);
     vec3 sL = ESUN * sunAtm * sunVis * smoothstep(-.015, .02, uSunA.y) * .045 * uBack;   // direct sun only where it gets through cloud
     float fwd = max(dot(rd, uSunA), 0.);
     bool pierFirst = pier > .5 && tP < (ht > 0. ? ht * gK : 1e9);
@@ -706,7 +842,7 @@ void main(){
                               heroSDF(p + vec3(0,e,0), camM, m, I) - heroSDF(p - vec3(0,e,0), camM, m, I),
                               heroSDF(p + vec3(0,0,e), camM, m, I) - heroSDF(p - vec3(0,0,e), camM, m, I)));
       float s = inf.x, y = inf.y, Hh = inf.z, b = inf.w, yr = clamp(y / max(Hh, .1), 0., 1.);
-      vec3 rv = reflect(rd, n); rv.y = max(rv.y, .004); vec3 Tr; vec3 refl = skyRay(ro, normalize(rv), pixA * 2., false, Tr);
+      vec3 rv = reflect(rd, n); rv.y = max(rv.y, .004); vec3 Tr; vec3 refl = skyRay(ro, normalize(rv), pixA * 2., false, Tr); refl = antiTw(refl, normalize(rv), asin(clamp(normalize(rv).y, -1., 1.)));
       float F = .04 + .96 * pow(1. - max(dot(-rd, n), .02), 5.), front = max(dot(n, uSunA), 0.);
       vec3 olive = uTint * 2.3;
       vec3 sky = vec3(dot(hz2, vec3(.2126,.7152,.0722))) * .9 + hz2 * .25;   // face colour from the water itself, lit by sky brightness
@@ -797,7 +933,7 @@ void main(){
   if (uMeter > 1.5){ o = vec4(sqrt(clamp(col * uExpo / 4., 0., 1.)), 1.); return; }
   if (uMeter > .5){ float L = max(max(col.r, max(col.g, col.b)) * .8 + dot(col, vec3(.2126,.7152,.0722)) * .2, 1e-6); o = vec4(clamp((log2(L) + 16.) / 24., 0., 1.), 0., 0., 1.); return; }
   col *= uExpo;
-  if (uGray > 0.){ float lg = dot(col, vec3(.2126,.7152,.0722)); col = mix(col, mix(vec3(lg), col, .36) * uOvcT * 1.08, uGray); }   // d15/d22: overcast → muted (not zero) saturation + soft time-of-day tint, no glow
+  if (uGray > 0.){ float lg = dot(col, vec3(.2126,.7152,.0722)); col = mix(col, mix(vec3(lg), col, mix(.36, .8, gGnd)) * mix(uOvcT, vec3(1.), gGnd * .5) * 1.08, uGray); }   // d15/d22: overcast → muted (not zero) saturation + soft time-of-day tint, no glow
   { float lm = dot(col, vec3(.2126,.7152,.0722)); col = max(mix(vec3(lm), col, 1.3), 0.); }  // film-like colour separation
   // twilight colour response (calibrated against reference sunset photos): long-path warm light reads orange-red/pink
   // on camera rather than yellow, so pull green out of warm tones as the sun sinks
@@ -868,7 +1004,7 @@ void main(){
     gl.uniform3f(U.uCov, P.high, P.mid, P.low);
     gl.uniform1f(U.uBlock, P.block); gl.uniform1f(U.uAod, P.aod); gl.uniform1f(U.uRH, P.rh);
 
-    gl.uniform1f(U.uWater, P.water ? 1 : 0); gl.uniform1f(U.uPier, P.pier ? 1 : 0); gl.uniform1f(U.uShore, P.shore || 0); gl.uniform1f(U.uHills, P.hills || 0); if (U.uCity) gl.uniform1f(U.uCity, P.city || 0); if (U.uBridge) gl.uniform1f(U.uBridge, P.bridge || 0);
+    gl.uniform1f(U.uWater, P.water ? 1 : 0); gl.uniform1f(U.uPier, P.pier ? 1 : 0); gl.uniform1f(U.uShore, P.shore || 0); gl.uniform1f(U.uHills, P.hills || 0); if (U.uCity) gl.uniform1f(U.uCity, P.city || 0); if (U.uBridge) gl.uniform1f(U.uBridge, P.bridge || 0); { const G = P.ground || {}; if (U.uGnd) gl.uniform4f(U.uGnd, G.near || 0, G.nearD || 0, G.far || 0, G.land ? 1 : 0); if (U.uFS) gl.uniform4f(U.uFS, G.d || 0, G.th || 0, G.town || 0, G.dune || 0); if (U.uFSv) gl.uniform4f(U.uFSv, G.dl != null ? G.dl : (G.d || 0), G.dr != null ? G.dr : (G.d || 0), G.a0 != null ? G.a0 : -9, G.a1 != null ? G.a1 : 9); }
     gl.uniform1f(U.uCamH, P.heroCam || P.camH || 0.002);
     const aspect = W / H, vfov = (aspect < 1 ? 62 : aspect < 1.5 ? 50 : 40) * (P.fovMul || 1);
     gl.uniform1f(U.uFov, vfov * d2r); gl.uniform1f(U.uPitch, (vfov * (P.hero && P.surf ? 0.04 : P.surf > 1.2 ? 0.09 : 0.17)) * d2r * (P.fovMul || 1) / Math.max(0.2, P.fovMul || 1));

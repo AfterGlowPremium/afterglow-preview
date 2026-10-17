@@ -618,8 +618,17 @@
           if (r.surf && (D.wind === "onshore" || D.wind === "cross")) { const k = Math.max(0.3, Math.min(1, (cls.kt - 3) / 13)); r.mess = Math.max(r.mess || 0, D.wind === "onshore" ? k : 0.55 * k); r.off = 0; r.caps = Math.max(r.caps || 0, 0.2 + 0.5 * r.mess); r.chop = Math.max(r.chop || 0, 0.4 + 0.4 * r.mess); } }   // v17: barrel only offshore/calm; onshore & cross-shore → crumbly hero wave (no tube), messiness ∝ onshore wind
         if (/[?&]wx=(rain|storm)/.test(location.search)) r.chop = Math.min(1, (r.chop || 0.2) + 0.3);   // rain-pocked surface
         return r; };
-      const backWater = turned && sp.behind && sp.behind.water && window.Photoreal;
-      let o = backWater ? PhotoStage.draw(cv, Object.assign({}, sp, { far: sp.behind.far || "open", water: true, type: sp.type === "Pier" ? "Pier" : "Beach" }), ev, t, Object.assign({ lq: dragging, sunAzOff: 180 }, wOpt())) : null;
+      // d23: the 180° Turn renders BOTH water and land behind you with the photoreal shader: real ground (sand / marsh / lawn),
+      // the far shore's treeline, houses or dunes lit by the actual sun (front-lit at sunset, backlit at sunrise, diffuse under overcast)
+      const GB = turned && window.Photoreal && window.Ground ? Ground.behind(sp, RISE) : null;
+      let o = null;
+      if (GB) { const wo = wOpt(), G = Object.assign({}, GB); if (wo.surf && !G.land) G.nearD = 0;   // surf close-up: you are standing in the water
+        const fsp = Object.assign({}, sp, { far: G.d > 0 ? "open" : (sp.behind.far || "open"), water: !G.land, type: G.land ? sp.behind.type : sp.type === "Pier" ? "Pier" : "Beach" });
+        if (sp.behind && sp.behind.far === "bridge" && !G.land) fsp.far = "bridge";
+        const extra = { lq: dragging, turned: true, ground: G, hills: G.land ? 0 : undefined, shore: G.d > 0 ? 0 : undefined };
+        if (G.camH) extra.camH = G.camH; if (G.lake != null && !G.land) Object.assign(extra, { swell: 0, surf: 0, hero: 0, caps: (wo.caps || 0) * G.lake, chop: (wo.chop != null ? wo.chop : 0.3) * G.lake }); if (G.land) Object.assign(extra, { surf: 0, hero: 0, chop: 0, caps: 0, swell: 0 });
+        Object.keys(extra).forEach(k => extra[k] === undefined && delete extra[k]);
+        o = PhotoStage.draw(cv, fsp, ev, t, Object.assign({}, wo, extra)); }
       if (o && o.mode !== "live") o = null;
       const aq = anim ? { scale: AN.scale, dprCap: isDesk() ? 2 : 1.5, fast: AN.scale < 0.62 ? 1 : 0 } : {};   // v21: desktop animated frames keep DPR up to 2   // d14: animated frames: capped DPR + adaptive scale; stills stay full quality
       if (!o) o = turned ? Object.assign(Preview.state(sp, ev, t), Preview.drawBehind(back, sp, ev, t), { mode: "behind" }) : PhotoStage.draw(cv, sp, ev, t, Object.assign(playing && window.__agPlayQ ? playOpt() : dragging && isDesk() ? { scale: 0.75 } : { lq: dragging }, wOpt(), aq));   // v21: desktop drags render at the 0.75 floor (phones 0.42)

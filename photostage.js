@@ -74,6 +74,7 @@
       ...seaP(spot, ev, t),
       seed, wind: seed * 6.283, dog: ev.dog && ev.dog.p >= 15 && pos.elev > 0.3 && pos.elev < 15 ? clamp(ev.dog.p / 60) : 0,
     }, DEMO || {}, opt);
+    if (opt.turned) P.sunAzOff = ((off + 180 + 540) % 360) - 180;   // d23: 180° Turn — the real sun azimuth relative to the view behind you
     // d17 afterglow regimes (renderer reads glow / under / tops):
     //  (a) UNDER-LIT: a low/mid deck with an open slot on the horizon toward the sun → light filters underneath, deck bases glow
     //  (b) TOPS/EDGES: a broken/patchy deck → sunlight catches edges and the higher (mid/high) clouds lit from below/behind
