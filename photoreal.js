@@ -44,6 +44,7 @@ uniform float uSurfT;   // DRAFT: wave clock (s)
 uniform float uSurfL; uniform float uSwAng;   // d19: swell crest angle vs the view (rad, + = swell from the right)
 uniform vec3 uTint; uniform float uBack;   // DRAFT: dials from looks.js — water tint, backlight scale
 uniform float uGlow; uniform float uUnder; uniform float uTops;   // d17 afterglow regimes
+uniform vec3 uOvcT;   // d22: overcast diffuse tint (time of day; JS)
 uniform float uFast; uniform float uGray; uniform float uHero; uniform float uHeroD; uniform float uMess;
    // v17: uMess 0 clean … 1 blown-out onshore crumbler
     // DRAFT: 1 = hero curling barrel wave (own shape) at uHeroD metres   // DRAFT: breaker spacing (m)   // wave motion phase (advances with the slider / Play)
@@ -128,6 +129,10 @@ void seg(inout Acc A, vec3 ro, vec3 rd, float t0, float t1, int n, float cs){
     vec3 S = Ts * (BR*dR*pr + BMs*dM*pm) * ESUN;
     // crude multiple-scattering fill (keeps blue hour from going black)
     S += ESUN * (BR*dR) * .045 * sunT(p + normalize(p)*20., uSun) ;
+    if (uGray > 0.){   // d22: air under a solid deck gets no direct beam (no glare blob toward the sun), only soft diffuse light from the cloud base
+      float below = uGray * (1. - smoothstep(1.2, 1.9, h)), muA = uSun.y;
+      vec3 Sd = ESUN * (BR*dR + BMs*dM) * .08 * (max(muA, 0.) * .55 + .05 * smoothstep(-.11, .03, muA)) * .8;
+      S = mix(S, Sd, below); }
     vec3 Te = exp(-ext*dt);
     A.L += A.T * S * (1. - Te) / max(ext, vec3(1e-6));
     A.T *= Te;
@@ -185,7 +190,8 @@ float dens(int L, vec2 p, float fp, float dist){
     float er = fbm(q*2.2 + 9., fp*2.2, 5);
     float lo = clamp(d * 1.1 - (1. - er) * .55 * (1. - d*.6), 0., 1.);
     float sheetW = smoothstep(.6, .95, cov);   // overcast stratus / stratocumulus
-    return clamp(max(lo, (.25 + .45*b) * (.7 + .3*er) * sheetW), 0., 1.);
+    float shv = mix(.25 + .45*b, .12 + .8*smoothstep(.3, .78, v*.6 + b*.4), .8*uGray);   // d22: overcast deck keeps stratocumulus cells (texture/depth), not a flat sheet
+    return clamp(max(lo, shv * (.7 + .3*er) * sheetW), 0., 1.);
   }
 }
 vec3 layerH(int L){ return L == 0 ? vec3(max(9.0, uMidH + 1.5), 1.0, 1.0) : L == 1 ? vec3(uMidH, .45, 7.0) : vec3(1.4, .6, 18.0); } // alt, thickness, tau scale
@@ -229,7 +235,16 @@ vec3 cloudShade(int L, vec3 P, vec3 rd, float t, float pixA, out float alpha){
   // internal texture: thin edges glow (silver lining), thick cores go darker when back-lit
   float tex = L == 0 ? (.8 + .4*fbm(xz*.08 + 3., fp*.08, 4)) : (.55 + .9*fbm(xz*(L == 1 ? 5. : 1.3) + 17., fp*(L == 1 ? 5. : 1.3), 5));
   float rim = (1. - smoothstep(.0, .55, d)) * smoothstep(.2, 1., cs) * 2.5 * (1. + .8 * uTops);
-  return (direct * (tex + rim) + amb * mix(1., tex, .6)) * (L == 0 ? 1.15 : 1.);
+  // d22: overcast diffuse light. Under a solid deck the sun still lights the cloud from above and that light diffuses
+  // through: bases glow a soft silver-gray, thin parts between the cells luminous, thick cores darker blue-gray. No beam, no glow colour.
+  vec3 ovl = vec3(0.);
+  if (uGray > 0.){
+    float muT = dot(up, uSun);
+    float dayL = max(muT, 0.) * .55 + .05 * smoothstep(-.11, .03, muT);   // light on the deck top, fades out through civil twilight
+    float thin = mix(exp(-d * lh.z * (L == 2 ? .26 : .14)), .42, smoothstep(140., 500., t));   // far deck → even, luminous horizon
+    ovl = ESUN * vec3(.97, .98, 1.) * dayL * (.05 + 1.7 * thin) * mix(1., tex, .6) * .3 * uGray;
+  }
+  return (direct * (tex + rim) + amb * mix(1., tex, .6)) * (L == 0 ? 1.15 : 1.) + ovl;
 }
 
 // radiance of the sky + clouds along a ray from camera
@@ -782,7 +797,7 @@ void main(){
   if (uMeter > 1.5){ o = vec4(sqrt(clamp(col * uExpo / 4., 0., 1.)), 1.); return; }
   if (uMeter > .5){ float L = max(max(col.r, max(col.g, col.b)) * .8 + dot(col, vec3(.2126,.7152,.0722)) * .2, 1e-6); o = vec4(clamp((log2(L) + 16.) / 24., 0., 1.), 0., 0., 1.); return; }
   col *= uExpo;
-  if (uGray > 0.){ float lg = dot(col, vec3(.2126,.7152,.0722)); col = mix(col, vec3(lg) * vec3(.94, .97, 1.03) * (1. - .25 * uGray), uGray); }   // d15: observed overcast → flat gray, no glow
+  if (uGray > 0.){ float lg = dot(col, vec3(.2126,.7152,.0722)); col = mix(col, mix(vec3(lg), col, .36) * uOvcT * 1.08, uGray); }   // d15/d22: overcast → muted (not zero) saturation + soft time-of-day tint, no glow
   { float lm = dot(col, vec3(.2126,.7152,.0722)); col = max(mix(vec3(lm), col, 1.3), 0.); }  // film-like colour separation
   // twilight colour response (calibrated against reference sunset photos): long-path warm light reads orange-red/pink
   // on camera rather than yellow, so pull green out of warm tones as the sun sinks
@@ -866,12 +881,20 @@ void main(){
     if (U.uHero) { gl.uniform1f(U.uHero, P.hero ? 1 : 0); if (U.uMess) gl.uniform1f(U.uMess, P.mess || 0); gl.uniform1f(U.uHeroD, P.heroD || 26); } }
     gl.uniform1f(U.uMidH, clamp(P.midKm || 4.5, 2.5, 7.5));
     gl.uniform1f(U.uMeter, 0);
-    const ovc = clamp((Math.max(P.mid, P.low, P.high * 0.6) - 0.5) / 0.45);
-    const ex = P.expo != null ? P.expo : meter(gl, U, w, h, P) * (1 - 0.3 * ovc);
+    const ovc = clamp((Math.max(P.mid, P.low, P.high * 0.6) - 0.5) / 0.45), gy = clamp(P.gray || 0);
+    if (U.uOvcT) gl.uniform3fv(U.uOvcT, ovcTint(P.elev));
+    const ex = P.expo != null ? P.expo : meter(gl, U, w, h, P) * (1 - 0.3 * ovc * (1 - gy)) * (1 + gy * (0.15 - 0.4 * clamp((2 - P.elev) / 6)));   // d22: overcast exposed bright, not moody-dark
     gl.viewport(0, 0, w, h); gl.uniform2f(U.uRes, w, h); gl.uniform1f(U.uMeter, 0); gl.uniform1f(U.uExpo, ex);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     render.lastExpo = ex;
     return true;
+  }
+  // d22: diffuse overcast tint by sun elevation: cool lavender-silver by day → faint muted mauve/peach around sunset → blue-gray dusk
+  function ovcTint(e) {
+    const T = [[8, [1.01, 0.98, 1.05]], [3, [1.03, 0.975, 1.03]], [0.5, [1.09, 0.965, 0.98]], [-1.5, [1.06, 0.955, 1.04]], [-4, [0.94, 0.98, 1.09]]];
+    if (e >= T[0][0]) return T[0][1]; if (e <= T[T.length - 1][0]) return T[T.length - 1][1];
+    for (let i = 1; i < T.length; i++) if (e >= T[i][0]) { const [x0, a] = T[i - 1], [x1, b] = T[i], f = (e - x1) / (x0 - x1); return b.map((v, k) => v + (a[k] - v) * f); }
+    return [1, 1, 1];
   }
   // in-camera metering: tiny HDR pass -> expose so the bright part of the sky (90th percentile) sits just under white,
   // the way a photographer exposes a sunset (protect highlights, keep saturation). Blended with a twilight curve.
