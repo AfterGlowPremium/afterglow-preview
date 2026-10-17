@@ -1,13 +1,15 @@
 // Background music, owned by the shell page (index.html) so it plays straight through every page/view of the app (which runs in the iframe).
-// Track: audio/song2.m4a (Sean's song) with audio/song2.mp3 as fallback — replace both files to change songs.
+// Track: audio/song2-lofi.m4a (AAC) with audio/song2-lofi.mp3 as fallback — Sean's song with a baked-in lo-fi treatment
+// (warm low-pass ~3.6 kHz, -6 dB high shelf, gentle compression, tanh tape saturation, faint vinyl crackle + hiss; -25.5 LUFS vs -15.9 original),
+// so it's quiet and soft even where WebAudio gain isn't available (iOS ignores <audio>.volume). Originals: audio/song2.m4a/.mp3.
 // On by default. The first tap/click/key anywhere (shell or app iframe) unlocks audio INSIDE the gesture (iOS rule) and starts the song
 // silently (gain 0); the audible fade-in (≈2 s, like the sky transition) fires when the app reports its sky scene has settled
 // (scene.js → postMessage "ag-scene"), or 0.4 s after the tap if nothing is loading, or after a 2.5 s fallback. Already playing → untouched.
 // Volume runs through a WebAudio GainNode so the fade also works on iOS (where <audio>.volume is read-only).
 // 🎵 toggles mute; if music is on but not yet playing, tapping 🎵 starts it. Remembers "off" (localStorage "afterglow-music2").
 (function () {
-  const KEY = "afterglow-music2", VOL = 0.55, FADE = 2000, FALLBACK = 2500, BUSY_MAX = 8000, IDLE = 400;
-  const SRC = new Audio().canPlayType('audio/mp4; codecs="mp4a.40.2"') ? "audio/song2.m4a" : "audio/song2.mp3";
+  const KEY = "afterglow-music2", VOL = 0.45, FADE = 2000, FALLBACK = 2500, BUSY_MAX = 8000, IDLE = 400;
+  const SRC = new Audio().canPlayType('audio/mp4; codecs="mp4a.40.2"') ? "audio/song2-lofi.m4a?v=lf1" : "audio/song2-lofi.mp3?v=lf1";
   const EVS = ["touchend", "click", "pointerup", "mouseup", "keydown"];   // activation events on iOS/Android (touchstart/pointerdown are not)
   let au = null, ctx = null, gain = null, routed = false, on = false, audible = false, lvl = 0, raf = 0;
   let armT = 0, busy = false, fbTimer = 0, idleTimer = 0, gest = false;
