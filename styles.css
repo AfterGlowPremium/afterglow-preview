@@ -683,3 +683,94 @@ html.ag-desk .stage .ev-toggle a{font-size:13px;padding:8px 14px}
 @keyframes hotpulse{0%{opacity:.95;transform:scale(1)}70%{opacity:0;transform:scale(1.75)}100%{opacity:0;transform:scale(1.75)}}
 #map.moving .pin.hot::before{animation-play-state:paused!important}
 @media (prefers-reduced-motion:reduce){.pin.hot::before{animation:none!important;opacity:1;transform:scale(1.22);border-color:rgba(255,255,255,.9)}}
+
+/* ---------- d21L: location page layout pass — smaller title top-left, every other control in one right-hand rail,
+   taller unobstructed render; smaller map pins (32px tap area). Phones keep ≥40px tap targets. ---------- */
+.stage::after{background:linear-gradient(180deg,rgba(8,5,20,.45) 0%,rgba(8,5,20,0) 15%,rgba(8,5,20,0) 100%),linear-gradient(270deg,rgba(8,5,20,.32) 0,rgba(8,5,20,0) 96px)}
+.stage-top{padding:18px 76px 0 16px;pointer-events:none}
+.stage-top>div{pointer-events:auto;min-width:0}
+.stage-top h2{font-size:16px;line-height:1.1;margin-top:2px}
+.stage-top .d-kick{font-size:9.5px;letter-spacing:.06em}
+.stage .ev-toggle{margin-top:6px;padding:2px}
+.stage .ev-toggle a{font-size:10.5px;padding:6px 9px;position:relative}
+.stage .ev-toggle a::after{content:"";position:absolute;inset:-5px -1px}   /* larger hit area than the drawn pill */
+.close{width:40px;height:40px;top:12px;right:max(12px,env(safe-area-inset-right,0px));font-size:13px}
+.stage-rail{position:absolute;z-index:5;top:60px;right:max(10px,env(safe-area-inset-right,0px));bottom:12px;display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;gap:10px;pointer-events:none;max-width:calc(100% - 20px)}
+.stage-rail>*{display:flex;flex-direction:column;align-items:flex-end;gap:8px;pointer-events:none}
+.stage-rail>*>*{pointer-events:auto}
+.stage-rail .stage-score{width:46px;height:46px;border-width:2px}
+.stage-rail .stage-score b{font-size:16px;margin-top:6px}.stage-rail .stage-score i{font-size:7.5px;margin-top:-11px}
+.stage .stage-rail .pv-wxl{position:relative;left:auto;right:auto;top:auto;max-width:none;width:auto;text-align:left}
+.stage .stage-rail .pv-wxl .wxc{font-size:10.5px;min-height:40px;padding:0 11px;display:inline-flex;align-items:center;white-space:nowrap}
+.stage .stage-rail .pv-wxl .wxp{position:absolute;top:0;right:0;width:min(250px,calc(100vw - 96px));font-size:10.5px;z-index:2;box-sizing:border-box}
+.stage-rail .play{min-width:74px;min-height:40px;padding:0 10px;font-size:11.5px;display:inline-flex;align-items:center;justify-content:center;gap:4px;white-space:nowrap;margin:0;background:rgba(40,20,30,.5);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.stage-rail .play.turn{margin-left:0}
+.stage-rail #pv-turn{display:inline-flex!important;visibility:visible!important;font-weight:700;color:#fff;background:linear-gradient(135deg,rgba(123,92,255,.55),rgba(255,79,154,.4));border:1px solid rgba(181,169,255,.8)}
+.rail-zoom{display:flex;flex-direction:column;align-items:center;width:40px;border-radius:999px;background:rgba(10,7,22,.5);border:1px solid rgba(255,255,255,.2);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);overflow:hidden}
+.rail-zoom .zb{width:40px;height:40px;border:0;background:none;color:#fff;font:600 19px/1 Inter,sans-serif;padding:0;cursor:pointer;touch-action:manipulation}
+.rail-zoom .zb:active{background:rgba(255,255,255,.14)}
+.rail-zoom output{font:600 9.5px Inter,sans-serif;opacity:.85;line-height:1;padding:1px 0}
+.stage-rail .stage-bottom{position:static;left:auto;right:auto;bottom:auto;align-items:flex-end;gap:5px}
+.stage-rail .stage-now{position:static;flex-direction:column;align-items:flex-end;gap:1px;text-align:right}
+.stage-rail .stage-now b{font-size:19px;line-height:1.05}
+.stage-rail .stage-now span{font-size:10.5px}.stage-rail .stage-now small{font-size:9.5px}
+.stage-rail .stage-dir,.stage-bottom .stage-dir{position:static;display:block;font-size:9.5px;padding:3px 8px}
+.stage-rail .stage-badge{position:static;max-width:min(230px,calc(100vw - 40px));font-size:9.5px;padding:3px 8px;white-space:nowrap}
+.stage-rail .stage-badge>span{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.stage-rail .pv-mode{font-size:9px}
+.scrub-row{margin-top:8px}
+.scrub-row:empty,.scrub-row:has(.pv-what:empty){display:none}
+.pv-what{font-size:11.5px}
+.readout-box{margin:6px 0 4px}
+.readout-box>summary{cursor:pointer;list-style:none;font:600 10px Inter,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);padding:8px 2px;min-height:24px;display:flex;align-items:center;gap:6px}
+.readout-box>summary::-webkit-details-marker{display:none}
+.readout-box>summary::before{content:"▸";font-size:11px;transition:transform .2s}
+.readout-box[open]>summary::before{transform:rotate(90deg)}
+.readout-box .readout{margin:0 0 6px;gap:5px}
+.readout-box .readout .rc{padding:6px 7px;border-radius:10px}
+.readout-box .readout span{font-size:9px}.readout-box .readout b{font-size:12.5px}.readout-box .readout small{font-size:9.5px}
+.readout-box .readout #pv-sea small .wdir,.readout-box .readout #pv-sea small .wdir *{font-size:10px}
+@media (max-width:900px){
+  .stage{height:min(66vh,580px);height:min(66dvh,580px)}
+  .stage-top{padding-right:76px}
+}
+@media (min-width:1024px) and (pointer:fine),(min-width:1024px) and (pointer:none){
+  .stage{height:clamp(460px,calc(100vh - var(--ag-dtop,76px) - 240px),780px)}
+  .stage-top{padding:20px 96px 0 24px}.stage-top h2{font-size:24px}
+  .stage-top .d-kick{font-size:10.5px}
+  html.ag-desk .stage .ev-toggle{margin-top:8px}
+  html.ag-desk .stage .ev-toggle a,.stage .ev-toggle a{font-size:11.5px;padding:7px 12px}
+  .close{top:14px;right:14px;width:38px;height:38px}
+  .stage-rail{top:64px;right:14px;bottom:16px}
+  .stage-rail .stage-score{width:58px;height:58px}.stage-rail .stage-score b{font-size:21px;margin-top:7px}.stage-rail .stage-score i{font-size:9px;margin-top:-13px}
+  .stage .stage-rail .pv-wxl{top:auto;right:auto;max-width:none}
+  .stage .stage-rail .pv-wxl .wxc{font-size:11.5px;min-height:36px}
+  .stage .stage-rail .pv-wxl .wxp{width:290px;font-size:11.5px}
+  .stage-rail .play{min-width:92px;min-height:36px;font-size:12.5px;padding:0 13px}
+  .rail-zoom{width:38px}.rail-zoom .zb{width:38px;height:36px;font-size:18px}.rail-zoom output{font-size:10.5px}
+  .stage-rail .stage-now b{font-size:26px}.stage-rail .stage-now span{font-size:12.5px}.stage-rail .stage-now small{font-size:11px}
+  .stage-rail .stage-dir,.stage-rail .stage-badge{font-size:10.5px;padding:4px 9px}
+  .stage-rail .stage-badge{max-width:340px}
+  .scrub{padding:36px 28px 10px}
+  .scrub-row{display:flex!important;margin-top:10px;gap:14px}
+  .scrub-row::after{content:"Scroll on the view to zoom · ← → time · Space play · Esc close";margin-left:auto;font:500 11px Inter,sans-serif;color:var(--dim);white-space:nowrap}
+  .readout-box .readout{gap:7px}
+  .readout-box .readout .rc{padding:8px 9px}
+  .readout-box .readout span{font-size:9.5px}.readout-box .readout b{font-size:13.5px}.readout-box .readout small{font-size:10.5px}
+  .readout-box .readout #pv-sea small .wdir,.readout-box .readout #pv-sea small .wdir *{font-size:11px}
+}
+/* smaller map pins: ~73% drawn size, the Leaflet icon box stays a 32px tap target */
+.pin-wrap{display:grid;place-items:center}
+.pin{width:22px;height:22px;font-size:10px;font-weight:800;letter-spacing:-.02em;box-shadow:0 0 0 2px rgba(13,10,26,.75),0 0 12px var(--c)}
+.pin span{font-size:10px;line-height:1}
+.pin .pb{font-size:9.5px;top:-7px;right:-7px}.pin .pb.dog{left:-6px;font-size:9px}
+.pin .pwx{top:23px;padding:0 2px}.pin .pwx i{font-size:9px;line-height:11px}
+.pin .pwx i.bow.md,.pin .pwx i.bow.hi,.pin .pwx i.bolt.hi{font-size:10.5px}
+.pin .ptri{top:-10px;font-size:11px}
+.pin.tri{box-shadow:0 0 0 2px #ffd75e,0 0 0 4px rgba(13,10,26,.8),0 0 18px #ffd75e}
+.pin.tri::after{inset:-4px;box-shadow:0 0 28px #ffd75e}
+.pin-wrap.sel .pin{box-shadow:0 0 0 2px #fff,0 0 0 4px rgba(13,10,26,.8),0 0 18px var(--c)}
+.pin.hot::before{inset:-2px;border-width:1.5px;box-shadow:0 0 10px 3px var(--c),inset 0 0 6px var(--c)}
+@media (min-width:1024px) and (pointer:fine),(min-width:1024px) and (pointer:none){
+  .pin span{font-size:10px}
+}

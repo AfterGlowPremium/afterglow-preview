@@ -30,7 +30,7 @@
   const syncDesk = () => { document.documentElement.classList.toggle("ag-desk", isDesk()); deskTop(); };
   syncDesk(); if (DESK_Q.addEventListener) DESK_Q.addEventListener("change", syncDesk); addEventListener("resize", deskTop);
   const vPos = sp => sp.vantage ? [sp.vantage.lat, sp.vantage.lng] : [sp.lat, sp.lng];
-  const PLAY = RISE ? "▶ Play the morning" : "▶ Play the evening";
+  const PLAY = "▶ Play";   // d21L: compact label for the right-hand control rail
   // phase names from the canvas preview are sunset-worded; mirror them for mornings
   const phaseName = p => !RISE ? p : ({ "Sunset": "Sunrise", "Afterglow": "First color", "Blue hour": "Blue hour (dawn)" }[p] || p);
   const REGIONS = {
@@ -340,11 +340,11 @@
       const B = r.ev.bonus, T = r.ev.tri, ic = pinIcons(r);
       const bx = (B.dog.p >= BONUS_MIN ? `<em class="pb dog" title="Sun dogs ${B.dog.p}%">◉</em>` : "") + ((window.AGX && AGX.badges(r.spot)) || "");
       const html = `<div class="pin${T.on ? " tri" : ""}${hot ? " hot" : ""}" style="--c:${lb.c}"${hot ? ` title="${pScore} — top-tier sky"` : ""}><span>${pScore}</span>${bx}${T.on ? `<em class="ptri" title="Trifecta">✦</em>` : ""}${ic.length ? `<div class="pwx">${ic.map(x => `<i class="${x.c}" title="${x.t}">${x.i}</i>`).join("")}</div>` : ""}</div>`;
-      const icon = L.divIcon({ className: "pin-wrap", html, iconSize: [30, 30], iconAnchor: [15, 15] });
+      const icon = L.divIcon({ className: "pin-wrap", html, iconSize: [32, 32], iconAnchor: [16, 16] });
       if (markers[r.spot.id]) { if (markers[r.spot.id]._agHtml !== html) markers[r.spot.id].setIcon(icon); }   // d14: skip unchanged pins (was rebuilding all ~70 pin DOM nodes on every refresh)
       else markers[r.spot.id] = L.marker(vPos(r.spot), { icon, riseOnHover: true }).addTo(map)
         .on("click", () => openDetail(r.spot.id))
-        .bindTooltip("", { direction: "top", offset: [0, -16], className: "tip" });
+        .bindTooltip("", { direction: "top", offset: [0, -13], className: "tip" });
       markers[r.spot.id]._agHtml = html;
       markers[r.spot.id].setTooltipContent(`<b>${r.spot.name}</b>${r.spot.vantage ? `<br><small>☀ from ${r.spot.vantage.name}</small>` : ""}<br>${lb.t} · ${fmtTime(r.ev.tSet, r.tz)}${r.ev.bonus.bow.p >= BONUS_MIN ? `<br>🌈 ${r.ev.bonus.bow.name} ${r.ev.bonus.bow.p}%` : ""}${r.ev.bonus.dog.p >= BONUS_MIN ? `<br>◉ Sun dogs ${r.ev.bonus.dog.p}% — 22° either side of the sun, needs thin cirrus/cirrostratus with the sun under ~${RISE?"20":"20"}° up` : ""}${(window.AGX && AGX.tip(r.spot)) || ""}${r.ev.wx.items.map(w => `<br>${w.icon} ${w.name}${w.p ? " " + w.p + "%" : ""}`).join("")}${r.ev.tri.on ? `<br><b class="tt-tri">✦ TRIFECTA</b>` : ""}`);
       if (markers[r.spot.id].setZIndexOffset) markers[r.spot.id].setZIndexOffset(r.ev.tri.on ? 1000 : hot ? 900 : ic.length ? 200 : 0);
@@ -480,34 +480,35 @@
     return `
       <section class="stage" style="--c:${lb.c}">
         <canvas id="pv" aria-label="Illustrated forecast of the ${EV} at ${sp.name}"></canvas>
-        <img id="pv-ph0" class="pv-photo" alt=""><img id="pv-ph1" class="pv-photo" alt=""><canvas id="pv-back" class="pv-back" hidden aria-label="180° view behind you"></canvas><canvas id="pv-wx" class="pv-wx" aria-hidden="true"></canvas><div id="pv-wxl" class="pv-wxl" hidden></div>
+        <img id="pv-ph0" class="pv-photo" alt=""><img id="pv-ph1" class="pv-photo" alt=""><canvas id="pv-back" class="pv-back" hidden aria-label="180° view behind you"></canvas><canvas id="pv-wx" class="pv-wx" aria-hidden="true"></canvas>
         <div class="stage-top">
           <div><div class="d-kick">${sp.type} · ${sp.state}${r.mi != null ? " · " + Math.round(r.mi) + " mi away" : ""} · ${fmtDay(ev.tSet, r.tz, state.day)} ${fmtDate(ev.tSet, r.tz)}</div><h2>${sp.name}</h2>${sp.vantage ? `<div class="d-kick vant">📍 ${Ev} view from ${sp.vantage.name}</div>` : ""}${state.arch ? "" : `<div class="ev-toggle" role="group" aria-label="Sunrise or sunset at this spot"><a href="${evHref("sunrise", sp.id)}" data-ev="sunrise" class="${RISE ? "on" : ""}"${RISE ? ' aria-current="true"' : ""} title="Same spot facing east at sunrise">🌅 Sunrise</a><a href="${evHref("sunset", sp.id)}" data-ev="sunset" class="${RISE ? "" : "on"}"${RISE ? "" : ' aria-current="true"'} title="Same spot facing west at sunset">🌇 Sunset</a></div>`}</div>
-          <div class="stage-score"><b>${ev.score}</b><i>${lb.t}</i></div>
         </div>
         <div id="pv-gen" class="pv-gen" hidden></div>
-        <div class="stage-bottom">
-          <div class="stage-now"><b id="pv-time"></b><span id="pv-phase"></span><small id="pv-elev"></small></div>
-          <div class="stage-foot">
-            <div class="stage-badge"><span id="pv-badge">Illustrated forecast · not a photo</span><button id="pv-mode" class="pv-mode" hidden>AI finish: on</button></div>
+        <div class="stage-rail">
+          <div class="rail-top"><div class="stage-score" title="${EV} score"><b>${ev.score}</b><i>${lb.t}</i></div><div id="pv-wxl" class="pv-wxl" hidden></div></div>
+          <div class="rail-ctl"><button id="pv-play" class="play" title="Play the ${RISE ? "morning" : "evening"} (Space)">${PLAY}</button><button id="pv-turn" class="play turn" aria-pressed="false" title="Turn around and see the sky behind you (${RISE ? "west" : "east"}) — where rainbows appear">↻ 180°</button>
+            <div class="rail-zoom" role="group" aria-label="Zoom"><button class="zb" data-z="+" aria-label="Zoom in">+</button><output id="pv-zo">1.0×</output><button class="zb" data-z="-" aria-label="Zoom out">−</button><input id="pv-zoom" type="range" min="1" max="4" step="0.01" value="1" aria-label="Zoom into the scene" hidden></div></div>
+          <div class="stage-bottom">
+            <div class="stage-now"><b id="pv-time"></b><span id="pv-phase"></span><small id="pv-elev"></small></div>
             <div class="stage-dir" id="pv-dir">Facing ${compass(ev.sunsetAz)} ${Math.round(ev.sunsetAz)}°</div>
+            <div class="stage-badge"><span id="pv-badge">Illustrated forecast · not a photo</span><button id="pv-mode" class="pv-mode" hidden>AI finish: on</button></div>
           </div>
         </div>
       </section>
       <div class="scrub" style="--track:${tr}">
         <div class="scrub-marks">${marks.map((m, k) => `<button data-t="${m[1]}" style="left:${pct(m[1])}%" class="mk ${m[0]} ${k % 2 ? "alt" : ""}"><i></i><span class="lf">${m[2]}</span><span class="ls">${m[3]}</span><em>${fmtTime(m[1], r.tz).replace(/ [A-Z]{2,4}$/, "")}</em></button>`).join("")}</div>
         <input id="scrub" type="range" min="${t0}" max="${t1}" step="20" value="${T.peak}" aria-label="Time of ${RISE ? "morning" : "evening"}">
-        <div class="scrub-row"><button id="pv-play" class="play">${PLAY}</button><button id="pv-turn" class="play turn" aria-pressed="false" title="Turn around and see the sky behind you (${RISE ? "west" : "east"}) — where rainbows appear">↻ 180° Turn</button><span id="pv-what" class="pv-what"></span></div>
-        <div class="zoom-row"><span class="zl">Zoom</span><input id="pv-zoom" type="range" min="1" max="4" step="0.01" value="1" aria-label="Zoom into the scene"><output id="pv-zo">1.0×</output></div>
+        <div class="scrub-row"><span id="pv-what" class="pv-what"></span></div>
       </div>
-      <div class="readout">
+      <details class="readout-box" id="pv-ro"${state.roClosed ? "" : " open"}><summary>Sky &amp; water readouts</summary><div class="readout">
         ${chip("High", Math.round(s.high) + "%", types.high || "", P.clouds)}
         ${chip("Mid", Math.round(s.mid) + "%", types.mid || "", P.clouds)}
         ${chip("Low", Math.round(s.low) + "%", types.low || "", P.clouds)}
         ${chip(DIRW + " gap", Math.round((1 - slotB) * 100) + "% open", slotB < 0.25 ? "light gets in" : slotB < 0.55 ? "partly blocked" : "mostly blocked", P.path)}
         ${chip("Air", hazeTxt, s.aod != null ? "AOD " + s.aod.toFixed(2) : "RH " + Math.round(ev.rhLow) + "%", P.aod)}
         ${ev.sea || (sp.behind && sp.behind.water) || (window.AGX && AGX.faceEast(sp.id)) ? `<div class="rc" id="pv-sea"><span>Water</span><b>—</b><small></small></div>` : `<div class="rc"><span>Water</span><b>None</b><small>land foreground</small></div>`}
-      </div>
+      </div></details>
       <div class="fine pv-fine">This is an illustrated preview generated from this spot's forecast, not a photo. Cloud cover by layer comes from NOAA HRRR (with the low-cloud gap along the ${EV} line), haze from NOAA GOES-19 AOD / CAMS, and the lighting follows the actual sun position. Drag the slider or hit Play to watch the colors change through ${RISE ? "blue hour, first color, sunrise and golden hour" : "golden hour, sunset, afterglow and blue hour"}. Weather is drawn only when the forecast calls for it during the ${EV} window: rain (slanted by the wind), ⚡ storm cell and lightning (odds ≥ 25%), fog and snow. The water surface follows the forecast wind, gusts and wave height minute by minute: glassy and mirror-reflective under ~3 mph, light ripples to ~7 mph, small wavelets and a glitter path to ~11 mph, choppy with scattered whitecaps from ~12 mph, rough with frequent whitecaps past ~16 mph, and whitecaps everywhere past ~22 mph — with every shade in between. Rainbows form opposite the sun — behind you — so when rainbow odds are ≥ 10% a 🌈 “behind you” panel appears during the forecast rainbow window.</div>
       ${noaaPanel(r)}`;
   }
@@ -675,7 +676,7 @@
       gen.hidden = set.done || !set.busy; gen.textContent = `Photo finish ${n}/${tot}…`;
       queue();
     };
-    { const tb = $("#pv-turn"); if (tb) { const sync = () => { tb.classList.toggle("on", !!state.turn); tb.setAttribute("aria-pressed", state.turn ? "true" : "false"); tb.textContent = state.turn ? "↺ Face the " + EV : "↻ 180° Turn"; };
+    { const tb = $("#pv-turn"); if (tb) { const sync = () => { tb.classList.toggle("on", !!state.turn); tb.setAttribute("aria-pressed", state.turn ? "true" : "false"); tb.textContent = state.turn ? "↺ Back" : "↻ 180°"; tb.title = state.turn ? "Face the " + EV + " again" : "Turn around and see the sky behind you — where rainbows appear"; };
       sync(); tb.onclick = () => { state.turn = !state.turn; sync(); queue(); }; } }
     if (modeBtn) modeBtn.onclick = () => { photoOn = !photoOn; modeBtn.textContent = "AI finish: " + (photoOn ? "on" : "off"); queue(); };
     if (PhotoStage.live()) {
@@ -801,7 +802,9 @@
         st.addEventListener("touchstart", e => { if (e.touches.length === 2) { d0 = dist(e); z0 = +zs.value; } }, { passive: true });
         st.addEventListener("touchmove", e => { if (e.touches.length === 2 && d0) { e.preventDefault(); setZ(z0 * dist(e) / d0); state.zoom = +zs.value; } }, { passive: false });
         st.addEventListener("touchend", () => { d0 = 0; }, { passive: true });
-        st.addEventListener("dblclick", () => { setZ(1); state.zoom = 1; });
+        st.addEventListener("dblclick", e => { if (e.target.closest && e.target.closest(".stage-rail,.stage-top")) return; setZ(1); state.zoom = 1; });
+        st.querySelectorAll(".rail-zoom .zb").forEach(b => b.addEventListener("click", e => { e.stopPropagation(); setZ((+zs.value) * (b.dataset.z === "+" ? 1.25 : 0.8)); state.zoom = +zs.value; }));   // d21L: zoom − / + in the right rail (pinch, wheel and double-tap still work on the render)
+        { const ro = $("#pv-ro"); if (ro) ro.addEventListener("toggle", () => { state.roClosed = !ro.open; }); }
         st.addEventListener("wheel", e => { if (e.target.closest && e.target.closest(".pv-wxl")) return; e.preventDefault(); const k = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1; setZ((+zs.value) * Math.exp(-e.deltaY * k * (e.ctrlKey ? 0.01 : 0.0018))); state.zoom = +zs.value; }, { passive: false }); } }   // v21: mouse-wheel / trackpad-pinch zoom on the render
     document.body.classList.add("detail-open");
     $("#detail").classList.add("open");
