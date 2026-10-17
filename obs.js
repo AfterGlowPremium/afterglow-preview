@@ -12,7 +12,7 @@
 (function (g) {
   const H = { Accept: "application/geo+json" }, NOW = () => Date.now() / 1000;
   const COV = { SKC: 0, CLR: 0, NCD: 0, NSC: 0, FEW: 0.2, SCT: 0.45, BKN: 0.75, OVC: 1, VV: 1 };
-  const O = g.AGObs = { st: {}, metar: {}, sat: {}, ready: false, errors: [] };
+  const O = g.AGObs = { st: {}, metar: {}, sat: {}, radar: {}, ready: false, errors: [] };
   const lsGet = k => { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch (e) { return null; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
   const km = (a, b, c, d) => { const R = 6371, r = Math.PI / 180, x = (d - b) * r * Math.cos((a + c) / 2 * r), y = (c - a) * r; return R * Math.hypot(x, y); };
@@ -99,6 +99,16 @@
       return { here: r[0].lm, hereHi: r[0].hi, path, pts: r.map(x => +x.lm.toFixed(2)), day, at: n };
     } catch (e) { return null; }
   }
+  // d23r: radar echoes opposite the sun (anti-solar azimuth, 8/18/30/40 km) from 3 h before to 30 min after the event — showers there with the
+  // sun getting through = rainbow (Virginia Beach Oct 17: ocean showers east at sunset, model's single 12 km point was dry)
+  async function radarAnti(sp, ev) {
+    const n = NOW(); if (!g.Sat || !g.Sat.samplePt || n - ev.tSet > 1800 || ev.tSet - n > 3 * 3600) return null;
+    const az = ((ev.sunsetAz || 270) + 180) % 360;
+    const r = await Promise.all([8, 18, 30, 40].map(d => g.Sat.samplePt("radar", ...Object.values(g.Model.offset(sp.lat, sp.lng, az, d)))));
+    const ok = r.filter(Boolean); if (!ok.length) return null;
+    return { echo: Math.max(...ok.map(x => x.echo)), heavy: Math.max(...ok.map(x => x.heavy)), at: n };
+  }
+  O.radarAnti = radarAnti;
   // Combine → block 0..1 (sun's light blocked) and gray 0..1 (how far the render/score go flat)
   function combine(ev, m, s) {
     const model = clamp(ev.geoBlock != null ? ev.geoBlock : ev.slotBlock || 0), modelLow = clamp(Math.max((ev.s.low || 0), 0.85 * (ev.s.mid || 0)) / 100);
@@ -128,6 +138,14 @@
       if (m0 && m0.dry && ev.wx && ev.wx.items) { ev.wx.items = ev.wx.items.filter(x => x.id !== "rain"); ev.obsDry = true; }
       { const mgE = Math.max(O.modelGray ? O.modelGray(ev, ev.tSet) : 0, clamp(((ev.geoBlock != null ? Math.min(ev.slotBlock || 0, ev.geoBlock + 0.25) : ev.slotBlock || 0) - 0.6) / 0.28));   // d16: score agrees with the gray render for any day (d23: gap-aware)
         if (mgE > 0) { const cap = Math.round(ev.score + (12 - ev.score) * mgE); if (cap < ev.score) { ev.scoreModel = ev.score; ev.score = cap; } } }
+      // d23r: observed showers on the anti-solar side + sun path open + sun under 42° → raise the rainbow odds (and the 🌈 pin)
+      { const R = inW && O.radar[sp.id], B = ev.bonus && ev.bonus.bow;
+        const S0 = O.sat[sp.id], op = Math.max(ev.gapOpen || 0, S0 && S0.path != null ? 1 - clamp((S0.path - 0.15) / 0.45) : 0);
+        if (R && B && R.echo >= 0.06 && op >= 0.25) { const tb = ev.tSet - (g.AG_MODE === "sunrise" ? -900 : 900), el = g.Model.sunPos(tb, sp.lat, sp.lng).elev;
+          if (el < 42) { const p = Math.round(100 * clamp(0.3 + 0.5 * clamp(R.echo * 2.5) * clamp(op * 1.5) + 0.1 * clamp(R.heavy * 5))); if (p > (B.p || 0)) {
+            B.p = p; B.t = tb; B.red = true; B.win = B.win && B.win.start ? B.win : { start: ev.tSet - (g.AG_MODE === "sunrise" ? 0 : 1800), end: ev.tSet + (g.AG_MODE === "sunrise" ? 1800 : 0) };
+            B.why = `Rainbow ${p}% — radar shows showers ${g.AG_MODE === "sunrise" ? "west" : "east"} (opposite the sun, 8–40 km) while the ${g.AG_MODE === "sunrise" ? "eastern" : "western"} light path is open; low sun = a tall, red-tinged bow. Look ${g.AG_MODE === "sunrise" ? "west" : "east"}.`;
+            if (ev.bow) ev.bow.p = Math.max(ev.bow.p || 0, p); ev.bowObs = R; } } } }
       if (!inW) return ev;
       const m = O.metar[sp.id], s = O.sat[sp.id];
       if (m === undefined && s === undefined) return ev;
@@ -193,7 +211,7 @@
     const todo = results.filter(r => inWindow(r.ev.tSet));
     let q = 0;
     await Promise.all(todo.map(async r => { await new Promise(res => setTimeout(res, (q++) * 60));
-      const [m, s] = await Promise.all([metar(r.spot, r.ev.tSet), sat(r.spot, r.ev)]); O.metar[r.spot.id] = m; O.sat[r.spot.id] = s; }));
+      const [m, s, rd] = await Promise.all([metar(r.spot, r.ev.tSet), sat(r.spot, r.ev), radarAnti(r.spot, r.ev)]); O.metar[r.spot.id] = m; O.sat[r.spot.id] = s; O.radar[r.spot.id] = rd; }));
     O.ready = true; O.at = Date.now(); return todo.length > 0;
   };
 })(window);

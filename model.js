@@ -281,11 +281,15 @@
       if (pos.elev < 42) {
         const ep = at(e, "precipitation", t) || 0, epp = (at(e, "precipitation_probability", t) || 0) / 100;
         const ec = atCode(e, t), sc = atCode(h, t);
-        const rainEast = clamp(Math.max(ep / 1.0, epp * 0.75));
-        const conv = isShowery(ec) || isShowery(sc) ? 1 : isRain(ec) || isRain(sc) ? 0.55 : 0.4;
-        const clearW = pw(Math.max(WL, WM * 0.8), [[0, 1], [0.3, 0.8], [0.6, 0.25], [0.9, 0]]);
-        const dry = pr > 1 ? 0.2 : pr > 0.3 ? 0.6 : 1;
-        const pb = 0.6 * rainEast * conv * clearW * dry;
+        // d23r: light showers / virga count (0.3 mm or a 40% chance with mid cloud on the anti-solar side); sun path from the light geometry
+        // (low cloud far along the azimuth), not the 40 km point — at a low sun the light comes in UNDER a deck (Virginia Beach Oct 17 miss)
+        const eMid = (at(e, "cloud_cover_mid", t) || 0) / 100, virga = epp >= 0.3 && eMid >= 0.4 ? 0.35 + 0.4 * epp : 0;
+        const rainEast = clamp(Math.max(ep / 0.6, epp * 0.85, virga));
+        const conv = isShowery(ec) || isShowery(sc) ? 1 : isRain(ec) || isRain(sc) ? 0.75 : 0.5;   // d23r: Sc-deck drizzle/showers offshore made tonight's VB double bow
+        const clearW0 = pw(Math.max(WL, WM * 0.8), [[0, 1], [0.3, 0.8], [0.6, 0.25], [0.9, 0]]);
+        const clearW = Math.max(clearW0, gapOpen * clamp((12 - pos.elev) / 8) * (1 - 0.6 * clamp((L - 0.85) / 0.15) * clamp((pos.elev - 4) / 8)));
+        const dry = pr > 1 ? 0.35 : pr > 0.3 ? 0.7 : 1;   // d23r: a passing shower overhead with the sun out is classic rainbow weather
+        const pb = 0.7 * Math.pow(rainEast, 0.7) * conv * Math.pow(clearW, 0.7) * dry * (pos.elev < 6 && gapLit > 0.3 ? 1.25 : 1);   // d23r: softer product (each factor is uncertain); low sun under a lit deck = classic sunset bow
         bowSer.push({ t, p: pb });
         if (pb > bow.p) bow = { p: pb, t, elev: pos.elev, red: RISE ? t <= tSet + 15 * 60 : t >= tSet - 15 * 60, rainEast, clearW, shower: conv === 1, dry };
       }

@@ -55,13 +55,22 @@
     // azimuth at approx local sunset today: search for elevation crossing
     let t = Math.floor(nowT / 86400) * 86400 + (RISE ? 5 : 12) * 3600, az = RISE ? 90 : 270;
     for (let k = 0; k < 160; k++) { const p = sunPos(t + k * 300, sp.lat, sp.lng); if (RISE ? (p.elev > 0 && k > 0) : (p.elev < 0 && k > 0)) { az = p.az; break; } }
-    sp.az = az; sp.west = offset(sp.lat, sp.lng, az, 80); sp.path = [40, 120, 200].map(km => offset(sp.lat, sp.lng, az, km)); sp.east = offset(sp.lat, sp.lng, (az + 180) % 360, 12);
+    sp.az = az; sp.west = offset(sp.lat, sp.lng, az, 80); sp.path = [40, 120, 200].map(km => offset(sp.lat, sp.lng, az, km)); sp.east = offset(sp.lat, sp.lng, (az + 180) % 360, 12); sp.eastPts = [10, 30].map(km => offset(sp.lat, sp.lng, (az + 180) % 360, km));   // d23r: rain opposite the sun 5–40 km (rainbows)
   });
 
   // Open-Meteo free tier: 600 weighted calls/min, 5000/hour per IP. One mode load is ~300 weighted calls
   // (55 spots + 165 path points + AQ), so we share spot data across modes, cache longer, back off on errors,
   // and never dead-end: stale cache -> best-match -> baked NOAA snapshot shipped with the site.
   const sleep = ms => new Promise(res => setTimeout(res, ms));
+  // d23r: two anti-solar points per spot (10 + 30 km) merged into one series: rain/showers anywhere 5–40 km opposite the sun count
+  // (Virginia Beach Oct 17: ocean showers east at sunset, the single 12 km point was dry → no rainbow flag). Keeps E length = spots.
+  function mergeE(A) {
+    if (!A || A.length !== SPOTS.length * 2) return A;
+    return SPOTS.map((_, i) => { const a = A[2 * i], b = A[2 * i + 1], h = JSON.parse(JSON.stringify(a.hourly)), hb = b.hourly;
+      for (const k of Object.keys(h)) { if (k === "time" || !hb[k]) continue; h[k] = h[k].map((v, j) => { const w = hb[k][j]; if (v == null) return w; if (w == null) return v;
+        return k === "weather_code" ? ((w >= 80 && w <= 82) || w >= 95 ? Math.max(v, w) : Math.max(v, w) === w && !((v >= 80 && v <= 82) || v >= 95) ? w : v) : /cloud/.test(k) ? (v + w) / 2 : Math.max(v, w); }); }
+      return Object.assign({}, a, { hourly: h, merged: 2 }); });
+  }
   async function fetchBatch(points, hourly, daily, base = API, models, tries = 3, extra) {
     const p = new URLSearchParams({
       latitude: points.map(x => x.lat).join(","), longitude: points.map(x => x.lng).join(","),
@@ -119,7 +128,7 @@
       let AQ = null; try { AQ = await fetchBatch(SPOTS, "aerosol_optical_depth,pm2_5,dust", null, "https://air-quality-api.open-meteo.com/v1/air-quality", null, 1); } catch (e) { console.warn("AQ unavailable", e); }
       return { at: Date.now(), sig, S, AQ, fcModel: models ? "noaa" : "fallback", lite: !!lite };
     };
-    const getD = async models => { const [W, E] = await Promise.all([fetchBatch(SPOTS.flatMap(s => s.path), WEST_VARS, null, API, models), fetchBatch(SPOTS.map(s => s.east), EAST_VARS, null, API, models)]); return { at: Date.now(), sig, W, E }; };
+    const getD = async models => { const [W, E] = await Promise.all([fetchBatch(SPOTS.flatMap(s => s.path), WEST_VARS, null, API, models), fetchBatch(SPOTS.flatMap(s => s.eastPts), EAST_VARS, null, API, models).then(mergeE)]); return { at: Date.now(), sig, W, E }; };
     const tryLive = async (models, lite) => {
       const [b, dd] = await Promise.all([okB(B) && fresh(B) ? B : getB(models, lite), okD(D) && fresh(D) ? D : getD(models)]);
       if (b !== B && !b.lite) lsSet(BK, b); if (dd !== D) lsSet(DK, dd);   // never cache the lite set over a full one
@@ -959,7 +968,7 @@
     pastBusy = (async () => {
       const S = await fetchBatch(SPOTS, SPOT_VARS, "sunset,sunrise", API, "gfs_seamless", 2, ex);
       const W = await fetchBatch(SPOTS.flatMap(s => s.path), WEST_VARS, null, API, "gfs_seamless", 2, ex);
-      const E = await fetchBatch(SPOTS.map(s => s.east), EAST_VARS, null, API, "gfs_seamless", 2, ex);
+      const E = mergeE(await fetchBatch(SPOTS.flatMap(s => s.eastPts), EAST_VARS, null, API, "gfs_seamless", 2, ex));
       pastData = { at: Date.now(), S, W, E, AQ: null, fcModel: "noaa", prov: {}, past: true };
       return pastData;
     })().finally(() => { pastBusy = null; });
