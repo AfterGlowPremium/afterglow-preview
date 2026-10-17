@@ -206,7 +206,18 @@
       front: { k: "est", t: "Estimate from NOAA model dew-point/pressure series" } };
   }
   const fmtClock = iso => new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZoneName: "short" }).format(new Date(iso));
-  const tag = p => p ? `<span class="src ${p.k}" title="${p.t}">${{ obs: "NOAA obs", model: "NOAA model", calc: "Astronomical", est: "Estimate", fb: "Fallback" }[p.k]}</span>` : "";
+  const tag = p => p ? `<span class="src ${p.k === "demo" ? "fb" : p.k}" title="${p.t}">${{ obs: "NOAA obs", model: "NOAA model", calc: "Astronomical", est: "Estimate", fb: "Fallback", demo: "Demo sky" }[p.k]}</span>` : "";
+  // d19: ?sky= / ?wx= demo skies — the same layer values the renderer is forced to (app.js wOpt / photostage DEMO), in %, so the cards and caption match the picture
+  function demoSky() {
+    const q = new URLSearchParams(location.search), sk = q.get("sky"), wx = q.get("wx");
+    const SK = { clear: { high: 12, mid: 0, low: 0, block: 0 }, overcast: { high: 40, mid: 95, low: 85, block: 1 }, partly: { high: 35, mid: 30, low: 20, block: 0.15 }, broken: { high: 30, mid: 75, low: 45, block: 0.12 } };
+    const WX = { haze: { high: 25, mid: 15, low: 10, block: 0.3 }, partly: { high: 35, mid: 30, low: 20, block: 0.15 }, fog: { low: 50, block: 0.6 }, rain: { high: 50, mid: 90, low: 95, block: 1 }, storm: { high: 70, mid: 90, low: 90, block: 0.85 } };
+    if (!SK[sk] && !WX[wx]) return null;
+    const o = Object.assign({ high: 12, mid: 0, low: 0, block: 0 }, SK[sk] || {}, WX[wx] || {});
+    o.gray = sk === "overcast" || wx === "rain" || wx === "storm" ? 1 : 0;
+    o.types = { high: o.high >= 5 ? (o.high > 75 ? "Cirrostratus" : "Cirrus") : "", mid: o.mid >= 5 ? (o.mid < 50 ? "Altocumulus" : "Altostratus") : "", low: o.low >= 5 ? (wx === "fog" ? "Fog / mist" : o.low < 50 ? "Cumulus / stratocumulus" : "Stratus / stratocumulus") : "" };
+    return o;
+  }
   // Cloud genus from NOAA observations (tonight): GOES-19 phase + cloud-top height, HRRR cloud base
   function noaaCloudTypes(r) {
     const N = state.noaa; if (state.day !== 0 || !N || !N.goes) return null;
@@ -435,7 +446,7 @@
     }));
   }
   function stage(r) {
-    const sp = r.spot, ev = r.ev, T = ev.timing, s = ev.s, lb = label(ev.score), [t0, t1] = scrubRange(T);
+    const sp = r.spot, ev = r.ev, T = ev.timing, DS = demoSky(), s = DS ? Object.assign({}, ev.s, { high: DS.high, mid: DS.mid, low: DS.low }) : ev.s, slotB = DS ? DS.block : ev.slotBlock, lb = label(ev.score), [t0, t1] = scrubRange(T);
     const pct = t => ((t - t0) / (t1 - t0) * 100).toFixed(2);
     const marks = (RISE ? [["golden", T.golden, "Golden hour ends", "Golden"], ["sunset", T.sunset, "Sunrise", "Sunrise"], ["peak", T.peak, "Best", "Best"], ["glow", T.glowEnd, "First color", "1st color"], ["civil", T.civilEnd, "Civil dawn", "Dawn"]] : [["golden", T.golden, "Golden hour", "Golden"], ["sunset", T.sunset, "Sunset", "Sunset"], ["peak", T.peak, "Best", "Best"], ["glow", T.glowEnd, "Glow ends", "Glow end"], ["civil", T.civilEnd, "Twilight ends", "Dusk"]]).filter(m => m[1]).sort((a, b) => a[1] - b[1]);
     // merge markers that would overlap on the track (e.g. best minute ≈ glow ends)
@@ -445,6 +456,7 @@
     const types = Object.fromEntries(ev.clouds.map(c => [c.level.toLowerCase().split(" ")[0], c.type.split(" — ")[0]]));
     const P = provenance(r), nct = noaaCloudTypes(r);
     if (nct) nct.forEach(c => types[c.level.toLowerCase()] = c.type.replace(/ \(.*/, "") + (c.type.includes("GOES") ? " ✓" : ""));
+    if (DS) { Object.assign(types, DS.types); P.clouds = P.path = { k: "demo", t: "Demo URL sky (?sky= / ?wx=) — not today's forecast" }; }
     const chip = (k, v, sub, p) => `<div class="rc"><span>${k} ${p ? tag(p) : ""}</span><b>${v}</b>${sub ? `<small>${sub}</small>` : ""}</div>`;
     // track colors: day gold → sunset orange → peak rose → glow violet → night
     const tr = RISE ? `linear-gradient(90deg,#0b0a1c 0%,#1d1b44 ${pct(T.civilEnd || t0)}%,#7b5cff ${pct(T.glowEnd || T.peak - 900)}%,#ff4f9a ${pct(T.peak)}%,#ff8a3d ${pct(T.sunset)}%,#ffd08a ${pct(T.golden || t1)}%,#8fb3d9 100%)` : `linear-gradient(90deg,#8fb3d9 0%,#ffd08a ${pct(T.golden || t0)}%,#ff8a3d ${pct(T.sunset)}%,#ff4f9a ${pct(T.peak)}%,#7b5cff ${pct(T.glowEnd || T.peak + 900)}%,#1d1b44 ${pct(T.civilEnd || t1)}%,#0b0a1c 100%)`;
@@ -475,7 +487,7 @@
         ${chip("High", Math.round(s.high) + "%", types.high || "", P.clouds)}
         ${chip("Mid", Math.round(s.mid) + "%", types.mid || "", P.clouds)}
         ${chip("Low", Math.round(s.low) + "%", types.low || "", P.clouds)}
-        ${chip(DIRW + " gap", Math.round((1 - ev.slotBlock) * 100) + "% open", ev.slotBlock < 0.25 ? "light gets in" : ev.slotBlock < 0.55 ? "partly blocked" : "mostly blocked", P.path)}
+        ${chip(DIRW + " gap", Math.round((1 - slotB) * 100) + "% open", slotB < 0.25 ? "light gets in" : slotB < 0.55 ? "partly blocked" : "mostly blocked", P.path)}
         ${chip("Air", hazeTxt, s.aod != null ? "AOD " + s.aod.toFixed(2) : "RH " + Math.round(ev.rhLow) + "%", P.aod)}
         ${ev.sea || (sp.behind && sp.behind.water) || (window.AGX && AGX.faceEast(sp.id)) ? `<div class="rc" id="pv-sea"><span>Water</span><b>—</b><small></small></div>` : `<div class="rc"><span>Water</span><b>None</b><small>land foreground</small></div>`}
       </div>
@@ -572,8 +584,9 @@
         if (wxq === "partly") Object.assign(zf, { high: 0.35, mid: 0.3, low: 0.2, block: 0.15, gap: 0.8 });
         if (wxq === "fog") Object.assign(zf, { rh: 0.99, aod: 0.9, low: 0.5, block: 0.6 });
         if (wxq === "rain") Object.assign(zf, { high: 0.5, mid: 0.9, low: 0.95, block: 1, gap: 0, aod: 0.35, rh: 0.95 });
-        if (wxq === "storm") Object.assign(zf, { high: 0.7, mid: 0.9, low: 0.9, block: 0.85, gap: 0.25, aod: 0.3, rh: 0.92 }); } if (!m || !m.ft) return zf; const r = { ...zf, swell: Math.min(1, m.ft / 8), phase: (t % 86400) / Math.max(4, m.per * 40) };
-        if (m.surf && m.ft >= 1.5) Object.assign(r, { hero: !/[?&]hero=0/.test(location.search), heroD: 9 + m.ft * 1.1, heroCam: 0.0016, mess: m.ft <= 2.2 ? 0.38 : 0, surf: m.ft * 0.3048, off: m.off ? 1 : 0, surfT: window.__agSurfT != null ? window.__agSurfT : (t % 900) + performance.now() / 1000, surfL: Math.max(30, Math.min(70, (m.per || 10) * 4.2)) });
+        if (wxq === "storm") Object.assign(zf, { high: 0.7, mid: 0.9, low: 0.9, block: 0.85, gap: 0.25, aod: 0.3, rh: 0.92 }); } if (!m || !m.ft) return zf; const ftC = Math.min(15, m.ft), r = { ...zf, swell: ftC <= 8 ? ftC / 8 : 1 + (ftC - 8) / 28, phase: (t % 86400) / Math.max(4, m.per * 40) };
+        if (m.surf && m.ft >= 1.5) Object.assign(r, { hero: !/[?&]hero=0/.test(location.search), heroD: ftC <= 5 ? 9 + ftC * 1.1 : 14.5 + (ftC - 5) * 1.5, heroCam: /[?&]hero=0/.test(location.search) ? 0.0016 + 0.00045 * Math.max(0, ftC - 4) : 0.0016, mess: m.ft <= 2.2 ? 0.38 : 0, surf: ftC * 0.3048, off: m.off ? 1 : 0, surfT: window.__agSurfT != null ? window.__agSurfT : (t % 900) + performance.now() / 1000, surfL: Math.max(30, Math.min(70, (m.per || 10) * 4.2)) });   // d19: 2–5 ft unchanged; 6–15 ft keep growing (hero modelled at 5 ft x K in the shader); beach view (hero=0) stands up on the dune for big surf so the lines behind the first set show
+        if (r.surf && m.dir != null && ev.sunsetAz != null) { const camAz = turned && sp.behind && sp.behind.water ? (ev.sunsetAz + 180) % 360 : ev.sunsetAz, da = ((m.dir - camAz + 540) % 360) - 180; r.swAng = Math.max(-40, Math.min(40, da)) * Math.PI / 180; }   // d19: swell lines angled by where the swell comes from vs where the camera looks
         if (m.wl) { Object.assign(r, { chop: m.wl.chop, caps: m.wl.caps }); if (r.surf) r.off = m.wl.off; if (r.hero && !heroWind(m.wl)) r.mess = Math.max(r.mess || 0, 0.3, Math.min(1, (m.wl.kt - 3) / 13)) * (/^onshore|light onshore/.test(m.wl.look) ? 1 : 0.55); }
         // architecture: forecast → classes → look dials (looks.js); the renderer reads only the dials
         if (window.Looks) { const s0 = ev.s || {}, qp = new URLSearchParams(location.search), wxq = qp.get("wx"), skq = qp.get("sky");
@@ -621,8 +634,8 @@
           se.querySelector("small").innerHTML = (wd != null ? `<span class="wdir"><i style="transform:rotate(${Math.round((wd + 180) % 360)}deg)" title="arrow = where the wind blows">↑</i>${Math.round(mph)} mph from ${compass(wd)}</span>${relTx ? `<em class="wrel ${relC}">${relTx}</em> · ` : ""}` : `${Math.round(mph)} mph · `) + [demo ? "" : `gust ${Math.round(gu)}`, ft != null ? `${ft < 1 ? "<1" : Math.round(ft)} ft` : ""].filter(Boolean).join(" · "); se.title = W2.txt; } }
       $("#pv-phase").textContent = phaseName(o.phase);
       $("#pv-elev").textContent = `sun ${o.elev >= 0 ? "+" : "−"}${Math.abs(o.elev).toFixed(1)}°`;
-      const parts = [["high", ev.s.high, "Cirrus"], ["mid", ev.s.mid, "Mid cloud"], ["low", ev.s.low, "Low cloud"]].filter(x => x[1] >= 10).map(x => `${x[2]} ${word(o.lit[x[0]])}`);
-      { const gw = window.AGObs && AGObs.sceneAt ? AGObs.sceneAt(sp, ev, t).gray : 0; if (gw > 0.5) { $("#pv-what").textContent = "Sun blocked by low/mid overcast: flat gray light, no color"; } else $("#pv-what").textContent = parts.length ? parts.join(" · ") : (o.elev > 0 ? "Clear sky: clean gradient, little canvas" : "Clear sky: horizon band fading"); }
+      const DSk = demoSky(), sNow = DSk || ev.s, parts = [["high", sNow.high, "Cirrus"], ["mid", sNow.mid, "Mid cloud"], ["low", sNow.low, "Low cloud"]].filter(x => x[1] >= 10).map(x => `${x[2]} ${word(o.lit[x[0]])}`);
+      { const gw = DSk ? DSk.gray : window.AGObs && AGObs.sceneAt ? AGObs.sceneAt(sp, ev, t).gray : 0; /* d19: demo sky → caption follows the forced sky, not today's obs */ if (gw > 0.5) { $("#pv-what").textContent = "Sun blocked by low/mid overcast: flat gray light, no color"; } else $("#pv-what").textContent = parts.length ? parts.join(" · ") : (o.elev > 0 ? "Clear sky: clean gradient, little canvas" : "Clear sky: horizon band fading"); }
       document.querySelectorAll(".scrub .mk").forEach(b => b.classList.toggle("on", Math.abs(+b.dataset.t - t) < 90));
     };
     const queue = () => { if (!raf) raf = requestAnimationFrame(render); }; window.__agQueue = queue;

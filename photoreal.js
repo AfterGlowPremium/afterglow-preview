@@ -41,7 +41,7 @@ uniform float uPhase;
 uniform float uSurf;    // DRAFT: breaking-wave face height (m) for surf spots, 0 = off
 uniform float uOff;     // DRAFT: offshore wind 0..1 (grooms faces, spray blown back off the lips)
 uniform float uSurfT;   // DRAFT: wave clock (s)
-uniform float uSurfL;
+uniform float uSurfL; uniform float uSwAng;   // d19: swell crest angle vs the view (rad, + = swell from the right)
 uniform vec3 uTint; uniform float uBack;   // DRAFT: dials from looks.js — water tint, backlight scale
 uniform float uGlow; uniform float uUnder; uniform float uTops;   // d17 afterglow regimes
 uniform float uFast; uniform float uGray; uniform float uHero; uniform float uHeroD; uniform float uMess;
@@ -304,7 +304,8 @@ float pierHit(vec3 ro, vec3 rd, out float tp){
 
 // ---------- DRAFT: shoaling / breaking surf heightfield (metres, camera-local: x right, -z out to sea) ----------
 float surfPeel(vec2 p){ float px0 = mod(uSurfT * 4.5, 150.) - 75.; return clamp((px0 - p.x) / 8., -1., 1.); }   // >0 broken (whitewater), ~0 the curl, <0 open shoulder
-float surfX(vec2 p){ float d = -p.y; return fract((d + uSurfT * 6.5) / uSurfL + .09 * sin(p.x * .021 + uSeed.x) + .05 * sin(p.x * .057)); }
+float gSwC = 1., gSwS = 0.;
+float surfX(vec2 p){ float d = -p.y * gSwC + p.x * gSwS; return fract((d + uSurfT * 6.5) / uSurfL + .09 * sin(p.x * .021 + uSeed.x) + .05 * sin(p.x * .057)); }
 float surfEnv(vec2 p){ float d = -p.y; return (uHero > .5 ? smoothstep(uHeroD + 10., uHeroD + 30., d) : 1.) * smoothstep(1., 12., d) * (1. - smoothstep(140., 320., d)); }
 float surfSec(vec2 p){ return clamp(.62 + .38 * sin(p.x * .027 + uSeed.y) * sin(p.x * .011 + 1.7) + .15 * sin(p.x * .09), .25, 1.); }
 float surfH(vec2 p){
@@ -324,23 +325,26 @@ float surfH(vec2 p){
 // peel front moves right-to-left; right of it = exploded whitewater, at it = barrel (lip thrown over a hollow), left = steep open shoulder
 float heroPX(){ return -mod(uSurfT * 3.75, 15.); }   // 4 s period; rel is wrapped so the loop is seamless   // crosses the view right→left in ~4 s
 float gFoamD = 1e3;
+// d19: big surf — the hero wave is modelled in a normalised space (K = face / 5 ft) so its shape, lip thickness, foam volume and
+// ray-march budget stay those of a well-behaved 5 ft wave; real size = K x that (10 ft = 2x, 15 ft = 3x). 2-5 ft: K = 1, unchanged.
+float gK = 1., gSurf = 0., gHD = 26.;
 // v17: inside soup (broken whitewater rolling toward the beach) as a foam layer painted on the water surface — no hard-edged slabs
 float soupAmt(vec2 xz){
   if (uMess < .01 || uHero < .5) return 0.;
-  float cz = xz.y + uHeroD, xr = xz.x * .927 + cz * .375, zr = -xz.x * .375 + cz * .927 - uHeroD;
-  float H = uSurf * 1.4, s = zr + uHeroD + .003 * xr * xr, dz = s - .4 * H;
+  float cz = xz.y + gHD, xr = xz.x * .927 + cz * .375, zr = -xz.x * .375 + cz * .927 - gHD;
+  float H = gSurf * 1.4, s = zr + gHD + .003 * xr * xr, dz = s - .4 * H;
   float lines = .5 + .5 * sin(dz * (1.1 - .25 * uMess) - uSurfT * 1.55 + fbm(vec2(xr * .07, 3.), 0., 2) * 3.);
   float fb = fbm(vec2(xr * .35 - uSurfT * .2, dz * .45 - uSurfT * .5), 0., 4);
   float pat = smoothstep(.4, .72, fb) * smoothstep(.4, .95, lines) + .45 * smoothstep(.6, .8, fb) * (1. - smoothstep(.4, .95, lines));
-  float band = smoothstep(.0, 1.5, dz) * (1. - smoothstep(uHeroD - 4., uHeroD + 2., dz));
+  float band = smoothstep(.0, 1.5, dz) * (1. - smoothstep(gHD - 4., gHD + 2., dz));
   return clamp(pat * band * uMess * 1.6 * smoothstep(.25, .55, uChop), 0., 1.);
 }   // foam distance from the last heroSDF call (foam is volumetric, not a surface)
 float heroSDF(vec3 p, float camM, out float mat, out vec4 info){
-  { float cz = p.z + uHeroD; p = vec3(p.x * .927 + cz * .375, p.y, -p.x * .375 + cz * .927 - uHeroD); }   // ~22° down-the-line view
+  { float cz = p.z + gHD; p = vec3(p.x * .927 + cz * .375, p.y, -p.x * .375 + cz * .927 - gHD); }   // ~22° down-the-line view
   // 2D profile swept along the crest. Phase from distance to the peel point (rel<0 = unbroken, peel moves right→left):
   // round swell → steep concave wall → lip pitches past vertical → tube → impact/foam → soup
-  float H = uSurf * 1.4, D = uHeroD + .003 * p.x * p.x;   // v17: face height calibrated to forecast (1.4 × forecast face height: 2 ft ≈ waist, 4 ft ≈ head high, 6 ft ≈ overhead; no figure drawn)
-  float s = p.z + D, y = p.y + camM, rel = (mod(p.x * .927 + (p.z + uHeroD) * .375 - heroPX() + 9., 15.) - 9.) * 1.7;   // phases compressed so the whole sequence fits the view
+  float H = gSurf * 1.4, D = gHD + .003 * p.x * p.x;   // v17: face height calibrated to forecast (1.4 × forecast face height: 2 ft ≈ waist, 4 ft ≈ head high, 6 ft ≈ overhead; no figure drawn)
+  float s = p.z + D, y = p.y + camM, rel = (mod(p.x * .927 + (p.z + gHD) * .375 - heroPX() + 9., 15.) - 9.) * 1.7;   // phases compressed so the whole sequence fits the view
   float offOK = smoothstep(.15, .45, uOff + .25) * (1. - smoothstep(.05, .35, uMess));   // v17: onshore → no lip throw / no tube
   float steep = smoothstep(-13., -4., rel) * (1. - smoothstep(2., 9., rel));                       // 0 round … 1 vertical wall
   float pitch = smoothstep(-4.5, 0., rel) * offOK;                 // lip throw 0 … 1 (lands at the peel)
@@ -375,7 +379,7 @@ float heroSDF(vec3 p, float camM, out float mat, out vec4 info){
     float boom = smoothstep(-.6, .8, rel) * (1. - smoothstep(1.5, 5., rel));
     float nz2 = fbm(vec2(p.x * 5.3 + s * 3.1, y * 6.2 - uSurfT * 3.), 0., 4);
     vec2 bc = vec2(s - (.35 + .5 * boom) * H, y - (.15 + .35 * boom) * H);
-    dF = length(bc * vec2(.7, 1.)) - (.15 + .55 * boom * (1. - .65 * uMess)) * H * (.3 + .7 * nz + .9 * nz2) * ff * (1. - .6 * smoothstep(2.5, 5.5, rel)) * (1. - .35 * uMess);   // onshore: no lip impact → smaller explosion
+    dF = length(bc * vec2(.7, 1.)) - (.15 + .55 * boom * (1. - .65 * uMess)) * H * (.3 + .7 * nz + .9 * nz2) * ff * (1. - .6 * smoothstep(2.5, 5.5, rel)) * (1. - .35 * uMess) * mix(1., .62, min(1., gK - 1.));   // d19: big surf — keep the lip explosion about wave-height, not a mushroom cloud   // onshore: no lip impact → smaller explosion
   }
   float dSo = 1e3;
   if (uMess > .01){   // v17 crumbler: whitewater spills down the face from the crest, thick soup sections rolling toward the camera
@@ -389,13 +393,13 @@ float heroSDF(vec3 p, float camM, out float mat, out vec4 info){
     float lines = .5 + .5 * sin(dz * (1.1 - .25 * uMess) - uSurfT * 1.55 + fbm(vec2(p.x * .07, 3.), 0., 2) * 3.);
     float fb = fbm(vec2(p.x * .35 - uSurfT * .2, dz * .45 - uSurfT * .5), 0., 4);
     float pat = smoothstep(.42, .7, fb) * smoothstep(.45, .9, lines) + .5 * smoothstep(.62, .8, fb) * (1. - smoothstep(.45, .9, lines));   // whitewater lines with gaps of open water
-    float band = smoothstep(.0, 1.5, dz) * (1. - smoothstep(uHeroD - 4., uHeroD - 1., dz));
+    float band = smoothstep(.0, 1.5, dz) * (1. - smoothstep(gHD - 4., gHD - 1., dz));
     float hS = uMess * H * (.06 * pat - .014) * band * smoothstep(.25, .55, uChop);   // inside soup needs wind/chop: small clean offshore days stay clean                 // height field: foam only where pat is high, open water between lines
     float dS = (y - .02 - hS) * .45;
     dF = min(dF, dC);
     // (geometry soup disabled — painted on the water by soupAmt instead)   // no foam → no zero-thickness surface on the open water
   }
-  float d = min(min(dB, dL), dSo); mat = dSo < min(dB, dL) ? 2. : dL < dB ? 1. : 0.;   // d13: 6 ft scale figure removed; face height stays calibrated (uSurf * 1.4)
+  float d = min(min(dB, dL), dSo); mat = dSo < min(dB, dL) ? 2. : dL < dB ? 1. : 0.;   // d13: 6 ft scale figure removed; face height stays calibrated (gSurf * 1.4)
   gFoamD = dF;
   info = vec4(s, y, Hh, pitch * (1. - broke)); return d;
 }
@@ -403,6 +407,8 @@ float heroSDF(vec3 p, float camM, out float mat, out vec4 info){
 vec3 aces(vec3 x){ return clamp((x*(2.51*x+.03))/(x*(2.43*x+.59)+.14), 0., 1.); }
 
 void main(){
+  gSwC = cos(uSwAng); gSwS = sin(uSwAng);
+  gK = max(1., uSurf / 1.524); gSurf = uSurf / gK; gHD = uHeroD / gK;
   vec2 frag = gl_FragCoord.xy;
   vec2 uv = (frag - .5*uRes) / uRes.y;
   float th = tan(uFov*.5);
@@ -500,7 +506,7 @@ void main(){
     vec3 n = normalize(vec3(-(hx-h0)/e*amp, 1., -(hz-h0)/e*amp*.6));
     // swell: long rolling crests (wave height from the marine forecast) — tilts the whole reflection in broad bands
     float sk = .16 + .05*sin(wp.x*.013);
-    n = normalize(n + vec3(0., 0., uSwell * .22 * cos(wp.y * sk + wp.x * .02 + uPhase * 2.2)) * smoothstep(3000., 300., tW));
+    n = normalize(n + vec3(0., 0., uSwell * .22 * cos(wp.y * sk + wp.x * .02 + uPhase * 2.2)) * smoothstep(3000., 300., tW) * (1. - smoothstep(.2, .5, tW * pixA / max(-rd.y, 1e-3) * sk * .159)));   // d19: fade the swell bands once a pixel spans ~1/3 of a crest (no scalloped aliasing near the horizon)
     float far = smoothstep(150., 2500., tW);
     // ripples that survive at distance: anchored to world x and inverse distance (perspective-compressed streaks)
     vec2 rq = vec2(wp.x / tW * 55. + uSeed.x, 900. / tW + uSeed.y);
@@ -565,7 +571,8 @@ void main(){
       { float x = surfX(p.xz), d = -p.z, sec = surfSec(p.xz), brk = smoothstep(110., 40., d) * sec * smoothstep(.35, 1.7, uSurf), fw = mix(.1, .022, brk);
         float pl = surfPeel(p.xz), curl = smoothstep(-1., -.15, pl) * (1. - smoothstep(.15, .6, pl)) * brk * smoothstep(.15, .5, uOff + (1. - uChop) * .4);
         float u = (x - (1. - fw * 2.6)) / (fw * 2.6);
-        if (curl > .25 && uSurf > 1.05 && u > .05 && u < 1.){ float Ht = uSurf * surfEnv(p.xz) * sec * (1. + .35 * brk) * .68;
+        if (curl > .25 && uSurf > 1.05 && uSurf < 2.2 && u > .05 && u < 1.){   // d19: big surf seen from the beach = whitewater, not a solid thrown sheet
+          float Ht = uSurf * surfEnv(p.xz) * sec * (1. + .35 * brk) * .68;
           float yl = -camM + Ht * (1. - .55 * pow(1. - u, 2.)) , th = (.12 + .5 * u) * curl;
           if (p.y < yl && p.y > yl - th){ hitT = t; lipHit = 1.; lipU = u; break; } } }
       if (dy < 0.){ float a = t - max(.25, t*.004), b = t; for (int k = 0; k < 6; k++){ float m = (a+b)*.5; vec3 q = rd*m; if (q.y < -camM + surfH(q.xz)) b = m; else a = m; } hitT = b; break; }
@@ -574,7 +581,7 @@ void main(){
         float plume = .08 + .3 * uOff;   // spindrift trails farther back with stronger offshore wind
         float behind = smoothstep(plume, .0, x) * smoothstep(-.02, .012, x);
         float nz = fbm(vec2(p.x * .35 + uSurfT * .8, p.y * 1.6 - uSurfT * 1.5 + p.z * .2), 0., 4);
-        sprayA += exp(-max(dy, 0.) / (.6 + 2.2 * uOff)) * behind * e * smoothstep(.3, .7, nz) * uOff * .25 * min(uSurf, 2.5) * max(.25, min(t*.004, 1.)); }
+        sprayA += exp(-max(dy, 0.) / (.6 + 2.2 * uOff)) * behind * e * smoothstep(.3, .7, nz) * uOff * .25 * min(uSurf, 4.6) * max(.25, min(t*.004, 1.)); }
       float st = max(.12, min(dy * .5, 6.)) * (t > 60. ? 1.4 : 1.); t += st; if (t > 420.) break;
     }
     vec3 Ta; vec3 hz2 = skyRay(ro, normalize(vec3(rd.x, .001, rd.z)), pixA, false, Ta);
@@ -608,6 +615,12 @@ void main(){
       float streak = uCaps * .35 * smoothstep(.6, .8, fbm(vec2(q.x * .04, q.y * .9) + 3., 0., 4));
       lip += spill + caps + streak;   // onshore: crumbling crests, whitecaps, wind streaks
       float foam = clamp(lip + soup + inside, 0., .95) * (1. - .5 * uOff * (1. - broke));
+      { float bigS = smoothstep(1.4, 2.8, uSurf);   // d19: big surf (6–15 ft) — most sets break in the zone: whitewater on the face and rolling in ahead of it, a few open walls
+        if (bigS > 0.){ float wv = floor((-q.y * gSwC + q.x * gSwS + uSurfT * 6.5) / uSurfL);
+          float sect = smoothstep(.36, .6, fbm(vec2(q.x * .03 + uSeed.y + wv * 3.7, wv * 1.3), 0., 3));
+          float zoneB = smoothstep(60. + 45. * bigS, 25. + 25. * bigS, d) * smoothstep(14., 34., d);
+          float ww = (smoothstep(.6, .93, x) * (1. - smoothstep(.985, 1., x) * .3) + smoothstep(.18, .0, x) * .6) * smoothstep(.3, .66, tex);
+          foam = max(foam, clamp(bigS * zoneB * sect * ww * 1.15, 0., .95)); } }
       vec3 fc = hz2 * .75 + refl * .25; fc = mix(vec3(dot(fc, vec3(.2126,.7152,.0722))), fc, .35) * 1.25;
       // direct sun on the waves: evening (sun behind viewer) = warm lit faces + golden glints; morning (sun ahead) = backlit
       vec3 sL = ESUN * sunAtm * sunVis * smoothstep(-.015, .02, uSunA.y) * .045 * uBack;
@@ -639,30 +652,30 @@ void main(){
   }
 
   // ---------- DRAFT: hero wave render ----------
-  if (uHero > .5 && uSurf > .2 && uWater > .5 && rd.y < .12 && rd.y > -.5){
-    float camM = uCamH * 1000., t = 1., ht = -1., mat = 0., spr = 0., fDen = 0., fY = 0.; vec4 inf;
+  if (uHero > .5 && uSurf > .2 && uWater > .5 && rd.y < .12 + .33 * min(1., gK - 1.) && rd.y > -.5){
+    float camM = uCamH * 1000. / gK, t = 1. / gK, ht = -1., mat = 0., spr = 0., fDen = 0., fY = 0.; vec4 inf;
     for (int i = 0; i < 140; i++){ if (uFast > .5 && i >= 105) break;
       vec3 p = rd * t; float m; vec4 I; float d = heroSDF(p, camM, m, I);
       if (d < .004 + t * .0006){ ht = t; mat = m; inf = I; break; }
       // spindrift: fine mist trailing back (away from camera) off the unbroken crest, length/density with offshore wind
-      if (uOff > .05){ float s = I.x, y = I.y, Hh = I.z, rel = (mod(p.x * .927 + (p.z + uHeroD) * .375 - heroPX() + 9., 15.) - 9.) * 1.7;
+      if (uOff > .05){ float s = I.x, y = I.y, Hh = I.z, rel = (mod(p.x * .927 + (p.z + gHD) * .375 - heroPX() + 9., 15.) - 9.) * 1.7;
         float zone = smoothstep(.3, -.1, s) * smoothstep(-(2. + 9. * uOff), -.5, s) * smoothstep(1.5, -2., rel);
         float above = y - Hh * .85;
         if (zone > 0. && above > -.2 && above < 5.){ float nz = fbm(vec2(p.x * .5 + uSurfT * 1.5, y * 1.8 - uSurfT * 2.2 + s * .3), 0., 4);
-          spr += exp(-max(above, 0.) / (.4 + 1.3 * uOff)) * zone * smoothstep(.3, .7, nz) * uOff * .1 * min(d, 1.); } }
-      if (uMess > .05){ float s = I.x, y = I.y, Hh = I.z, rel = (mod(p.x * .927 + (p.z + uHeroD) * .375 - heroPX() + 9., 15.) - 9.) * 1.7;   // v17: onshore spray blown landward (toward camera) off the crumbling crest
+          spr += exp(-max(above, 0.) / (.4 + 1.3 * uOff)) * zone * smoothstep(.3, .7, nz) * uOff * (.1 + .15 * min(1., gK - 1.)) * min(d, 1.); /* d19: bigger lips throw more spindrift */ } }
+      if (uMess > .05){ float s = I.x, y = I.y, Hh = I.z, rel = (mod(p.x * .927 + (p.z + gHD) * .375 - heroPX() + 9., 15.) - 9.) * 1.7;   // v17: onshore spray blown landward (toward camera) off the crumbling crest
         float zone = smoothstep(-.3, .4, s) * (1. - smoothstep(1. + 3.5 * uMess, 2. + 6. * uMess, s)) * smoothstep(-6. * uMess - 1., 0., rel) * (1. - smoothstep(4., 8., rel));
         float above = y - Hh * .7;
         if (zone > 0. && above > -.3 && above < 3.){ float nz = fbm(vec2(p.x * .6 - uSurfT * .4, y * 1.6 - uSurfT * 1.1 - s * .5), 0., 4);
           spr += exp(-max(above, 0.) / (.3 + .7 * uMess)) * zone * smoothstep(.35, .75, nz) * uMess * .09 * min(d, 1.); } }
       float stp = clamp(d * .5, .015, 2.); if (gFoamD < .6) stp = min(stp, .08 + t * .002);
       if (gFoamD < .35){ float dn = smoothstep(.35, -.35, gFoamD) * stp * 2.2; fDen += dn; fY += dn * clamp(I.y / max(I.z, .1), 0., 1.3); }
-      t += stp; if (t > 120. || fDen > 6.) break;
+      t += stp; if (t > 120. || fDen > 6. || (rd.y > 0. && p.y + camM > gSurf * 3.8)) break;
     }
     vec3 Ta; vec3 hz2 = skyRay(ro, normalize(vec3(rd.x, .001, rd.z)), pixA, false, Ta);
     vec3 sL = ESUN * sunAtm * sunVis * smoothstep(-.015, .02, uSunA.y) * .045 * uBack;   // direct sun only where it gets through cloud
     float fwd = max(dot(rd, uSunA), 0.);
-    bool pierFirst = pier > .5 && tP < (ht > 0. ? ht : 1e9);
+    bool pierFirst = pier > .5 && tP < (ht > 0. ? ht * gK : 1e9);
     if (ht > 0. && !pierFirst){
       vec3 p = rd * ht; float m; vec4 I; float e = .02 + ht * .0015;   // wider normal kernel with distance = smooth normals
       vec3 n = normalize(vec3(heroSDF(p + vec3(e,0,0), camM, m, I) - heroSDF(p - vec3(e,0,0), camM, m, I),
@@ -683,8 +696,15 @@ void main(){
         c += sL * pow(max(dot(rv, uSunA), 0.), 120.) * 3. + refl * .12;   // wet: sun glint + sky sheen
         c *= .7 + .45 * fbm(vec2(p.x * 3.5 + y * .4, y * .7 - uSurfT * .3), 0., 4);   // streaks running down the face                                     // streaks running down the face
         c *= mix(1., .35, b * smoothstep(.3 * Hh, -.05, length(vec2(s, y) - vec2(.18 * Hh, .5 * Hh)) - .25 * Hh));   // shadowed pocket
-        c += sL * front * vec3(1., .85, .62) * .6 * (1. - F);                                   // evening sun on the face
-        float relp = (mod(p.x * .927 + (p.z + uHeroD) * .375 - heroPX() + 9., 15.) - 9.) * 1.7; float crestFoam = smoothstep(.93, 1., yr) * smoothstep(.45, .75, tex) * (.3 + .7 * smoothstep(-6., 0., relp)) + smoothstep(1., 4., relp) * (1. - smoothstep(5., 9.5, relp)) * smoothstep(.35, .7, tex);
+        float bR = min(1., gK - 1.);   // d19: big-surf realism (6 ft+); 2–5 ft unchanged
+        c += sL * front * vec3(1., .85, .62) * .6 * (1. - .45 * bR) * (1. - F);                                   // evening sun on the face
+        if (bR > 0.){   // groomed offshore face: fine wind-combed lines along the wall, deeper blue-green toward the trough, glassy sheen up high
+          float gl = sin(y * 21. + fbm(vec2(p.x * .22, y * .45), 0., 3) * 6. - uSurfT * .7) * (.6 + .4 * fbm(vec2(p.x * .9, y * 3.), 0., 3));
+          c *= 1. + bR * (.035 + .05 * uOff) * gl * (1. - .6 * thin);
+          vec3 deep = refl * .3 + hz2 * vec3(.09, .15, .14);
+          c = mix(c, deep, bR * .5 * pow(1. - yr, 1.7));
+          c += bR * refl * .1 * smoothstep(.4, .9, yr) * uOff; }
+        float relp = (mod(p.x * .927 + (p.z + gHD) * .375 - heroPX() + 9., 15.) - 9.) * 1.7; float crestFoam = smoothstep(.93, 1., yr) * smoothstep(.45, .75, tex) * (.3 + .7 * smoothstep(-6., 0., relp)) + smoothstep(1., 4., relp) * (1. - smoothstep(5., 9.5, relp)) * smoothstep(.35, .7, tex);
         if (uMess > .01){ float fz = smoothstep(.5, .8, fbm(vec2(p.x * .8 - uSurfT * .5, y * 2.1 + s * 1.4 - uSurfT * .8), 0., 5));   // v17: foam streaks / lace all over the crumbling face + whitecaps on the back
           crestFoam = max(crestFoam, uMess * (fz * (.35 + .65 * smoothstep(.45, .95, yr)) + smoothstep(-4., 1., relp) * smoothstep(.6, .95, yr) * .8 + smoothstep(.62, .92, yr) * smoothstep(.35, .65, tex) * .75)); c *= 1. - .15 * uMess; }
         c = mix(c, fc * (1. + .5 * uMess), clamp(crestFoam * (.7 + .3 * uMess), 0., 1.));
@@ -707,7 +727,7 @@ void main(){
       } else {
         c = fc * 1.45 * (.7 + .55 * fbm(vec2(p.x * 2.2, y * 2.4 - uSurfT * 1.5), 0., 5));             // exploded turbulent whitewater
       }
-      float fog = 1. - exp(-ht * .001 * (BMe * 1.3 + BR.g));
+      float fog = 1. - exp(-ht * gK * .001 * (BMe * 1.3 + BR.g));
       col = mix(c, hz2 * .9, clamp(fog, 0., 1.));
     }
     if (!pierFirst){ vec3 sc = mix(vec3(dot(hz2, vec3(.2126,.7152,.0722))), hz2, .5) * 1.1 + ESUN * sunAtm * sunVis * smoothstep(-.015, .02, uSunA.y) * .05 * (pow(fwd, 5.) * 6. + .4) * vec3(1., .82, .62);
@@ -801,13 +821,13 @@ void main(){
     gl.uniform1f(U.uWater, P.water ? 1 : 0); gl.uniform1f(U.uPier, P.pier ? 1 : 0); gl.uniform1f(U.uShore, P.shore || 0); gl.uniform1f(U.uHills, P.hills || 0); if (U.uCity) gl.uniform1f(U.uCity, P.city || 0); if (U.uBridge) gl.uniform1f(U.uBridge, P.bridge || 0);
     gl.uniform1f(U.uCamH, P.heroCam || P.camH || 0.002);
     const aspect = W / H, vfov = (aspect < 1 ? 62 : aspect < 1.5 ? 50 : 40) * (P.fovMul || 1);
-    gl.uniform1f(U.uFov, vfov * d2r); gl.uniform1f(U.uPitch, (vfov * (P.hero && P.surf ? 0.04 : 0.17)) * d2r * (P.fovMul || 1) / Math.max(0.2, P.fovMul || 1));
+    gl.uniform1f(U.uFov, vfov * d2r); gl.uniform1f(U.uPitch, (vfov * (P.hero && P.surf ? 0.04 : P.surf > 1.2 ? 0.09 : 0.17)) * d2r * (P.fovMul || 1) / Math.max(0.2, P.fovMul || 1));
     gl.uniform2f(U.uSeed, P.seed * 977 % 500, P.seed * 613 % 500); gl.uniform1f(U.uWind, P.wind || 0);
     gl.uniform1f(U.uLQ, P.lq ? 1 : 0); gl.uniform1f(U.uDog, P.dog || 0); gl.uniform1f(U.uPixScale, 1);
     gl.uniform1f(U.uTwi, Math.max(0, Math.min(1, (1.5 - P.elev) / 3)) * Math.max(0, Math.min(1, (P.elev + 8) / 3)) * (1 - clamp(P.gray || 0))); gl.uniform1f(U.uGrainT, P.grain || 0.37);
     gl.uniform1f(U.uBlockGap, P.gap || 0);
     gl.uniform1f(U.uChop, P.chop != null ? P.chop : 0.3); gl.uniform1f(U.uSwell, P.swell || 0); gl.uniform1f(U.uCaps, P.caps || 0); gl.uniform1f(U.uPhase, P.phase || 0);
-    if (U.uSurf) { gl.uniform1f(U.uSurf, P.surf || 0); gl.uniform1f(U.uOff, P.off || 0); gl.uniform1f(U.uSurfT, P.surfT || 0); gl.uniform1f(U.uSurfL, P.surfL || 42); if (U.uTint) { const tn = P.tint || [0.15, 0.2, 0.12]; gl.uniform3f(U.uTint, tn[0], tn[1], tn[2]); gl.uniform1f(U.uBack, (P.back != null ? P.back : 1) * (1 - clamp(P.gray || 0))); }
+    if (U.uSurf) { gl.uniform1f(U.uSurf, P.surf || 0); gl.uniform1f(U.uOff, P.off || 0); gl.uniform1f(U.uSurfT, P.surfT || 0); gl.uniform1f(U.uSurfL, P.surfL || 42); if (U.uSwAng) gl.uniform1f(U.uSwAng, P.swAng || 0); if (U.uTint) { const tn = P.tint || [0.15, 0.2, 0.12]; gl.uniform3f(U.uTint, tn[0], tn[1], tn[2]); gl.uniform1f(U.uBack, (P.back != null ? P.back : 1) * (1 - clamp(P.gray || 0))); }
     if (U.uHero) { gl.uniform1f(U.uHero, P.hero ? 1 : 0); if (U.uMess) gl.uniform1f(U.uMess, P.mess || 0); gl.uniform1f(U.uHeroD, P.heroD || 26); } }
     gl.uniform1f(U.uMidH, clamp(P.midKm || 4.5, 2.5, 7.5));
     gl.uniform1f(U.uMeter, 0);
