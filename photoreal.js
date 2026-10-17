@@ -746,11 +746,11 @@ void main(){
         c = mix(c, fc, smoothstep(.5, .8, tex) * .6);
         { float rz = smoothstep(.6, 1.6, uSurf); if (rz > 0.){   // d20: thrown lip = thin translucent sheet: golden light through it, shaded underside, feathering white edge
           vec3 ol2 = mix(vec3(dot(olive, vec3(.3, .5, .2))), olive, .5) * vec3(.82, 1., 1.08);
-          float tb2 = tubeB(); vec3 sss2 = sky * ol2 * mix(.8 + .9 * tex, .5 + .5 * tex, tb2) + sL * (front * .45 + pow(fwd, 2.) * 2.) * vec3(.5, .75, .35);
+          float tb2 = tubeB(); vec3 sss2 = sky * ol2 * mix(vec3(1.), vec3(.78, .95, 1.12), tb2) * mix(.8 + .9 * tex, .5 + .5 * tex, tb2) + sL * (front * .45 + pow(fwd, 2.) * 2.) * vec3(.5, .75, .35);
           vec3 cl = refl * F * 1.3 + sss2 * (1. - F) + rim * (sky * vec3(.3, .4, .26) + sL * vec3(.6, .8, .4) * (.3 + fwd));
           cl *= mix(.5, 1., smoothstep(-.3, .4, n.y));
           cl = mix(cl, fc * 1.05, clamp(smoothstep(.58, .8, tex) * .45 + smoothstep(.55, .75, fbm(vec2(p.x * 2.6 + uSeed.x, p.y * 7. - uSurfT * 1.5), 0., 4)) * .55, 0., .9) * mix(1., .3, tb2));   /* d21b: thick poured lip keeps its water colour; whitewater only as light feathering */   // feathering, spray-torn whitewater along the throwing lip
-          cl *= .78 + .44 * fbm(vec2(p.x * 1.8 + uSeed.y, p.y * 2.6 - uSurfT * .5), 0., 4);   // uneven sheet thickness
+          cl *= mix(.78, .9, tb2) + mix(.44, .2, tb2) * fbm(vec2(p.x * 1.8 + uSeed.y, p.y * 2.6 - uSurfT * .5), 0., 4);   /* d21c: smoother poured lip, less camouflage blotching */   // uneven sheet thickness
           c = mix(c, cl, rz); } }
       } else if (mat < 2.5 && uMess > .01) {   // v17: inside soup — bright bubbly whitewater with lacy holes showing dark water
         float b1 = fbm(vec2(p.x * 1.7 - uSurfT * .3, p.z * 2.6 - uSurfT * .9), 0., 5), b2 = fbm(vec2(p.x * 6.5, p.z * 8. - uSurfT * 2.), 0., 3);
