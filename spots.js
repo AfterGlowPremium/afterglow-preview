@@ -4,59 +4,59 @@ window.SPOTS = [
   { id:"cadillac", name:"Cadillac Mountain", state:"ME", lat:44.3526, lng:-68.2245, type:"Summit", note:"1,530 ft granite summit in Acadia — sunset over Frenchman Bay islands and the western ridges.", arc:[200,320], obst:0.3, water:false },
   { id:"bassharbor", name:"Bass Harbor Head Light", state:"ME", lat:44.2219, lng:-68.3373, type:"Lighthouse", note:"Iconic cliffside light on Mount Desert Island; the rocks light up gold at golden hour.", arc:[180,280], obst:0.5, water:true },
   { id:"westprom", name:"Western Promenade", state:"ME", lat:43.6514, lng:-70.2770, type:"Bluff", note:"Portland's west-facing bluff with views toward the White Mountains on clear evenings.", arc:[240,320], obst:1.5, water:false },
-  { id:"herring", name:"Herring Cove Beach", state:"MA", lat:42.0447, lng:-70.2183, type:"Beach", note:"Provincetown's classic — one of the few Cape beaches where the sun sets over the ocean.", arc:[200,300], obst:0, water:true },
-  { id:"firstenc", name:"First Encounter Beach", state:"MA", lat:41.8183, lng:-69.9984, type:"Beach", note:"Eastham bayside beach; huge tidal flats mirror the sky at low tide.", arc:[240,320], obst:0, water:true },
-  { id:"menemsha", name:"Menemsha Beach", state:"MA", lat:41.3537, lng:-70.7686, type:"Harbor", note:"Martha's Vineyard fishing village where locals clap when the sun goes down.", arc:[240,320], obst:0, water:true },
+  { id:"herring", name:"Herring Cove Beach", state:"MA", lat:42.0447, lng:-70.2175, type:"Beach", note:"Provincetown's classic — one of the few Cape beaches where the sun sets over the ocean.", arc:[200,300], obst:0, water:true },
+  { id:"firstenc", name:"First Encounter Beach", state:"MA", lat:41.8187, lng:-70.0040, type:"Beach", note:"Eastham bayside beach; huge tidal flats mirror the sky at low tide.", arc:[240,320], obst:0, water:true },
+  { id:"menemsha", name:"Menemsha Beach", state:"MA", lat:41.3548, lng:-70.7663, type:"Harbor", note:"Martha's Vineyard fishing village where locals clap when the sun goes down.", arc:[240,320], obst:0, water:true },
   { id:"aquinnah", name:"Aquinnah Cliffs", state:"MA", lat:41.3489, lng:-70.8346, type:"Bluff", note:"Clay cliffs glow red and ochre; open view west over Vineyard Sound.", arc:[220,320], obst:0, water:true },
   { id:"beavertail", name:"Beavertail State Park", state:"RI", lat:41.4497, lng:-71.3994, type:"Bluff", note:"Rocky Jamestown point at the mouth of Narragansett Bay.", arc:[200,290], obst:1, water:true },
   { id:"montauk", name:"Montauk (Gin Beach / Point)", state:"NY", lat:41.0711, lng:-71.8573, type:"Lighthouse", note:"The far tip of Long Island; bayside beaches look west over Block Island Sound.", arc:[270,340], obst:0.5, water:true },
-  { id:"pier45", name:"Pier 45, Hudson River Park (NYC)", state:"NY", lat:40.7317, lng:-74.0124, type:"Pier", note:"Manhattan's sunset pier — sun drops behind the Jersey skyline over the Hudson.", arc:[230,310], obst:2, water:true },
+  { id:"pier45", name:"Pier 45, Hudson River Park (NYC)", state:"NY", lat:40.7331, lng:-74.0124, type:"Pier", note:"Manhattan's sunset pier — sun drops behind the Jersey skyline over the Hudson.", arc:[230,310], obst:2, water:true },
   { id:"bbpier1", name:"Brooklyn Bridge Park, Pier 1 (NYC)", state:"NY", lat:40.7010, lng:-73.9972, type:"Pier", note:"New York City harbor view — fall and winter suns set southwest over the Upper Bay past the Statue of Liberty, with Lower Manhattan lighting up to the right.", arc:[200,265], obst:1, water:true },
-  { id:"capemay", name:"Sunset Beach, Cape May Point", state:"NJ", lat:38.9468, lng:-74.9606, type:"Beach", note:"Nightly flag ceremony; sun sets over Delaware Bay beside the concrete ship wreck.", arc:[220,300], obst:0, water:true },
-  { id:"henlopen", name:"Cape Henlopen State Park", state:"DE", lat:38.7980, lng:-75.0950, type:"Beach", note:"Dunes and Delaware Bay views; Lewes harbor glows to the west.", arc:[250,330], obst:0, water:true },
-  { id:"terrapin", name:"Terrapin Nature Park, Kent Island", state:"MD", lat:38.9970, lng:-76.3070, type:"Beach", note:"Eastern Shore beach looking west across the Chesapeake with the Bay Bridge in frame.", arc:[230,300], obst:0.5, water:true },
-  { id:"annapolis", name:"Annapolis City Dock", state:"MD", lat:38.9776, lng:-76.4848, type:"Harbor", note:"Ego Alley sailboats with the sun dropping behind the historic skyline.", arc:[240,300], obst:2, water:true },
+  { id:"capemay", name:"Sunset Beach, Cape May Point", state:"NJ", lat:38.9447, lng:-74.9702, type:"Beach", note:"Nightly flag ceremony; sun sets over Delaware Bay beside the concrete ship wreck.", arc:[220,300], obst:0, water:true },
+  { id:"henlopen", name:"Cape Henlopen State Park", state:"DE", lat:38.7980, lng:-75.0925, type:"Beach", note:"Dunes and Delaware Bay views; Lewes harbor glows to the west.", arc:[250,330], obst:0, water:true },
+  { id:"terrapin", name:"Terrapin Nature Park, Kent Island", state:"MD", lat:38.9866, lng:-76.3332, type:"Beach", note:"Eastern Shore beach looking west across the Chesapeake with the Bay Bridge in frame.", arc:[230,300], obst:0.5, water:true },
+  { id:"annapolis", name:"Annapolis City Dock", state:"MD", lat:38.9766, lng:-76.4848, type:"Harbor", note:"Ego Alley sailboats with the sun dropping behind the historic skyline.", arc:[240,300], obst:2, water:true },
   { id:"assateague", name:"Assateague Island (bayside)", state:"MD", lat:38.2370, lng:-75.1430, type:"Marsh", note:"Wild ponies and marsh over Sinepuxent Bay.", arc:[240,300], obst:0.5, water:true },
   { id:"chincoteague", name:"Chincoteague Waterfront", state:"VA", lat:37.9337, lng:-75.3790, type:"Harbor", note:"West-facing town waterfront over Chincoteague Bay.", arc:[240,300], obst:0.5, water:true },
-  { id:"capecharles", name:"Cape Charles Beach", state:"VA", lat:37.2648, lng:-76.0247, type:"Beach", note:"Rare west-facing Chesapeake beach — the sun sets straight over the Bay.", arc:[220,300], obst:0, water:true },
-  { id:"fisherman", name:"Fisherman Island NWR", state:"VA", lat:37.0981, lng:-75.9706, type:"Marsh", note:"Southern tip of the Delmarva at the Chesapeake Bay Bridge-Tunnel — open bay water to the west. Refuge is closed except USFWS guided tours (roughly Oct–Mar); Kiptopeke State Park just north is the public fallback.", arc:[200,320], obst:0, water:true },
+  { id:"capecharles", name:"Cape Charles Beach", state:"VA", lat:37.2671, lng:-76.0236, type:"Beach", note:"Rare west-facing Chesapeake beach — the sun sets straight over the Bay.", arc:[220,300], obst:0, water:true },
+  { id:"fisherman", name:"Fisherman Island NWR", state:"VA", lat:37.0990, lng:-75.9785, type:"Marsh", note:"Southern tip of the Delmarva at the Chesapeake Bay Bridge-Tunnel — open bay water to the west. Refuge is closed except USFWS guided tours (roughly Oct–Mar); Kiptopeke State Park just north is the public fallback.", arc:[200,320], obst:0, water:true },
   { id:"yorktown", name:"Yorktown Riverwalk", state:"VA", lat:37.2364, lng:-76.5050, type:"Beach", note:"Sunset over the York River and the Coleman Bridge, a short drive from Hampton.", arc:[270,340], obst:1, water:true },
-  { id:"huntington", name:"Huntington Park Beach", state:"VA", lat:36.9890, lng:-76.4430, type:"Beach", note:"Newport News beach on the James River with a wide-open western horizon — the closest top-tier sunset spot to Hampton.", arc:[200,280], obst:0, water:true },
-  { id:"jamestown", name:"Jamestown Beach", state:"VA", lat:37.2265, lng:-76.7838, type:"Beach", note:"Sandy James River beach facing southwest across miles of open water.", arc:[190,270], obst:0, water:true },
+  { id:"huntington", name:"Huntington Park Beach", state:"VA", lat:37.0155, lng:-76.4552, type:"Beach", note:"Newport News beach on the James River with a wide-open western horizon — the closest top-tier sunset spot to Hampton.", arc:[200,280], obst:0, water:true },
+  { id:"jamestown", name:"Jamestown Beach", state:"VA", lat:37.2262, lng:-76.7897, type:"Beach", note:"Sandy James River beach facing southwest across miles of open water.", arc:[190,270], obst:0, water:true },
   { id:"oceanview", name:"Ocean View Beach", state:"VA", lat:36.9550, lng:-76.2500, type:"Beach", note:"Norfolk's bay beach; summer sunsets set over the water toward Hampton Roads.", arc:[280,340], obst:0.5, water:true },
   { id:"willoughby", name:"Willoughby Spit, Norfolk", state:"VA", lat:36.9671, lng:-76.2877, type:"Beach", note:"Norfolk's west-pointing sand spit — the sun drops over open Hampton Roads toward the HRBT and Fort Wool.", arc:[210,320], obst:0.5, water:true },
-  { id:"hoffler", name:"Hoffler Creek Preserve, Portsmouth", state:"VA", lat:36.8929, lng:-76.3995, type:"Marsh", note:"Portsmouth's wild side — trails and an overlook where Hoffler Creek meets the James River / Hampton Roads, open water to the west-northwest. (Olde Towne seawall faces east — use it for sunrise.)", arc:[250,340], obst:1.5, water:true },
+  { id:"hoffler", name:"Hoffler Creek Preserve, Portsmouth", state:"VA", lat:36.8953, lng:-76.4039, type:"Marsh", note:"Portsmouth's wild side — trails and an overlook where Hoffler Creek meets the James River / Hampton Roads, open water to the west-northwest. (Olde Towne seawall faces east — use it for sunrise.)", arc:[250,340], obst:1.5, water:true },
   { id:"bennettscreek", name:"Bennett's Creek Park, Suffolk", state:"VA", lat:36.8497, lng:-76.4804, type:"Waterfront", note:"Suffolk park and pier where Bennett's Creek meets the Nansemond River — looks west across the river toward Sleepy Hole Point.", arc:[230,320], obst:1, water:true },
-  { id:"oldpoint", name:"Fort Monroe – Old Point Comfort", state:"VA", lat:37.0003, lng:-76.3070, type:"Waterfront", note:"Hampton's point at the mouth of Hampton Roads — fall sunsets drop southwest over open water toward the HRBT and Norfolk.", arc:[200,280], obst:0.5, water:true },
+  { id:"oldpoint", name:"Fort Monroe – Old Point Comfort", state:"VA", lat:37.0012, lng:-76.3070, type:"Waterfront", note:"Hampton's point at the mouth of Hampton Roads — fall sunsets drop southwest over open water toward the HRBT and Norfolk.", arc:[200,280], obst:0.5, water:true },
   { id:"wickham", name:"Wickham Lane, Hampton", state:"VA", lat:37.07004, lng:-76.30246, type:"Marsh", note:"Fox Hill / Clarkdale service road at the west end of Wickham Lane — looks west over the Harris River marsh toward open tidal water (best western horizon on the lane).", arc:[230,310], obst:1.5, water:true },
-  { id:"lesner", name:"Chick's Beach / Lesner Bridge, Virginia Beach", state:"VA", lat:36.9140, lng:-76.0910, type:"Beach", note:"Virginia Beach's Chesapeake Bay side — looks west along the bay and Lynnhaven Inlet (the ocean side faces east).", arc:[260,330], obst:1, water:true },
-  { id:"backbay", name:"Back Bay NWR – Bay Trail", state:"VA", lat:36.6720, lng:-75.9150, type:"Marsh", note:"Southern Virginia Beach boardwalk over Back Bay — wide, wild western water horizon.", arc:[220,310], obst:0.3, water:true },
+  { id:"lesner", name:"Chick's Beach / Lesner Bridge, Virginia Beach", state:"VA", lat:36.9086, lng:-76.0955, type:"Beach", note:"Virginia Beach's Chesapeake Bay side — looks west along the bay and Lynnhaven Inlet (the ocean side faces east).", arc:[260,330], obst:1, water:true },
+  { id:"backbay", name:"Back Bay NWR – Bay Trail", state:"VA", lat:36.6692, lng:-75.9190, type:"Marsh", note:"Southern Virginia Beach boardwalk over Back Bay — wide, wild western water horizon.", arc:[220,310], obst:0.3, water:true },
   { id:"melrose", name:"Melrose Landing, Mattaponi River", state:"VA", lat:37.6373, lng:-76.8548, type:"Marsh", note:"Little Plymouth's river landing (end of Rt. 602) — sun sets west over the Mattaponi marshes. DWR lists it as a launch site; best from a kayak.", arc:[220,300], obst:0.5, water:true },
-  { id:"duck", name:"Duck Boardwalk", state:"NC", lat:36.1700, lng:-75.7550, type:"Boardwalk", note:"Mile-long boardwalk on Currituck Sound, made for sunsets.", arc:[240,320], obst:0, water:true },
+  { id:"duck", name:"Duck Boardwalk", state:"NC", lat:36.1693, lng:-75.7573, type:"Boardwalk", note:"Mile-long boardwalk on Currituck Sound, made for sunsets.", arc:[240,320], obst:0, water:true },
   { id:"jockeys", name:"Jockey's Ridge", state:"NC", lat:35.9640, lng:-75.6330, type:"Dunes", note:"Tallest East Coast sand dune; sunset over Roanoke Sound.", arc:[240,300], obst:0.5, water:true },
-  { id:"avon", name:"Avon Harbor (soundside), Avon", state:"NC", lat:35.3537, lng:-75.5105, type:"Harbor", note:"Hatteras Island village harbor on Pamlico Sound — the ocean side faces east, so the sound side is where the sun sets over open water.", arc:[200,330], obst:0, water:true },
-  { id:"buxton", name:"Canadian Hole (Haulover), Buxton", state:"NC", lat:35.2980, lng:-75.5169, type:"Beach", note:"Famous Buxton/Avon soundside windsurf beach — wide-open Pamlico Sound sunsets with kites and sails in silhouette.", arc:[200,330], obst:0, water:true },
-  { id:"ocracoke", name:"Springer's Point, Ocracoke", state:"NC", lat:35.1060, lng:-75.9870, type:"Beach", note:"Live oaks and Pamlico Sound — remote and dark.", arc:[220,300], obst:0, water:true },
+  { id:"avon", name:"Avon Harbor (soundside), Avon", state:"NC", lat:35.3528, lng:-75.5125, type:"Harbor", note:"Hatteras Island village harbor on Pamlico Sound — the ocean side faces east, so the sound side is where the sun sets over open water.", arc:[200,330], obst:0, water:true },
+  { id:"buxton", name:"Canadian Hole (Haulover), Buxton", state:"NC", lat:35.2980, lng:-75.5145, type:"Beach", note:"Famous Buxton/Avon soundside windsurf beach — wide-open Pamlico Sound sunsets with kites and sails in silhouette.", arc:[200,330], obst:0, water:true },
+  { id:"ocracoke", name:"Springer's Point, Ocracoke", state:"NC", lat:35.1040, lng:-75.9893, type:"Beach", note:"Live oaks and Pamlico Sound — remote and dark.", arc:[220,300], obst:0, water:true },
   { id:"sunsetbeach", name:"Sunset Beach", state:"NC", lat:33.8670, lng:-78.5106, type:"Beach", note:"Southernmost NC beach; west end faces the inlet at sunset.", arc:[200,260], obst:0.5, water:true },
-  { id:"shemcreek", name:"Shem Creek", state:"SC", lat:32.7924, lng:-79.8762, type:"Harbor", note:"Shrimp boats, boardwalk and marsh glowing over Charleston Harbor.", arc:[230,290], obst:1.5, water:true },
+  { id:"shemcreek", name:"Shem Creek", state:"SC", lat:32.7930, lng:-79.8785, type:"Harbor", note:"Shrimp boats, boardwalk and marsh glowing over Charleston Harbor.", arc:[230,290], obst:1.5, water:true },
   { id:"harbourtown", name:"Harbour Town Lighthouse", state:"SC", lat:32.1395, lng:-80.8122, type:"Lighthouse", note:"Hilton Head marina facing Calibogue Sound.", arc:[220,290], obst:0.5, water:true },
-  { id:"tybee", name:"Tybee Back River", state:"GA", lat:31.9930, lng:-80.8550, type:"Beach", note:"Tybee's south-end river beach with marsh sunsets.", arc:[210,270], obst:1, water:true },
+  { id:"tybee", name:"Tybee Back River", state:"GA", lat:31.9895, lng:-80.8532, type:"Beach", note:"Tybee's south-end river beach with marsh sunsets.", arc:[210,270], obst:1, water:true },
   { id:"stsimons", name:"St. Simons Pier", state:"GA", lat:31.1340, lng:-81.3960, type:"Pier", note:"Golden Isles pier looking across the sound toward Jekyll.", arc:[200,260], obst:0.5, water:true },
-  { id:"fernandina", name:"Fernandina Harbor", state:"FL", lat:30.6720, lng:-81.4670, type:"Harbor", note:"Amelia River marina famed for west-facing sunsets.", arc:[240,300], obst:0.5, water:true },
-  { id:"titusville", name:"Max Brewer Causeway", state:"FL", lat:28.6200, lng:-80.7930, type:"Waterfront", note:"Causeway over the Indian River Lagoon with open water west toward Titusville — rockets on launch nights.", arc:[240,300], obst:0.5, water:true },
-  { id:"laketrail", name:"Lake Trail at Royal Park Bridge", state:"FL", lat:26.7125, lng:-80.0415, type:"Waterfront", note:"Palm Beach shore of Lake Worth Lagoon — sun sets behind the West Palm Beach skyline across the Intracoastal.", arc:[240,300], obst:2, water:true },
+  { id:"fernandina", name:"Fernandina Harbor", state:"FL", lat:30.6718, lng:-81.4655, type:"Harbor", note:"Amelia River marina famed for west-facing sunsets.", arc:[240,300], obst:0.5, water:true },
+  { id:"titusville", name:"Max Brewer Causeway", state:"FL", lat:28.6243, lng:-80.7928, type:"Waterfront", note:"Causeway over the Indian River Lagoon with open water west toward Titusville — rockets on launch nights.", arc:[240,300], obst:0.5, water:true },
+  { id:"laketrail", name:"Lake Trail at Royal Park Bridge", state:"FL", lat:26.7057, lng:-80.0439, type:"Waterfront", note:"Palm Beach shore of Lake Worth Lagoon — sun sets behind the West Palm Beach skyline across the Intracoastal.", arc:[240,300], obst:2, water:true },
   { id:"miamibeach", name:"Maurice Gibb Park, Miami Beach", state:"FL", lat:25.7929, lng:-80.1448, type:"Waterfront", note:"Miami Beach's bayside — the ocean beach faces east, so sunset is over Biscayne Bay with the Miami skyline across the water.", arc:[220,300], obst:1.5, water:true },
   { id:"keywest", name:"Mallory Square", state:"FL", lat:24.5594, lng:-81.8079, type:"Pier", note:"The famous nightly Sunset Celebration in Key West.", arc:[240,300], obst:0, water:true },
-  { id:"bahiahonda", name:"Bahia Honda State Park", state:"FL", lat:24.6560, lng:-81.2770, type:"Beach", note:"Old rail bridge silhouette over Gulf-side water.", arc:[230,310], obst:0, water:true },
+  { id:"bahiahonda", name:"Bahia Honda State Park", state:"FL", lat:24.6550, lng:-81.2815, type:"Beach", note:"Old rail bridge silhouette over Gulf-side water.", arc:[230,310], obst:0, water:true },
   { id:"naples", name:"Naples Pier", state:"FL", lat:26.1317, lng:-81.8066, type:"Pier", note:"Gulf of Mexico sunset off the 1,000-ft pier — a Florida classic.", arc:[230,310], obst:0, water:true },
-  { id:"sanibel", name:"Blind Pass, Sanibel/Captiva", state:"FL", lat:26.4840, lng:-82.1880, type:"Beach", note:"Shell-strewn Gulf beach between Sanibel and Captiva.", arc:[230,310], obst:0, water:true },
+  { id:"sanibel", name:"Blind Pass, Sanibel/Captiva", state:"FL", lat:26.4835, lng:-82.1840, type:"Beach", note:"Shell-strewn Gulf beach between Sanibel and Captiva.", arc:[230,310], obst:0, water:true },
   { id:"siesta", name:"Siesta Key Beach", state:"FL", lat:27.2654, lng:-82.5528, type:"Beach", note:"Quartz-white sand, Friday drum circles, broad Gulf horizon.", arc:[230,300], obst:0, water:true },
   { id:"fortdesoto", name:"Fort De Soto Park", state:"FL", lat:27.6150, lng:-82.7360, type:"Beach", note:"Pristine Gulf beach at the mouth of Tampa Bay.", arc:[230,310], obst:0, water:true },
   { id:"clearwater", name:"Pier 60, Clearwater Beach", state:"FL", lat:27.9775, lng:-82.8306, type:"Pier", note:"Nightly Sunsets at Pier 60 festival.", arc:[230,310], obst:0, water:true },
-  { id:"cedarkey", name:"Cedar Key", state:"FL", lat:29.1380, lng:-83.0350, type:"Harbor", note:"Old Florida fishing town; sun sets over scattered keys.", arc:[220,300], obst:0, water:true },
-  { id:"stgeorge", name:"St. George Island", state:"FL", lat:29.6600, lng:-84.8650, type:"Beach", note:"Forgotten Coast barrier island facing the Gulf.", arc:[180,270], obst:0, water:true },
-  { id:"pcb", name:"Panama City Beach Pier", state:"FL", lat:30.1780, lng:-85.8130, type:"Pier", note:"Emerald Gulf water; Central time zone.", arc:[190,270], obst:0, water:true },
-  { id:"pensacola", name:"Pensacola Beach", state:"FL", lat:30.3290, lng:-87.1420, type:"Beach", note:"Sugar-white sand at the western edge of Florida.", arc:[190,260], obst:0, water:true }
+  { id:"cedarkey", name:"Cedar Key", state:"FL", lat:29.1354, lng:-83.0330, type:"Harbor", note:"Old Florida fishing town; sun sets over scattered keys.", arc:[220,300], obst:0, water:true },
+  { id:"stgeorge", name:"St. George Island", state:"FL", lat:29.6608, lng:-84.8650, type:"Beach", note:"Forgotten Coast barrier island facing the Gulf.", arc:[180,270], obst:0, water:true },
+  { id:"pcb", name:"Panama City Beach Pier", state:"FL", lat:30.1895, lng:-85.8320, type:"Pier", note:"Emerald Gulf water; Central time zone.", arc:[190,270], obst:0, water:true },
+  { id:"pensacola", name:"Pensacola Beach", state:"FL", lat:30.3305, lng:-87.1420, type:"Beach", note:"Sugar-white sand at the western edge of Florida.", arc:[190,260], obst:0, water:true }
 ];
 
 // SUNRISE view for the SAME spots (Sunrise|Sunset toggle). [arcFrom, arcTo, obstructionDeg, waterTowardSunrise, note]
@@ -131,21 +131,21 @@ window.SUNRISE_VIEW = {
 window.SCENE = {
   cadillac:["hills","Summit","islands"],
   bassharbor:["islands","Beach","open",["the Seawall, Mount Desert Island",44.2406,-68.3017]],
-  westprom:["hills","Bluff","islands",["Eastern Promenade, Portland",43.6672,-70.2452]],
+  westprom:["hills","Bluff","islands",["Eastern Promenade, Portland",43.6686,-70.2424]],
   herring:["open","Pier","lowshore",["MacMillan Pier, Provincetown Harbor",42.0505,-70.1855]],
-  firstenc:["open","Beach","open",["Nauset Light Beach, Eastham",41.8587,-69.9500]],
-  menemsha:["islands","Beach","open",["Lucy Vincent Beach, Chilmark",41.3383,-70.7010]],
+  firstenc:["open","Beach","open",["Nauset Light Beach, Eastham",41.8590,-69.9517]],
+  menemsha:["islands","Beach","open",["Lucy Vincent Beach, Chilmark",41.3399,-70.7236]],
   aquinnah:["islands","Bluff","hills"],
   beavertail:["lowshore","Lighthouse","lowshore"],
   montauk:["open","Lighthouse","open",["Montauk Point (ocean side)",41.0710,-71.8569]],
-  pier45:["skyline","Pier","skyline",["East River Esplanade, Pier 35 (Manhattan)",40.7095,-73.9858]],
+  pier45:["skyline","Pier","skyline",["East River Esplanade, Pier 35 (Manhattan)",40.7096,-73.9885]],
   bbpier1:["skyline","Town","skyline"],
   capemay:["open","Beach","open",["Cape May Point State Park (ocean beach)",38.9318,-74.9603]],
   henlopen:["lowshore","Beach","open"],
   terrapin:["bridge","Marsh","trees"],
   annapolis:["skyline","Harbor","lowshore"],
-  assateague:["lowshore","Beach","open",["Assateague ocean beach (North Beach)",38.2090,-75.1550]],
-  chincoteague:["lowshore","Beach","open",["Assateague Beach / Tom's Cove (VA)",37.9050,-75.3540]],
+  assateague:["lowshore","Beach","open",["Assateague ocean beach (North Beach)",38.2090,-75.1500]],
+  chincoteague:["lowshore","Beach","open",["Assateague Beach / Tom's Cove (VA)",37.8860,-75.3450]],
   capecharles:["open","Town","trees"],
   fisherman:["open","Marsh","open"],
   yorktown:["bridge","Beach","lowshore"],
@@ -153,33 +153,33 @@ window.SCENE = {
   jamestown:["lowshore","Woods","trees"],
   oceanview:["lowshore","Beach","lowshore"],
   willoughby:["bridge","Beach","open"],
-  hoffler:["lowshore","Waterfront","skyline",["Olde Towne Portsmouth seawall (Norfolk skyline)",36.8360,-76.2980]],
+  hoffler:["lowshore","Woods","trees"],
   bennettscreek:["lowshore","Woods","trees"],
   oldpoint:["bridge","Beach","open"],
   wickham:["trees","Town","trees"],
-  lesner:["lowshore","Bayside","open",["Lesner Bridge / Chick's Beach (bayside)",36.9150,-76.0950]],
-  backbay:["lowshore","Beach","open",["Back Bay NWR ocean beach",36.6730,-75.9110]],
+  lesner:["lowshore","Beach","bridge"],
+  backbay:["lowshore","Beach","open",["Back Bay NWR ocean beach",36.6730,-75.9122]],
   melrose:["trees","Woods","trees"],
-  duck:["lowshore","Beach","open",["Duck ocean beach",36.1710,-75.7500]],
+  duck:["lowshore","Beach","open",["Duck ocean beach",36.1710,-75.7463]],
   jockeys:["lowshore","Dunes","open"],
   avon:["open","Pier","open",["Avon Fishing Pier (oceanfront)",35.3483,-75.5016]],
   buxton:["open","Beach","open",["Haulover ocean beach, Buxton",35.2986,-75.5126]],
-  ocracoke:["lowshore","Beach","open",["Ocracoke Lifeguarded Beach (ocean)",35.1140,-75.9310]],
+  ocracoke:["lowshore","Beach","open",["Ocracoke Lifeguarded Beach (ocean)",35.1165,-75.9335]],
   sunsetbeach:["lowshore","Beach","open"],
   shemcreek:["skyline","Marsh","trees"],
-  harbourtown:["lowshore","Beach","open",["Coligny Beach, Hilton Head (ocean)",32.1430,-80.7500]],
+  harbourtown:["lowshore","Beach","open",["Coligny Beach, Hilton Head (ocean)",32.1400,-80.7505]],
   tybee:["lowshore","Pier","open",["Tybee Pier & Pavilion (ocean)",32.0090,-80.8430]],
-  stsimons:["lowshore","Beach","open",["East Beach, St. Simons (ocean)",31.1500,-81.3700]],
-  fernandina:["lowshore","Beach","open",["Main Beach, Fernandina (ocean)",30.6710,-81.4320]],
+  stsimons:["lowshore","Beach","open",["East Beach, St. Simons (ocean)",31.1452,-81.3680]],
+  fernandina:["lowshore","Beach","open",["Main Beach, Fernandina (ocean)",30.6693,-81.4302]],
   titusville:["lowshore","Waterfront","lowshore"],
-  laketrail:["skyline","Beach","open",["Midtown Beach, Palm Beach (ocean)",26.7120,-80.0350]],
+  laketrail:["skyline","Beach","open",["Midtown Beach, Palm Beach (ocean)",26.7062,-80.0333]],
   miamibeach:["skyline","Beach","open",["Lummus Park, South Beach (ocean)",25.7810,-80.1300]],
   keywest:["islands","Beach","open",["Smathers Beach, Key West",24.5516,-81.7720]],
   bahiahonda:["bridge","Beach","open"],
   naples:["open","Town","trees"],
-  sanibel:["open","Beach","lowshore",["Lighthouse Beach, Sanibel",26.4530,-82.0140]],
+  sanibel:["open","Woods","trees"],
   siesta:["open","Town","trees"],
-  fortdesoto:["open","Pier","bridge",["Fort De Soto Bay Pier (Skyway view)",27.6266,-82.7106]],
+  fortdesoto:["open","Pier","bridge",["Fort De Soto Bay Pier (Skyway view)",27.6160,-82.7262]],
   clearwater:["open","Waterfront","skyline",["Memorial Causeway, Clearwater Harbor",27.9760,-82.8170]],
   cedarkey:["islands","Marsh","lowshore"],
   stgeorge:["open","Beach","open"],
@@ -199,7 +199,6 @@ Object.assign(window.SUNRISE_VIEW, {
   assateague:[40,170,0,true,"Sunrise from Assateague's ocean beach — open Atlantic."],
   chincoteague:[60,180,0,true,"Sunrise from Assateague Beach / Tom's Cove — open Atlantic."],
   terrapin:[60,140,2,false,"Kent Island land and woods to the east — this is a sunset spot."],
-  hoffler:[60,130,1.5,true,"Sunrise from the Olde Towne Portsmouth seawall — across the Elizabeth River to the Norfolk skyline."],
   lesner:[50,170,0,true,"Sunrise from Chick's Beach by the Lesner Bridge, looking east over the bay toward Lynnhaven Inlet."],
   backbay:[50,170,0,true,"Sunrise from the refuge's ocean beach — open Atlantic."],
   duck:[40,170,0,true,"Sunrise from Duck's ocean beach — open Atlantic."],
@@ -214,7 +213,6 @@ Object.assign(window.SUNRISE_VIEW, {
   laketrail:[50,180,0,true,"Sunrise from Palm Beach's Midtown Beach — open Atlantic."],
   miamibeach:[50,170,0,true,"Sunrise from Lummus Park / South Beach — open Atlantic."],
   keywest:[90,190,0,true,"Sunrise from Smathers Beach — open Atlantic/Straits to the southeast."],
-  sanibel:[80,170,0.5,true,"Sunrise from Lighthouse Beach — across San Carlos Bay toward the low Fort Myers Beach shore."],
   fortdesoto:[60,130,0.5,true,"Sunrise from the Bay Pier — across Tampa Bay toward the Sunshine Skyway."],
   clearwater:[70,130,1,true,"Sunrise from the Memorial Causeway — across Clearwater Harbor to the downtown skyline."],
   bbpier1:[60,150,4,false,"Brooklyn Heights and DUMBO rise to the east — sunrise behind the buildings."]
@@ -226,35 +224,35 @@ Object.assign(window.SUNRISE_VIEW, {
   const OCEAN = n => [50, 150, 0, true, n || "Open Atlantic horizon to the east."];
   A("hatteraslh", "Cape Hatteras Lighthouse, Buxton", "NC", 35.2506, -75.5288, "Lighthouse", "The lighthouse and the Point — faces the open Atlantic (east) by default; 180° shows Buxton woods and the sound side.", [220, 300], 1.5, false, OCEAN("Sun rises out of the Atlantic beside the lighthouse."), ["trees", "Beach", "open"]);
   A("windmillpt", "Windmill Point Rd, Hampton", "VA", 37.0712, -76.2860, "Marsh", "Fox Hill road end at the mouth of the Back River — open Chesapeake Bay to the east; marsh and creek to the west.", [230, 300], 1.5, true, OCEAN("Open Chesapeake Bay sunrise past Back River."), ["lowshore", "Beach", "open"]);
-  A("grandview", "Grandview Beach, Hampton", "VA", 37.0868, -76.2775, "Beach", "Grandview Nature Preserve beach — faces the open Chesapeake Bay (east); Back River marsh behind you.", [230, 300], 1.5, true, OCEAN("Bay sunrise across open Chesapeake water."), ["lowshore", "Beach", "open"]);
+  A("grandview", "Grandview Beach, Hampton", "VA", 37.0868, -76.2712, "Beach", "Grandview Nature Preserve beach — faces the open Chesapeake Bay (east); Back River marsh behind you.", [230, 300], 1.5, true, OCEAN("Bay sunrise across open Chesapeake water."), ["lowshore", "Beach", "open"]);
   A("plumtree", "Plum Tree Island NWR (Poquoson)", "VA", 37.1290, -76.3270, "Marsh", "Refuge is closed to entry (former bombing range) — view from the Poquoson marsh edge/water; bay to the east.", [230, 300], 1, true, OCEAN("Sunrise over the bay beyond the refuge marsh."), ["lowshore", "Marsh", "open"]);
-  A("littlecreek", "JEB Little Creek Beach (base access only)", "VA", 36.9240, -76.1760, "Beach", "Bay beach on Joint Expeditionary Base Little Creek–Fort Story — CAC/base access required. Looks north/northwest across the Chesapeake.", [270, 330], 0.5, true, [40, 90, 1, true, "Morning light across the bay toward Cape Henry."], ["open", "Beach", "lowshore"]);
+  A("littlecreek", "JEB Little Creek Beach (base access only)", "VA", 36.9275, -76.1650, "Beach", "Bay beach on Joint Expeditionary Base Little Creek–Fort Story — CAC/base access required. Looks north/northwest across the Chesapeake.", [270, 330], 0.5, true, [40, 90, 1, true, "Morning light across the bay toward Cape Henry."], ["open", "Beach", "lowshore"]);
   A("capehenry", "Cape Henry Lighthouse, Virginia Beach", "VA", 36.9257, -76.0083, "Lighthouse", "Where the Chesapeake meets the Atlantic (Fort Story — ID check). Faces the ocean (east) by default.", [270, 320], 1, true, OCEAN("Atlantic sunrise at the mouth of the Bay."), ["open", "Beach", "open"]);
-  A("northlanding", "North Landing Rd Bridge, Chesapeake", "VA", 36.6978, -76.1076, "Marsh", "North Landing River (Intracoastal Waterway) swing bridge — wide marsh-river view to the west.", [230, 310], 1, true, [70, 140, 1.5, false, "Trees on the east bank — sunrise color mostly above the treeline."], ["lowshore", "Marsh", "trees"]);
+  A("northlanding", "North Landing Rd Bridge, Chesapeake", "VA", 36.7178, -76.1002, "Marsh", "North Landing River (Intracoastal Waterway) swing bridge — wide marsh-river view to the west.", [230, 310], 1, true, [70, 140, 1.5, false, "Trees on the east bank — sunrise color mostly above the treeline."], ["lowshore", "Marsh", "trees"]);
   A("baltimore", "Fort McHenry / Inner Harbor, Baltimore", "MD", 39.2633, -76.5797, "Harbor", "Patapsco River shoreline at Fort McHenry — sun sets over the harbor and the city.", [240, 310], 2, true, [80, 140, 1.5, true, "Sunrise down the Patapsco toward the Key Bridge site."], ["city", "Harbor", "lowshore"]);
   A("capecod", "First Encounter Beach, Eastham (Cape Cod)", "MA", 41.8186, -70.0039, "Beach", "Classic Cape Cod Bay sunset beach — wide tidal flats glassy at low tide. (Nauset Light, 5 min east, for sunrise.)", [230, 310], 0, true, OCEAN("Nauset Beach / Light on the outer Cape."), ["open", "Beach", "open", ["Nauset Light Beach", 41.8597, -69.9530]]);
-  A("avalonpier", "Avalon Fishing Pier, Kill Devil Hills", "NC", 36.0276, -75.6648, "Pier", "Ocean pier — faces the Atlantic (east) by default; 180° shows the beach road and dunes.", [240, 300], 2, false, OCEAN("Pier silhouette with Atlantic sunrise."), ["town", "Pier", "open"]);
+  A("avalonpier", "Avalon Fishing Pier, Kill Devil Hills", "NC", 36.0442, -75.6745, "Pier", "Ocean pier — faces the Atlantic (east) by default; 180° shows the beach road and dunes.", [240, 300], 2, false, OCEAN("Pier silhouette with Atlantic sunrise."), ["town", "Pier", "open"]);
   A("jennettes", "Jennette's Pier, Nags Head", "NC", 35.9105, -75.5960, "Pier", "1,000-ft concrete ocean pier with wind turbines — faces east by default.", [240, 300], 2, false, OCEAN("Sunrise straight off the end of the pier."), ["town", "Pier", "open"]);
   A("frisco", "Frisco Beach / Pier ruins, Frisco", "NC", 35.2263, -75.6340, "Beach", "Hatteras Island south-facing Atlantic beach — east/southeast ocean by default; Pamlico Sound behind.", [220, 300], 1, true, [80, 160, 0, true, "Atlantic sunrise; winter sun rises over water to the SE."], ["open", "Beach", "open"]);
-  A("saltponds", "Buckroe Beach, Hampton", "VA", 37.0398, -76.2886, "Beach", "Public bay beach at Buckroe facing east over the Chesapeake Bay mouth; breaks on NE/E swell; offshore = W/SW wind.", [230, 300], 1.5, false, [50, 120, 0, true, "Bay-mouth sunrise over the Chesapeake."], ["lowshore", "Beach", "open"]);
+  A("saltponds", "Buckroe Beach, Hampton", "VA", 37.0398, -76.2899, "Beach", "Public bay beach at Buckroe facing east over the Chesapeake Bay mouth; breaks on NE/E swell; offshore = W/SW wind.", [230, 300], 1.5, false, [50, 120, 0, true, "Bay-mouth sunrise over the Chesapeake."], ["lowshore", "Beach", "open"]);
   // popular East Coast + Gulf surf spots (default faces the surf)
   const S = (id, name, st, lat, lng, note) => A(id, name, st, lat, lng, "Beach", note, [230, 300], 1.5, false, OCEAN(), ["town", "Beach", "open"]);
   S("ditchplains", "Ditch Plains, Montauk", "NY", 41.0390, -71.9170, "Rock/reef points — Long Island's best surf.");
   S("rockaway", "Rockaway Beach 90th St", "NY", 40.5835, -73.8150, "NYC's surf beach; jetty-bowled sandbars.");
-  S("manasquan", "Manasquan Inlet", "NJ", 40.1025, -74.0360, "Jetty wedge — big in hurricane swell.");
-  S("narragansett", "Narragansett Town Beach", "RI", 41.4310, -71.4560, "Rhode Island's surf hub; Point Judith reefs nearby.");
-  S("hamptonnh", "Hampton Beach / The Wall", "NH", 42.9310, -70.8110, "New Hampshire seawall break.");
-  S("ocmd", "Ocean City Inlet", "MD", 38.3300, -75.0870, "South-end jetty break at the inlet.");
-  S("vb1st", "1st Street Jetty, Virginia Beach", "VA", 36.8330, -75.9720, "Virginia's most consistent break, north of Rudee Inlet.");
+  S("manasquan", "Manasquan Inlet", "NJ", 40.1045, -74.0336, "Jetty wedge — big in hurricane swell.");
+  S("narragansett", "Narragansett Town Beach", "RI", 41.4345, -71.4558, "Rhode Island's surf hub; Point Judith reefs nearby.");
+  S("hamptonnh", "Hampton Beach / The Wall", "NH", 42.9316, -70.7977, "New Hampshire seawall break.");
+  S("ocmd", "Ocean City Inlet", "MD", 38.3255, -75.0857, "South-end jetty break at the inlet.");
+  S("vb1st", "1st Street Jetty, Virginia Beach", "VA", 36.8305, -75.9690, "Virginia's most consistent break, north of Rudee Inlet.");
   S("sandbridge", "Sandbridge Beach", "VA", 36.7300, -75.9370, "Open Atlantic beach break south of VB.");
-  S("sturns", "S-Turns, Rodanthe", "NC", 35.6150, -75.4690, "Hatteras Island classic — barrels on NE swell with W wind.");
-  S("rodanthe", "Rodanthe Pier, Rodanthe", "NC", 35.5887, -75.4628, "Hatteras Island ocean pier — classic OBX sunrise: low peach sun over dark backlit walls and glitter on the wet sand (Sean's reference photo).");
-  S("wrightsville", "Wrightsville Beach (C St.)", "NC", 34.2100, -77.7950, "Wilmington's surf beach.");
-  S("folly", "Folly Beach Washout", "SC", 32.6560, -79.9310, "South Carolina's best-known break.");
-  S("tybee", "Tybee Island Pier", "GA", 31.9930, -80.8480, "Georgia's main surf spot.");
-  S("jaxpier", "Jacksonville Beach Pier", "FL", 30.2900, -81.3880, "Pier break, north Florida.");
-  S("newsmyrna", "New Smyrna Beach Inlet", "FL", 29.0680, -80.9140, "Fast, consistent Florida inlet break.");
-  S("sebastian", "Sebastian Inlet (First Peak)", "FL", 27.8600, -80.4460, "Florida's famous wedge off the north jetty.");
+  S("sturns", "S-Turns, Rodanthe", "NC", 35.6150, -75.4667, "Hatteras Island classic — barrels on NE swell with W wind.");
+  S("rodanthe", "Rodanthe Pier, Rodanthe", "NC", 35.5851, -75.4615, "Hatteras Island ocean pier — classic OBX sunrise: low peach sun over dark backlit walls and glitter on the wet sand (Sean's reference photo).");
+  S("wrightsville", "Wrightsville Beach (C St.)", "NC", 34.2100, -77.7926, "Wilmington's surf beach.");
+  S("folly", "Folly Beach Washout", "SC", 32.6594, -79.9288, "South Carolina's best-known break.");
+  S("tybee", "Tybee Island Pier", "GA", 31.9920, -80.8466, "Georgia's main surf spot.");
+  S("jaxpier", "Jacksonville Beach Pier", "FL", 30.2935, -81.3885, "Pier break, north Florida.");
+  S("newsmyrna", "New Smyrna Beach Inlet", "FL", 29.0735, -80.9120, "Fast, consistent Florida inlet break.");
+  S("sebastian", "Sebastian Inlet (First Peak)", "FL", 27.8622, -80.4465, "Florida's famous wedge off the north jetty.");
   S("cocoa", "Cocoa Beach Pier", "FL", 28.3680, -80.6010, "Space Coast surf town.");
   const G = (id, name, st, lat, lng, note) => A(id, name, st, lat, lng, "Beach", note, [210, 290], 0, true, [70, 150, 1.5, false, "Gulf beaches face south — sunrise over land/bay."], ["open", "Dunes", "town"]);
   G("pensacola", "Pensacola Beach Pier", "FL", 30.3270, -87.1420, "Gulf surf on tropical swell; sunset southwest along the Gulf.");
