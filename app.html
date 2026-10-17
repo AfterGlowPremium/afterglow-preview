@@ -29,16 +29,17 @@
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="styles.css?v=d15">
-<script src="music.js?v=d18"></script>
+<style>/* inside the shell iframe: use the insets the shell measured */
+.top{padding-top:calc(18px + max(env(safe-area-inset-top,0px), var(--ag-sat,0px)))}
+@media (max-width:900px){
+  .detail{height:calc(100dvh - 18px - max(env(safe-area-inset-top,0px), var(--ag-sat,0px)));max-height:calc(100dvh - 18px - max(env(safe-area-inset-top,0px), var(--ag-sat,0px)))}
+  .stage-top{padding-top:calc(26px + max(env(safe-area-inset-top,0px), var(--ag-sat,0px)) * .25)}
+  .leaflet-top{top:max(env(safe-area-inset-top,0px), var(--ag-sat,0px))}
+}</style>
 </head>
 <body>
-<script>
-  // Build stamp + self-update: if a phone/browser cached an older index.html, pull the fresh one
-  window.AG_BUILD = "d15";
-  (function () { try { fetch("version.json?ts=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (v) {
-    if (!v || !v.build || v.build === window.AG_BUILD) return; var u = new URL(location.href); if (u.searchParams.get("b") === v.build) return;
-    u.searchParams.set("b", v.build); location.replace(u.toString()); }).catch(function () {}); } catch (e) {} })();
-</script>
+<script>if (window.parent === window) location.replace("./" + location.search + location.hash);</script>
+<script>window.AG_BUILD = "d16"; window.AG_SHELL = window.parent !== window;</script>
 <script>window.AG = { realistic: true };</script>
 <script>
   // No ?mode= → show the welcome homepage first (app.js stays idle until a choice is made)
