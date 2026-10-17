@@ -37,7 +37,7 @@
 <body>
 <!-- Shell: owns the URL, the self-update and the background music; the app runs in the iframe so its page loads never stop the song -->
 <script>
-  window.AG_BUILD = "d19s";
+  window.AG_BUILD = "d20r";
   (function () { try { fetch("version.json?ts=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (v) {
     if (!v || !v.build || v.build === window.AG_BUILD) return; var u = new URL(location.href); if (u.searchParams.get("b") === v.build) return;
     u.searchParams.set("b", v.build); location.replace(u.toString()); }).catch(function () {}); } catch (e) {} })();
