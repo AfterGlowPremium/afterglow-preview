@@ -574,3 +574,94 @@ body.in-archive .hero{outline:1px dashed rgba(181,169,255,.5)}
 .pin.tri::after{content:"";position:absolute;inset:-6px;border-radius:50%;box-shadow:0 0 38px #ffd75e;opacity:0;pointer-events:none;will-change:opacity;animation:tripulse2 2s ease-in-out infinite}
 @keyframes tripulse2{50%{opacity:1}}
 .pin .pb,.pin .pwx i{filter:none;text-shadow:0 1px 2px rgba(0,0,0,.7)}
+
+/* ---------- v21: desktop (≥1024px wide + mouse/trackpad). Phones and tablets are untouched. ---------- */
+.pin-wrap.sel .pin{box-shadow:0 0 0 3px #fff,0 0 0 6px rgba(13,10,26,.8),0 0 26px var(--c)}
+@media (min-width:1024px) and (pointer:fine),(min-width:1024px) and (pointer:none){
+  :root{--dw:clamp(680px,50vw,1040px)}
+  /* no phone safe-area padding */
+  .top{padding:18px 26px 6px}
+  .days{padding:10px 26px 14px}
+  .layout{grid-template-columns:minmax(0,1fr) clamp(400px,27vw,500px);gap:18px;padding:0 26px 24px;height:calc(100vh - 176px);min-height:600px}
+  .sat,.method{margin:8px 26px 22px}
+  /* readable type */
+  .brand p{font-size:14px}
+  .pill,.mode-toggle a{font-size:14px}
+  .d1{font-size:15px}.d2{font-size:12.5px}.d3{font-size:11.5px}
+  .overlay-ctl button{font-size:13px;padding:7px 12px}
+  .overlay-note{font-size:12.5px}
+  .legend{font-size:12.5px}
+  .nm{font-size:15.5px}.st{font-size:12px}.sub{font-size:13px}.tag{font-size:11.5px;padding:2px 8px}
+  .sc b{font-size:24px}.sc span{font-size:12px}
+  .chip{font-size:13px}
+  .hero-k{font-size:12px}.hero-sub,.hero-why{font-size:14px}.hero-name{font-size:26px}
+  .bc-k{font-size:11px}.bc-why{font-size:13px}.bc-n small{font-size:13px}
+  .updated{font-size:12.5px}
+  .fine{font-size:12.5px}
+  .d-note{font-size:15px}
+  .detail h3{font-size:20px}.detail h3 small{font-size:13px}
+  .timing span{font-size:11px}.timing b{font-size:14.5px}
+  .wb .wn{font-size:14.5px}.wb .wt{font-size:12.5px}.wb .wl{font-size:13px}
+  .cp{font-size:13.5px}
+  .wxi .wn{font-size:14px}.wxi .wt{font-size:13px}
+  .ngrid span{font-size:11.5px}.ngrid b{font-size:14.5px}.ntab{font-size:13.5px}.ntab th{font-size:11px}
+  .prov{font-size:13.5px}.prov small{font-size:12.5px}
+  .method p,.sat-guide div{font-size:14.5px}.sat-head p{font-size:15px}
+  /* map pins + labels readable at desktop size, with hover tooltips */
+  .pin{transform:scale(1.15)}
+  .pin:hover{transform:scale(1.4)}
+  .pin span{font-size:13px}
+  .leaflet-marker-icon.pin-wrap:hover{z-index:100000!important}
+  .tip{font-size:13.5px;line-height:1.45;padding:9px 12px;max-width:340px;white-space:normal;width:max-content}
+  .tip b{font-size:14.5px}
+  .leaflet-control-attribution{font-size:11px}
+  .leaflet-tile-pane{filter:brightness(1.12) contrast(1.05)}
+  /* spot details dock as a right-hand panel below the header; the map stays live and clickable on the left */
+  .scrim,.detail-open .scrim{background:none;backdrop-filter:none;-webkit-backdrop-filter:none;opacity:0;pointer-events:none}
+  .detail{top:var(--ag-dtop,76px);right:16px;bottom:16px;width:var(--dw);height:auto;max-height:none;border:1px solid var(--line);border-radius:20px;overflow:hidden;
+    transform:translateX(calc(100% + 40px));box-shadow:-24px 0 70px rgba(0,0,0,.55)}
+  .detail.open{transform:none}
+  .detail-body{height:100%;padding:0 28px 40px;scrollbar-width:thin;scrollbar-color:#3a2d5c transparent}
+  .detail-open .layout{grid-template-columns:minmax(0,1fr) 0;padding-right:calc(var(--dw) + 32px);gap:0}
+  .detail-open .side{visibility:hidden;width:0;overflow:hidden}
+  .detail-open .days{padding-right:calc(var(--dw) + 32px)}
+  .close{top:16px;right:16px;width:38px;height:38px;font-size:15px}
+  /* the render: sized to the big viewport with a sensible max */
+  .stage{margin:0 -28px;height:clamp(420px,calc(100vh - var(--ag-dtop,76px) - 330px),720px);min-height:420px}
+  .stage-top{padding:22px 70px 0 28px}.stage-top h2{font-size:36px}
+  .stage-top .d-kick{font-size:12.5px}
+  .stage-score{width:70px;height:70px}.stage-score b{font-size:25px}.stage-score i{font-size:10.5px}
+  .stage-bottom{left:28px;right:22px;bottom:18px}
+  .stage-now b{font-size:32px}.stage-now span{font-size:15px}.stage-now small{font-size:13px}
+  .stage-badge,.stage-dir{font-size:12px;padding:5px 11px}
+  .stage .pv-wxl{top:130px;right:20px;max-width:300px}
+  .stage .pv-wxl .wxc{font-size:13px;padding:7px 13px}
+  .stage .pv-wxl .wxp{font-size:12.5px}
+  .stage{cursor:zoom-in}
+  /* time slider, Play, 180° Turn, zoom — one tidy control block */
+  .scrub{margin:0 -28px;padding:38px 28px 14px}.scrub-marks{left:28px;right:28px}
+  .scrub .mk{font-size:11px}
+  .scrub-row{gap:12px;margin-top:14px;flex-wrap:nowrap}
+  .play{font-size:14px;padding:8px 16px}
+  .play.turn{margin-left:0}
+  .pv-what{font-size:13.5px}
+  .zoom-row{margin:12px 2px 4px}.zoom-row .zl,.zoom-row output{font-size:12.5px}
+  .zoom-row::after{content:"Scroll on the view to zoom · ← → time · Space play · Esc close";font:500 11.5px Inter,sans-serif;color:var(--dim);white-space:nowrap}
+  /* wind / water readout */
+  .readout{gap:8px;margin:6px 0 8px}
+  .readout .rc{padding:9px 10px}
+  .readout span{font-size:10.5px}.readout b{font-size:15.5px}.readout small{font-size:11.5px}
+  .readout #pv-sea small .wdir,.readout #pv-sea small .wdir *{font-size:12px}
+  .readout #pv-sea{min-width:0}
+  /* archive panel */
+  .archive{width:min(520px,100vw)}
+  .ar-intro{font-size:13.5px}
+  .ar-date{font-size:14px}
+}
+@media (min-width:1024px) and (max-width:1279px) and (pointer:fine),(min-width:1024px) and (max-width:1279px) and (pointer:none){
+  .readout{grid-template-columns:repeat(3,1fr)}
+  .zoom-row::after{display:none}
+}
+@media (min-width:1600px) and (pointer:fine),(min-width:1600px) and (pointer:none){
+  .readout .rc{padding:10px 12px}
+}

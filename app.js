@@ -23,6 +23,12 @@
     const behind = at ? { type: "Town", far: "trees", water: false } : { type: sc[1], far: sc[2], water: v[3] };
     return Object.assign({}, sp, { far: sc[0], behind, vantage: null });
   });
+  // v21: desktop (wide screen + mouse) — docked detail panel, higher render quality, wheel zoom, keyboard shortcuts. Phones unchanged.
+  const DESK_Q = window.matchMedia ? matchMedia("(min-width:1024px) and (pointer:fine), (min-width:1024px) and (pointer:none)") : { matches: false };
+  const isDesk = () => !!DESK_Q.matches;
+  const deskTop = () => { const t = document.querySelector(".top"); document.documentElement.style.setProperty("--ag-dtop", (t ? Math.round(t.getBoundingClientRect().bottom + Math.max(0, window.scrollY)) : 0) + "px"); };
+  const syncDesk = () => { document.documentElement.classList.toggle("ag-desk", isDesk()); deskTop(); };
+  syncDesk(); if (DESK_Q.addEventListener) DESK_Q.addEventListener("change", syncDesk); addEventListener("resize", deskTop);
   const vPos = sp => sp.vantage ? [sp.vantage.lat, sp.vantage.lng] : [sp.lat, sp.lng];
   const PLAY = RISE ? "▶ Play the morning" : "▶ Play the evening";
   // phase names from the canvas preview are sunset-worded; mirror them for mornings
@@ -515,15 +521,21 @@
     let raf = 0, playing = 0;
     // d14: ONE animation loop for the whole app (token kills loops left over from a previous spot), locked to 30 fps,
     // adaptive resolution for animated frames, paused while the map is showing or the tab is hidden.
-    const AN = window.__agAnim || (window.__agAnim = { n: 0, tok: 0, id: 0, last: 0, ema: 33, scale: 0.8 });
+    const AN = window.__agAnim || (window.__agAnim = { n: 0, tok: 0, id: 0, last: 0, ema: 33, scale: 0.8, fps: 30, slow: 0, t30: 0 });
+    // v21: desktop targets 60 fps with a 0.75 resolution floor; if it can't hold 60 even at the floor it drops to 30 (re-tries 60 every 20 s). Phones: 30 fps, floor 0.5 (unchanged).
+    const desk = isDesk(); if (desk) { if (AN.fps !== 30 || !AN.t30) AN.fps = 60; AN.scale = Math.max(0.75, AN.scale); AN.ema = 1000 / AN.fps; } else { AN.fps = 30; }
     if (AN.id) { cancelAnimationFrame(AN.id); AN.id = 0; } const myTok = AN.tok = ++AN.n;
     const alive = () => AN.tok === myTok && !document.hidden && document.body.classList.contains("detail-open") && document.body.contains(cv);
     const animLoop = ts => { AN.id = 0; if (!alive()) return;
-      const dt = ts - AN.last;
-      if (dt >= 1000 / 30 - 4) {
+      const dt = ts - AN.last, fps = isDesk() ? AN.fps : 30, iv = 1000 / fps, floor = isDesk() ? 0.75 : 0.5;
+      if (fps === 30 && AN.t30 && isDesk() && ts - AN.t30 > 20000) { AN.fps = 60; AN.t30 = 0; AN.slow = 0; AN.ema = 1000 / 60; }   // v21: re-try 60 fps
+      if (dt >= iv - (fps === 60 ? 2 : 4)) {
         if (AN.last) { AN.ema = AN.ema * 0.85 + Math.min(dt, 250) * 0.15;
-          if (AN.ema > 40 && AN.scale > 0.5) AN.scale = Math.max(0.5, AN.scale * 0.92);        // can't hold 30 fps → fewer pixels
-          else if (AN.ema < 35 && AN.scale < 1) AN.scale = Math.min(1, AN.scale * 1.03); }        // headroom → claw quality back
+          const hi = fps === 60 ? 21 : 40, lo = fps === 60 ? 18 : 35;
+          if (AN.ema > hi && AN.scale > floor) AN.scale = Math.max(floor, AN.scale * 0.92);        // can't hold the target → fewer pixels
+          else if (AN.ema > hi && fps === 60) { if (!AN.slow) AN.slow = ts; else if (ts - AN.slow > 1500) { AN.fps = 30; AN.t30 = ts; AN.slow = 0; AN.ema = 1000 / 30; } }   // at the floor and still slow for 1.5 s → 30 fps
+          else if (AN.ema < lo && AN.scale < 1) { AN.scale = Math.min(1, AN.scale * 1.03); AN.slow = 0; } else if (AN.ema <= hi) AN.slow = 0; }        // headroom → claw quality back
+        AN.real = AN.ema ? Math.round(1000 / AN.ema) : 0;
         AN.last = ts; render(true);
         if (!(PhotoStage.last && PhotoStage.last.surf)) return; }
       AN.id = requestAnimationFrame(animLoop); };
@@ -560,8 +572,8 @@
       const backWater = turned && sp.behind && sp.behind.water && window.Photoreal;
       let o = backWater ? PhotoStage.draw(cv, Object.assign({}, sp, { far: sp.behind.far || "open", water: true, type: sp.type === "Pier" ? "Pier" : "Beach" }), ev, t, Object.assign({ lq: dragging, sunAzOff: 180 }, wOpt())) : null;
       if (o && o.mode !== "live") o = null;
-      const aq = anim ? { scale: AN.scale, dprCap: 1.5, fast: AN.scale < 0.62 ? 1 : 0 } : {};   // d14: animated frames: capped DPR + adaptive scale; stills stay full quality
-      if (!o) o = turned ? Object.assign(Preview.state(sp, ev, t), Preview.drawBehind(back, sp, ev, t), { mode: "behind" }) : PhotoStage.draw(cv, sp, ev, t, Object.assign({ lq: dragging }, wOpt(), aq));
+      const aq = anim ? { scale: AN.scale, dprCap: isDesk() ? 2 : 1.5, fast: AN.scale < 0.62 ? 1 : 0 } : {};   // v21: desktop animated frames keep DPR up to 2   // d14: animated frames: capped DPR + adaptive scale; stills stay full quality
+      if (!o) o = turned ? Object.assign(Preview.state(sp, ev, t), Preview.drawBehind(back, sp, ev, t), { mode: "behind" }) : PhotoStage.draw(cv, sp, ev, t, Object.assign(dragging && isDesk() ? { scale: 0.75 } : { lq: dragging }, wOpt(), aq));   // v21: desktop drags render at the 0.75 floor (phones 0.42)
       if (anim) return;   // d14: animation frames only redraw the WebGL scene — no DOM/label/weather recompute
       { const gy = window.AGObs && AGObs.sceneAt ? AGObs.sceneAt(sp, ev, t).gray : ev.obs ? ev.obs.gray : 0; const fl = o.mode !== "live" && gy > 0 ? `saturate(${(1 - 0.9 * gy).toFixed(2)}) brightness(${(1 - 0.2 * gy).toFixed(2)})` : ""; if (cv.style.filter !== fl) cv.style.filter = fl; }   // d15: illustrated fallback goes gray too
       const turnedIll = turned && o.mode === "behind";
@@ -732,9 +744,12 @@
         st.addEventListener("touchstart", e => { if (e.touches.length === 2) { d0 = dist(e); z0 = +zs.value; } }, { passive: true });
         st.addEventListener("touchmove", e => { if (e.touches.length === 2 && d0) { e.preventDefault(); setZ(z0 * dist(e) / d0); state.zoom = +zs.value; } }, { passive: false });
         st.addEventListener("touchend", () => { d0 = 0; }, { passive: true });
-        st.addEventListener("dblclick", () => { setZ(1); state.zoom = 1; }); } }
+        st.addEventListener("dblclick", () => { setZ(1); state.zoom = 1; });
+        st.addEventListener("wheel", e => { if (e.target.closest && e.target.closest(".pv-wxl")) return; e.preventDefault(); const k = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1; setZ((+zs.value) * Math.exp(-e.deltaY * k * (e.ctrlKey ? 0.01 : 0.0018))); state.zoom = +zs.value; }, { passive: false }); } }   // v21: mouse-wheel / trackpad-pinch zoom on the render
     document.body.classList.add("detail-open");
     $("#detail").classList.add("open");
+    Object.keys(markers).forEach(k => { const ic = markers[k]._icon; if (ic) ic.classList.toggle("sel", k === id); });
+    if (isDesk()) { deskTop(); setTimeout(() => map.invalidateSize({ pan: false }), 480); }   // v21: docked panel narrows the map
     el.scrollTop = keepScroll ? scroll : 0;
     wireStage(r, keepScroll && state.pvSpot === id ? state.pvT : null);
     $("#zoomto").onclick = () => { closeDetail(); map.flyTo(vPos(sp), 10, { duration: 1.2 }); };
@@ -745,10 +760,31 @@
     const box = $("#satread"); if (!box) return;
     box.innerHTML = res.error ? `<p>${res.error}</p>` : `<ul>${res.text.map(t => `<li>${t}</li>`).join("")}</ul><div class="fine">Sampled from GOES-19 (GOES-East) ABI band 2 (visible, 0.64 µm), band 4 (cirrus, 1.37 µm) and band 13 (clean IR, 10.3 µm) at ${new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZoneName: "short" }).format(res.when)}. Pixel-color heuristics, not calibrated retrievals.</div>`;
   }
-  function closeDetail() { if (window.__agAnim && window.__agAnim.id) { cancelAnimationFrame(window.__agAnim.id); window.__agAnim.id = 0; } state.spot = null; $("#detail").classList.remove("open"); document.body.classList.remove("detail-open"); }
+  function closeDetail() { if (window.__agAnim && window.__agAnim.id) { cancelAnimationFrame(window.__agAnim.id); window.__agAnim.id = 0; } state.spot = null; $("#detail").classList.remove("open"); document.body.classList.remove("detail-open"); Object.keys(markers).forEach(k => { const ic = markers[k]._icon; if (ic) ic.classList.remove("sel"); }); if (isDesk()) setTimeout(() => map.invalidateSize({ pan: false }), 480); }
   $("#detail-close").addEventListener("click", closeDetail);
   $("#scrim").addEventListener("click", closeDetail);
-  document.addEventListener("keydown", e => e.key === "Escape" && closeDetail());
+  document.addEventListener("keydown", e => { if (e.key !== "Escape") return; if (document.body.classList.contains("arch-open")) return;   // archive closes first
+    const fb = document.getElementById("fb-panel"); if (fb && fb.classList.contains("open")) { fb.classList.remove("open"); return; }
+    if (state.wxOpen && state.spot) { state.wxOpen = false; const wl = $("#pv-wxl"); if (wl) wl.dataset.tx = ""; window.__agQueue && __agQueue(); return; }
+    closeDetail(); });
+  // v21: keyboard — ←/→ move the time slider (Shift = 5 min, else 1 min; Home/End = ends), Space = play/pause, Esc closes panels
+  // Keys typed while the outer shell page has focus (before the first click into the app) are forwarded here once per shell.
+  window.__agKey = e => { if (e.defaultPrevented) return; const ev = new KeyboardEvent("keydown", { key: e.key, code: e.code, shiftKey: e.shiftKey, altKey: e.altKey, ctrlKey: e.ctrlKey, metaKey: e.metaKey, bubbles: true, cancelable: true });
+    document.dispatchEvent(ev); if (ev.defaultPrevented || e.key === "Escape") e.preventDefault(); };
+  try { const P = window.parent; if (P !== window && P.document) { P.__agKeyWin = window;
+    if (!P.__agKeyFwd) { P.__agKeyFwd = 1; P.document.addEventListener("keydown", e => { const tn = e.target && e.target.tagName; if (tn === "INPUT" || tn === "TEXTAREA" || tn === "BUTTON") return; try { P.__agKeyWin && P.__agKeyWin.__agKey && P.__agKeyWin.__agKey(e); } catch (x) {} }); } } } catch (x) {}
+  document.addEventListener("keydown", e => {
+    if (!state.spot || e.altKey || e.metaKey || e.ctrlKey || document.body.classList.contains("arch-open")) return;
+    const tg = e.target, tn = tg && tg.tagName, typing = tn === "TEXTAREA" || tn === "SELECT" || (tn === "INPUT" && tg.type !== "range") || (tg && tg.isContentEditable);
+    if (typing || (tg && tg.id === "pv-zoom")) return;
+    const sl = $("#scrub"); if (!sl) return;
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight" || e.key === "Home" || e.key === "End") {
+      e.preventDefault(); const pb = $("#pv-play"); if (pb && /Pause/.test(pb.textContent)) pb.click();
+      const step = e.shiftKey ? 300 : 60, v = e.key === "Home" ? +sl.min : e.key === "End" ? +sl.max : +sl.value + (e.key === "ArrowRight" ? step : -step);
+      sl.value = Math.max(+sl.min, Math.min(+sl.max, v)); sl.dispatchEvent(new Event("input")); clearTimeout(window.__agKeyHq); window.__agKeyHq = setTimeout(() => sl.dispatchEvent(new Event("change")), 200); return; }
+    if (e.key === " " || e.code === "Space") { if (tn === "BUTTON" || tn === "A" || tn === "SUMMARY") return;   // native activation
+      e.preventDefault(); const pb = $("#pv-play"); if (pb) pb.click(); }
+  });
 
   // regions
   $("#regions").innerHTML = Object.entries(REGIONS).map(([k, v]) => `<button class="chip ${k === "all" ? "on" : ""}" data-r="${k}">${v.name}</button>`).join("");
@@ -889,7 +925,7 @@
     $("#arch-exit").onclick = exitArchive;
   }
   { const b = $("#archive-btn"); if (b) b.addEventListener("click", openArchive); const c = $("#archive-close"); if (c) c.addEventListener("click", closeArchive); const sc = $("#arch-scrim"); if (sc) sc.addEventListener("click", closeArchive); }
-  document.addEventListener("keydown", e => e.key === "Escape" && closeArchive());
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && document.body.classList.contains("arch-open")) closeArchive(); });
 
   // boot
   Promise.all([loadData(), loadNoaa(), loadMarine()]).then(([d, N, MW]) => {
