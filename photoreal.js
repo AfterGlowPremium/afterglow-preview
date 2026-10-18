@@ -48,7 +48,7 @@ uniform float uSurfL; uniform float uSwAng;   // d19: swell crest angle vs the v
 uniform vec3 uTint; uniform float uBack;   // DRAFT: dials from looks.js — water tint, backlight scale
 uniform float uGlow; uniform float uUnder; uniform float uTops;   // d17 afterglow regimes
 uniform vec3 uOvcT;   // d22: overcast diffuse tint (time of day; JS)
-uniform float uFast; uniform float uGray; uniform float uHero; uniform float uHeroD; uniform float uMess;
+uniform float uFast; uniform float uGray; uniform float uHero; uniform float uHeroD; uniform float uMess; uniform float uFaceK;   // d23w: breaking face = uFaceK x Hs (1.0 wind swell .. 1.3 long-period groundswell)
    // v17: uMess 0 clean … 1 blown-out onshore crumbler
     // DRAFT: 1 = hero curling barrel wave (own shape) at uHeroD metres   // DRAFT: breaker spacing (m)   // wave motion phase (advances with the slider / Play)
 
@@ -368,7 +368,7 @@ float heroSDF(vec3 p, float camM, out float mat, out vec4 info){
   { float cz = p.z + gHD; p = vec3(p.x * .927 + cz * .375, p.y, -p.x * .375 + cz * .927 - gHD); }   // ~22° down-the-line view
   // 2D profile swept along the crest. Phase from distance to the peel point (rel<0 = unbroken, peel moves right→left):
   // round swell → steep concave wall → lip pitches past vertical → tube → impact/foam → soup
-  float H = gSurf * 1.4, D = gHD + .003 * p.x * p.x;   // v17: face height calibrated to forecast (1.4 × forecast face height: 2 ft ≈ waist, 4 ft ≈ head high, 6 ft ≈ overhead; no figure drawn)
+  float H = gSurf * max(uFaceK, 1.) * .88, D = gHD + .003 * p.x * p.x;   // d23w: face = 1.0–1.3 x Hs (was a flat 1.4 x, and the camera crept closer to small surf); x .88 because the thrown lip/tube rides ~12% above Hh, so the visible crest-to-trough lands on 1.0–1.3 x Hs   // v17: face height calibrated to forecast (1.4 × forecast face height: 2 ft ≈ waist, 4 ft ≈ head high, 6 ft ≈ overhead; no figure drawn)
   float s = p.z + D, y = p.y + camM, rel = (mod(p.x * .927 + (p.z + gHD) * .375 - heroPX() + 9., 15.) - 9.) * 1.7;   // phases compressed so the whole sequence fits the view
   float offOK = smoothstep(.15, .45, uOff + .25) * (1. - smoothstep(.05, .35, uMess));   // v17: onshore → no lip throw / no tube
   float steep = smoothstep(-13., -4., rel) * (1. - smoothstep(2., 9., rel));                       // 0 round … 1 vertical wall
@@ -1015,7 +1015,7 @@ void main(){
     gl.uniform1f(U.uBlockGap, P.gap || 0);
     gl.uniform1f(U.uChop, P.chop != null ? P.chop : 0.3); gl.uniform1f(U.uSwell, P.swell || 0); gl.uniform1f(U.uCaps, P.caps || 0); gl.uniform1f(U.uPhase, P.phase || 0);
     if (U.uSurf) { gl.uniform1f(U.uSurf, P.surf || 0); gl.uniform1f(U.uOff, P.off || 0); gl.uniform1f(U.uSurfT, P.surfT || 0); gl.uniform1f(U.uSurfL, P.surfL || 42); if (U.uSwAng) gl.uniform1f(U.uSwAng, P.swAng || 0); if (U.uTint) { const tn = P.tint || [0.15, 0.2, 0.12]; gl.uniform3f(U.uTint, tn[0], tn[1], tn[2]); gl.uniform1f(U.uBack, (P.back != null ? P.back : 1) * (1 - clamp(P.gray || 0))); }
-    if (U.uHero) { gl.uniform1f(U.uHero, P.hero ? 1 : 0); if (U.uMess) gl.uniform1f(U.uMess, P.mess || 0); gl.uniform1f(U.uHeroD, P.heroD || 26); } }
+    if (U.uHero) { gl.uniform1f(U.uHero, P.hero ? 1 : 0); if (U.uMess) gl.uniform1f(U.uMess, P.mess || 0); gl.uniform1f(U.uHeroD, P.heroD || 26); } if (U.uFaceK) gl.uniform1f(U.uFaceK, P.faceK || 1.15); }
     gl.uniform1f(U.uMidH, clamp(P.midKm || 4.5, 2.5, 7.5));
     gl.uniform1f(U.uMeter, 0);
     const ovc = clamp((Math.max(P.mid, P.low, P.high * 0.6) - 0.5) / 0.45), gy = clamp(P.gray || 0);
