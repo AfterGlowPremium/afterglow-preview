@@ -1,4 +1,5 @@
 (function () {
+  const rainQ = {};   // d23y: radar-at-spot answers keyed spot:5-min slot
   // Mode: ?mode=sunrise | ?mode=sunset. No mode → the "Welcome to Afterglow" homepage (index.html) handles the choice.
   const MODE = new URLSearchParams(location.search).get("mode");
   if (MODE !== "sunrise" && MODE !== "sunset") return;
@@ -108,9 +109,10 @@
       try { keys().filter(drop).forEach(x => localStorage.removeItem(x)); return put(); } catch (e) {}
     }
     return false; };
+  const FRESH_AUTO = 28 * 60 * 1000;   // d24: auto-refresh refetches the model every other 15-min cycle (HRRR/Open-Meteo update hourly; 86 spots x 6 points per fetch must stay inside Open-Meteo's free per-hour quota)
   const FRESH = 45 * 60 * 1000, STALE_OK = 12 * 3600 * 1000;
 
-  async function loadData() {
+  async function loadData(force) {
     if (/[?&]demo=offline/.test(location.search)) throw new Error("demo offline");
     // Cache is keyed to the exact spot list: adding/reordering spots must never reuse old index-aligned arrays.
     const sig = SPOTS.map(s => s.id).join("|"), n = SPOTS.length;
@@ -119,7 +121,7 @@
     const okB = c => c && c.sig === sig && c.S && c.S.length === n;
     const okD = c => c && c.sig === sig && c.W && c.W.length === n * 3 && c.E && c.E.length === n;
     let B = lsGet(BK), D = lsGet(DK);
-    const fresh = c => c && Date.now() - c.at < FRESH;
+    const fresh = c => c && Date.now() - c.at < (force ? FRESH_AUTO : FRESH);
     const join = (b, dd, extra) => Object.assign({ at: Math.min(b.at, dd.at), sig, S: b.S, AQ: b.AQ, fcModel: b.fcModel, W: dd.W, E: dd.E }, extra || {});
     if (okB(B) && okD(D) && fresh(B) && fresh(D)) return join(B, D);
     // Primary: NOAA HRRR (0–48 h, 3 km) blended into NOAA GFS (days 3–7) — Open-Meteo "gfs_seamless" mirror of NOAA NOMADS output.
@@ -629,12 +631,12 @@
         return r; };
       // d23: the 180° Turn renders BOTH water and land behind you with the photoreal shader: real ground (sand / marsh / lawn),
       // the far shore's treeline, houses or dunes lit by the actual sun (front-lit at sunset, backlit at sunrise, diffuse under overcast)
-      const GB = turned && window.Photoreal && window.Ground ? Ground.behind(sp, RISE) : null;
+      const GB = window.Photoreal && window.Ground ? (turned ? Ground.behind(sp, RISE) : Ground.front ? Ground.front(sp, RISE) : null) : null, GS = turned ? (sp.behind || {}) : { type: sp.type, far: sp.far };   // d24: Ground.front = land you face (1st St Jetty sunset: the hotels)
       let o = null;
       if (GB) { const wo = wOpt(), G = Object.assign({}, GB); if (wo.surf && !G.land) G.nearD = 0;   // surf close-up: you are standing in the water
-        const fsp = Object.assign({}, sp, { far: G.d > 0 ? "open" : (sp.behind.far || "open"), water: !G.land, type: G.land ? sp.behind.type : sp.type === "Pier" ? "Pier" : "Beach" });
-        if (sp.behind && sp.behind.far === "bridge" && !G.land) fsp.far = "bridge";
-        const extra = { lq: dragging, turned: true, ground: G, hills: G.land ? 0 : undefined, shore: G.d > 0 ? 0 : undefined };
+        const fsp = Object.assign({}, sp, { far: G.d > 0 ? "open" : (GS.far || "open"), water: !G.land, type: G.land ? GS.type : sp.type === "Pier" ? "Pier" : "Beach" });
+        if (GS.far === "bridge" && !G.land) fsp.far = "bridge";
+        const extra = { lq: dragging, turned, ground: G, hills: G.land ? 0 : undefined, shore: G.d > 0 ? 0 : undefined };
         if (G.camH) extra.camH = G.camH; if (G.lake != null && !G.land) Object.assign(extra, { swell: 0, surf: 0, hero: 0, caps: (wo.caps || 0) * G.lake, chop: (wo.chop != null ? wo.chop : 0.3) * G.lake }); if (G.land) Object.assign(extra, { surf: 0, hero: 0, chop: 0, caps: 0, swell: 0 });
         Object.keys(extra).forEach(k => extra[k] === undefined && delete extra[k]);
         o = PhotoStage.draw(cv, fsp, ev, t, Object.assign({}, wo, extra)); }
@@ -651,7 +653,19 @@
       else showPhotos(t);
       if (dragging && o.mode === "live" && !hqT) hqT = setTimeout(() => { hqT = 0; dragging = false; queue(); }, 160);   // v17 fix: surf re-renders no longer cancel the full-res pass (scene stuck low-res after a drag)
       wxT = t; wxC = window.Wx && (o.mode === "live" || window.AGX) ? Wx.conditions(ev, t, o.elev) : null;
-      { const Nw = window.AGObs && AGObs.now[sp.id], mo = Nw && Nw.metar; if (wxC && wxC.rain && (ev.obsDry || (mo && mo.dry && Math.abs(t - Date.now() / 1000) < 7200))) { wxC.rain = 0; wxC.rainName = null; } }   // d23: no model rain drawn once every nearby station reports it has stopped
+      // d23y: rain is drawn only where it was ACTUALLY raining at the scene time (live or replay): NEXRAD >= ~20 dBZ within ~5 km of the spot
+      // in the 5-min frame nearest t (IEM archive for past times). No radar → nearby station reports (event-time METARs, or the latest
+      // reports for "now") plus the model. No data at all (e.g. the future) → the model, as before.
+      if (wxC && o.mode === "live" && !/[?&]wx=/.test(location.search)) { const key = sp.id + ":" + Math.round(t / 300), RQ = rainQ[key];
+        if (RQ === undefined && window.Sat && Sat.radarAt && t < Date.now() / 1000 + 600) { rainQ[key] = "pending"; Sat.radarAt(sp.lat, sp.lng, t).then(r => { rainQ[key] = r; window.__agQueue && __agQueue(); }); }
+        const R = rainQ[key];
+        if (R && R !== "pending") { if (R.rain >= 0.04) { wxC.rain = Math.max(wxC.rain || 0, Math.min(1, 0.35 + 1.2 * R.rain)); wxC.rainName = wxC.rainName || "Rain (radar)"; } else { wxC.rain = 0; wxC.rainName = null; } wxC.rainSrc = "radar"; }
+        else if (R === "pending") { wxC.rain = 0; wxC.rainName = null; }   // brief: hold off until the radar frame answers
+        else { const O = window.AGObs || {}, Nw = O.now && O.now[sp.id], nowS = Date.now() / 1000;
+          const mo = Math.abs(t - ev.tSet) <= 3600 && O.metar && O.metar[sp.id] ? O.metar[sp.id] : Nw && Math.abs(t - nowS) < 7200 ? Nw.metar : null;
+          if (mo && mo.shower) { wxC.rain = Math.max(wxC.rain || 0, 0.5); wxC.rainSrc = "station"; }
+          else if (wxC.rain && (ev.obsDry || (mo && mo.dry))) { wxC.rain = 0; wxC.rainName = null; wxC.rainSrc = "station"; } } }
+      window.__agWxC = wxC;
       if (wxC) { if (o.mode !== "live") { wxC.rain = wxC.snow = wxC.fog = wxC.bolt = wxC.bow = 0; }   // canvas fallback draws its own weather
         const fw = turned ? (sp.behind && sp.behind.water) : sp.water, s0 = ev.s || {};
         wxC.wdir = wNow.wdir; wxC.wind = wNow.wind != null ? wNow.wind : wxC.wind; { const dm = window.AGX && AGX.sea(sp, {}); if (dm && dm.demo && dm.mph != null) { wxC.wind = dm.mph; wxC.wdir = dm.wdir; } } wxC.faceAz = turned ? (ev.sunsetAz + 180) % 360 : ev.sunsetAz; wxC.turned = turned && o.mode === "live"; wxC.elev = o.elev; { const L = window.PhotoStage && PhotoStage.last; wxC.ref = o.mode === "live" && L && L.hero && L.surf > 0.2 && /[?&]ref=1/.test(location.search) ? { camH: (L.heroCam || 0.0015) * 1000, d: L.heroD || 18, fovMul: L.fovMul || 1, faceM: L.surf * (L.faceK || 1.15) } : null; }
@@ -1014,12 +1028,27 @@
     archSaveAll(); update();
     $("#loading").classList.add("done");
     // Draft: refresh forecast + renderings every 15 min (skipped while replaying the archive)
-    setInterval(async () => { if (state.arch || document.hidden) return; try { const [d2, MW2] = await Promise.all([loadData(true), loadMarine()]); applyMarine(d2, MW2); applyNoaa(d2, state.noaa); state.data = d2; archSaveAll(); update(); if (window.AGX) AGX.refresh(SPOTS); if (state.spot && document.body.classList.contains("detail-open")) openDetail(state.spot, true); const u = $("#updated"); if (u) u.dataset.auto = "1"; } catch (e) { console.warn("auto-refresh", e); } }, 15 * 60 * 1000);
+    // d24: CURRENT-DAY auto-refresh (Sean): every 15 min while the app is open, and on returning to the tab if a cycle is due — no reload,
+    // music keeps playing. Each cycle: model clouds by layer (refetched when > 28 min old), marine, then the observed sky for today's events
+    // (METARs, NEXRAD, GOES visible + IR with a fresh 5-min tile key, the low-sun visible cloud canvas), staggered with the open spot and
+    // the spots in view first. Scores, pins and the open render recompute; "Updated h:mm" shows the last cycle. Past/future days: no-op.
+    let cycAt = Date.now(), cycBusy = false;
+    const stamp = () => { let e = document.getElementById("ag-upd"); const u = $("#updated"); if (!e && u) { e = document.createElement("div"); e.id = "ag-upd"; e.className = "updated ag-upd"; e.style.cssText = "font-size:11px;opacity:.75;margin-top:2px"; u.after(e); }
+      if (e) e.textContent = "Updated " + new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date(cycAt)) + " · auto-refresh every 15 min"; };
+    const cycle = async () => { if (state.arch || cycBusy) return; cycBusy = true;
+      try { const [d2, MW2] = await Promise.all([loadData(true), loadMarine()]); applyMarine(d2, MW2); applyNoaa(d2, state.noaa); state.data = d2; archSaveAll(); update(); if (window.AGX) AGX.refresh(SPOTS);
+        await obsTick(); if (state.spot && document.body.classList.contains("detail-open")) openDetail(state.spot, true); cycAt = Date.now(); stamp(); }
+      catch (e) { console.warn("auto-refresh", e); } finally { cycBusy = false; } };
+    window.__agCycle = cycle;
+    setInterval(() => { if (!document.hidden) cycle(); }, 15 * 60 * 1000);
+    document.addEventListener("visibilitychange", () => { if (!document.hidden && Date.now() - cycAt > 15 * 60 * 1000) cycle(); });
+    setTimeout(stamp, 0);
     if (window.AGX) AGX.refresh(SPOTS);
     // d15: observed sky (METAR + GOES + latest model) for today's events → re-score + re-render when it lands, and every 10 min
     const obsTick = () => { if (!window.AGObs || state.arch) return; const D = state.data, today = SPOTS.map((spot, k) => ({ spot, ev: evaluate(spot, D.S[k], [D.W[k * 3], D.W[k * 3 + 1], D.W[k * 3 + 2]], D.E[k], 0, D.AQ && D.AQ[k]) }));
+      window.AGPrio = r => (state.spot === r.spot.id ? 0 : map.getBounds().contains([r.spot.lat, r.spot.lng]) ? 1 : 2);
       return AGObs.refresh(SPOTS, today, 0).then(ch => { if (ch) update(); }).catch(e => console.warn("obs", e)); };
-    obsTick(); setInterval(() => { if (!document.hidden) obsTick(); }, 10 * 60 * 1000);
+    (window.AGObs && AGObs.cvSnap || Promise.resolve()).then(obsTick);   // d24: first pass once the satellite-canvas snapshot is in; later passes ride the 15-min cycle
     // Afterglow Real deep link: ?mode=sunset&spot=clearwater&t=peak&play=1
     { const q = new URLSearchParams(location.search), id = q.get("spot");
       if (q.get("day") != null && state.data.S[0].daily.time[+q.get("day")] != null) { state.day = +q.get("day"); state.autoDay = false; update(); }
