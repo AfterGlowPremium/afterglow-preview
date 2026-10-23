@@ -243,7 +243,9 @@ Object.assign(window.SUNRISE_VIEW, {
   S("narragansett", "Narragansett Town Beach", "RI", 41.4345, -71.4558, "Rhode Island's surf hub; Point Judith reefs nearby.");
   S("hamptonnh", "Hampton Beach / The Wall", "NH", 42.9316, -70.7977, "New Hampshire seawall break.");
   S("ocmd", "Ocean City Inlet", "MD", 38.3255, -75.0857, "South-end jetty break at the inlet.");
-  S("vb1st", "1st Street Jetty, Virginia Beach", "VA", 36.8305, -75.9690, "Virginia's most consistent break, north of Rudee Inlet.");
+  // d24 (Sean): 1st Street Jetty is an EAST-facing ocean beach at the Rudee Inlet north jetty. Sunrise / main view = the open Atlantic with
+  // surf, the jetty and inlet to the south (right), sand in front. Sunset looks west over the oceanfront hotels and boardwalk — no water horizon.
+  A("vb1st", "1st Street Jetty, Virginia Beach", "VA", 36.8320, -75.9700, "Beach", "Virginia's most consistent break, on the north side of the Rudee Inlet jetty. East-facing ocean beach: at sunset you look west over the oceanfront hotels and boardwalk (the color is in the sky above them) — turn 180° for the Atlantic glowing pink.", [230, 300], 4, false, OCEAN("Open Atlantic sunrise straight over the surf; the 1st Street jetty and Rudee Inlet are just to your right (south)."), ["town", "Beach", "open"]);
   S("sandbridge", "Sandbridge Beach", "VA", 36.7300, -75.9370, "Open Atlantic beach break south of VB.");
   S("sturns", "S-Turns, Rodanthe", "NC", 35.6150, -75.4667, "Hatteras Island classic — barrels on NE swell with W wind.");
   S("rodanthe", "Rodanthe Pier, Rodanthe", "NC", 35.5851, -75.4615, "Hatteras Island ocean pier — classic OBX sunrise: low peach sun over dark backlit walls and glitter on the wet sand (Sean's reference photo).");
