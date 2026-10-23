@@ -90,5 +90,38 @@
   // d23r: NEXRAD n0q (IEM) — transparent where no echo; echo = share of pixels with a return, heavy = share in the yellow/red range
   function readRadar(px) { if (!px.length) return null; const e = px.filter(p => p[3] > 60), hv = e.filter(p => p[0] > 200 && p[1] > 150 && p[2] < 90 || p[0] > 200 && p[1] < 90); return { echo: e.length / px.length, rain: e.filter(p => p[1] > p[2] + 10 || p[0] > p[2] + 40).length / px.length, heavy: hv.length / px.length }; }   // d23p rain: green/yellow/red (>= ~20 dBZ), not the blue/cyan drizzle-clutter shades
   async function samplePt(layer, lat, lng) { try { const px = await sample(layer, lat, lng, 6, 4); return layer === "ir" ? readIR(px) : layer === "radar" ? readRadar(px) : readVis(px); } catch (e) { return null; } }
-  g.Sat = { tileUrl, readSpot, samplePt, LAYERS };
+  // d24: CLOUD CANVAS from GOES visible, sun-angle independent (Fort Monroe Oct 23: broken Ac/Cu across the whole sun path read as "0% bright"
+  // because the fixed 170 brightness threshold assumes a high sun — at sunset the whole image is dim, clouds ~60–140, ground ~35).
+  // Cloud = brighter than the tile's own clear background (20th percentile) by >= 50% / +18. Returns the cloudy fraction within ~45 km.
+  const bgCache = {};
+  async function canvasPt(lat, lng, rad = 8) {
+    try { const z = 7, { tx, ty, px, py } = tileXY(lat, lng, z), url = `${IEM}${LAYERS.vis}/${z}/${tx}/${ty}.png?_=${bust()}`, im = await loadImg(url);
+      const c = document.createElement("canvas"); c.width = c.height = 256; const x = c.getContext("2d"); x.drawImage(im, 0, 0);
+      let bg = bgCache[url]; if (bg == null) { const D = x.getImageData(0, 0, 256, 256).data, v = []; for (let i = 0; i < D.length; i += 16) if (D[i + 3] > 0) v.push((D[i] + D[i + 1] + D[i + 2]) / 3); v.sort((a, b) => a - b); bg = bgCache[url] = v.length ? v[Math.floor(v.length * 0.2)] : 0; }
+      const x0 = Math.max(0, px - rad), y0 = Math.max(0, py - rad), w = Math.min(256 - x0, rad * 2), h = Math.min(256 - y0, rad * 2), D = x.getImageData(x0, y0, w, h).data;
+      const thr = Math.max(bg * 1.5, bg + 18), thick = Math.max(bg * 2.6, bg + 70); let n = 0, cl = 0, th = 0;
+      for (let i = 0; i < D.length; i += 4) { if (!D[i + 3]) continue; n++; const v = (D[i] + D[i + 1] + D[i + 2]) / 3; if (v > thr) cl++; if (v > thick) th++; }
+      if (!n || bg < 4) return null;   // night / no data
+      return { cv: cl / n, thick: th / n, bg }; } catch (e) { return null; }
+  }
+  // d23y: radar AT THE SPOT at a given time (live, or the IEM archived 5-min NEXRAD composite for replays): fraction of pixels within
+  // ~5 km that are >= ~20 dBZ (green and up). Used to decide whether rain is drawn in the scene. null = no radar data.
+  const rCache = {};
+  function radarAt(lat, lng, t, km = 5) {
+    const now = Date.now() / 1000; if (t > now + 600) return Promise.resolve(null);   // the future: no radar
+    const st = Math.round(t / 300) * 300, live = now - st < 900, d = new Date(st * 1000), p2 = v => String(v).padStart(2, "0");
+    const lay = live ? LAYERS.radar : `ridge::USCOMP-N0Q-${d.getUTCFullYear()}${p2(d.getUTCMonth() + 1)}${p2(d.getUTCDate())}${p2(d.getUTCHours())}${p2(d.getUTCMinutes())}`;
+    const key = lay + ":" + lat.toFixed(3) + "," + lng.toFixed(3) + (live ? ":" + bust() : "");
+    if (rCache[key]) return rCache[key];
+    return (rCache[key] = (async () => { try {
+      const z = 8, { tx, ty, px, py } = tileXY(lat, lng, z), mpp = 156543.03 * Math.cos(lat * Math.PI / 180) / 2 ** z, R = Math.max(2, Math.round(km * 1000 / mpp));
+      const im = await loadImg(`${IEM}${lay}/${z}/${tx}/${ty}.png${live ? "?_=" + bust() : ""}`);
+      const c = document.createElement("canvas"); c.width = c.height = 256; const x = c.getContext("2d"); x.drawImage(im, 0, 0);
+      const x0 = Math.max(0, px - R), y0 = Math.max(0, py - R), w = Math.min(256, px + R) - x0, h = Math.min(256, py + R) - y0, D = x.getImageData(x0, y0, w, h).data;
+      let n = 0, rain = 0, echo = 0;
+      for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) { const dx = x0 + i - px, dy = y0 + j - py; if (dx * dx + dy * dy > R * R) continue; const k = 4 * (j * w + i); n++;
+        if (D[k + 3] > 60) { echo++; if (D[k + 1] > D[k + 2] + 10 || D[k] > D[k + 2] + 40) rain++; } }
+      return n ? { rain: rain / n, echo: echo / n, t: st, live } : null; } catch (e) { return null; } })());
+  }
+  g.Sat = { tileUrl, readSpot, samplePt, radarAt, canvasPt, bust, LAYERS };
 })(window);

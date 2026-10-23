@@ -83,7 +83,7 @@
     const ir = await g.Sat.samplePt("ir", lat, lng); if (!ir) return null;
     const hi = clamp(ir.cold + ir.deep);
     // night: grey tops = low/mid; cold tops are ambiguous (thick deck or thin cirrus) → half weight
-    let lm = clamp(ir.coolGrey * 1.15 + hi * 0.5);
+    let lm = clamp(ir.coolGrey * 0.45 + hi * 0.5);   // d24: IEM's IR greys also cover cool clear land/sea at dusk (Oct 23: 100% 'coolGrey' at every point incl. the clear 300 km one) — weak evidence alone
     // day: visible brightness = optical thickness. Bright = thick (blocks, whatever the top temperature); dim-but-cold = thin cirrus (may glow)
     if (day) { const v = await g.Sat.samplePt("vis", lat, lng); if (v) lm = clamp(v.bright + v.thin * 0.35 + ir.coolGrey * 0.3); }
     return { lm, hi };
@@ -95,6 +95,8 @@
       const az = ev.sunsetAz, pts = [0, 40, 120, 200, 300].map(d => d ? g.Model.offset(sp.lat, sp.lng, az, d) : { lat: sp.lat, lng: sp.lng });
       const r = await Promise.all(pts.map(p => satPoint(p.lat, p.lng, day)));
       if (r.some(x => !x)) return null;
+      // d24: low-sun visible read relative to the tile's clear background (canvas()) beats the IR-only fallback: thick = blocks, broken = mostly lets light by
+      const C = O.cv[sp.id]; if (C && n - C.at < 3600 && Math.abs(C.tSet - ev.tSet) < 3600) [0, 40, 120, 200, 300].forEach((d, i) => { const j = C.km.indexOf(d); if (j >= 0) r[i].lm = clamp(C.thick[j] + 0.4 * C.cv[j]); });
       // d23 light-geometry weights: the sunset ray under a deck is lowest (and most blockable) 120–300 km out; 40 km is mostly the deck itself
       const path = 0.1 * r[1].lm + 0.3 * r[2].lm + 0.35 * r[3].lm + 0.25 * r[4].lm;
       return { here: r[0].lm, hereHi: r[0].hi, path, pts: r.map(x => +x.lm.toFixed(2)), day, at: n };
@@ -128,10 +130,51 @@
     const src = [m && `METAR ${m.station} ${m.layers || "CLR"}${m.wx ? " precip" : ""}`, s && `GOES ${s.day ? "vis+IR" : "IR"} path ${Math.round(s.path * 100)}%`, !s && `model path ${Math.round(model * 100)}%`].filter(Boolean).join(" · ");
     return { block, gray, here, path, open, metar: m, sat: s, src };
   }
+  // d24: satellite CLOUD CANVAS along the sun path (Fort Monroe, Oct 23 2026: HRRR/GFS had 0% mid/high and patchy low along the whole
+  // sunset azimuth, GOES visible showed broken Ac/Cu from overhead to ~200 km with clear sky beyond 250 km — an epic lit-cloud sunset the
+  // app scored as plain). Sampled while the sun is up (visible needs daylight), kept per spot+day so it still counts through the afterglow
+  // and after a reload. Fed into the model as observed mid cloud wherever it exceeds the model's own low+mid cover.
+  O.cv = lsGet("ag-obs-cv") || {};
+  const CVK = [0, 20, 40, 80, 120, 200, 300];
+  async function canvas(sp, ev) {
+    const n = NOW(); if (!g.Sat || !g.Sat.canvasPt || n - ev.tSet > 1800 || ev.tSet - n > 3 * 3600) return O.cv[sp.id] || null;
+    if (g.Model.sunPos(n, sp.lat, sp.lng).elev < 2.5) return O.cv[sp.id] || null;   // low sun: the visible image is too dim to trust → keep the last good-light read (or the snapshot's)
+    const az = ev.sunsetAz, r = await Promise.all(CVK.map(d => { const p = d ? g.Model.offset(sp.lat, sp.lng, az, d) : { lat: sp.lat, lng: sp.lng }; return g.Sat.canvasPt(p.lat, p.lng, 18); }));
+    if (r.filter(Boolean).length < 5) return O.cv[sp.id] || null;
+    const v = r.map(x => x ? x.cv : 0), th = r.map(x => x ? x.thick : 0);
+    const o = { tSet: ev.tSet, at: n, km: CVK, cv: v.map(x => +x.toFixed(2)), thick: th.map(x => +x.toFixed(2)),
+      here: 0.3 * v[0] + 0.25 * v[1] + 0.25 * v[2] + 0.2 * v[3], west: (v[0] + v[1] + v[2] + v[3] + v[4]) / 5, far: 0.5 * v[5] + 0.5 * v[6], farThick: Math.max(th[5], th[6]) };
+    O.cv[sp.id] = o; const keep = {}; for (const k in O.cv) if (n - O.cv[k].tSet < 86400) keep[k] = O.cv[k]; lsSet("ag-obs-cv", keep);
+    return o;
+  }
+  O.canvas = canvas;
+  // snapshot (GitHub Actions, tools/satcv.js, ~every 15 min while sunsets are near): reads taken with the sun ~4° up, for first loads
+  // and for opening the app after the in-browser read is no longer possible. A fresher in-browser read wins.
+  O.cvSnap = /[?&]mode=sunrise/.test(location.search) ? Promise.resolve() : fetch(`data/satcv-sunset.json?_=${Math.floor(Date.now() / 300000)}`).then(r => r.ok ? r.json() : null).then(j => {
+    if (!j || !j.spots) return; for (const id in j.spots) { const a = j.spots[id], b = O.cv[id]; if (!b || b.tSet !== a.tSet || (b.at || 0) < a.at) O.cv[id] = a; } }).catch(() => {});
+  // observed cloud → model inputs (hourly copies; only the hours either side of the event are touched)
+  function withCanvas(args, ev, C) {
+    const [sp, S, Wl] = args, tAt = ev.tSet;
+    const bump = (H, frac) => { if (!H || !H.time || frac < 0.08) return H; const h = Object.assign({}, H), i = Math.max(0, Math.floor((tAt - H.time[0]) / 3600));
+      for (const k of ["cloud_cover_mid", "cloud_cover"]) if (h[k]) { h[k] = h[k].slice(); for (const j of [i, i + 1]) if (j < h[k].length) { const lo = (H.cloud_cover_low || [])[j] || 0, mdl = (H.cloud_cover_mid || [])[j] || 0;
+        const want = 100 * Math.min(0.95, frac * 1.1); if (k === "cloud_cover_mid" && Math.max(lo, mdl) < want) h[k][j] = Math.max(mdl, want - 0.5 * lo); if (k === "cloud_cover") h[k][j] = Math.max(h[k][j] || 0, want); } }
+      return h; };
+    const pick = km => { const i = C.km.indexOf(km); return i >= 0 ? C.cv[i] : 0; };
+    const S2 = Object.assign({}, S, { hourly: bump(S.hourly, Math.min(0.75, 1.5 * Math.max(C.here, 0.9 * C.west))) });   // the sky you see toward the sun (0–120 km) is the canvas, not just the zenith
+    const W2 = Wl.map((w, k) => w && Object.assign({}, w, { hourly: bump(w.hourly, [0.5 * pick(40) + 0.5 * pick(80), pick(120), 0.5 * pick(200) + 0.5 * pick(300)][k] || 0) }));
+    const a = Array.from(args); a[1] = S2; a[2] = W2; return a;
+  }
   // Wrap Model.evaluate so EVERY caller (pins, list, day strip, detail, render) gets the observed override.
   const base = g.Model.evaluate;
   g.Model.evaluate = function (sp) {
-    const ev = base.apply(this, arguments);
+    let ev = base.apply(this, arguments);
+    try { const C = !/[?&](obs|sat)=0/.test(location.search) && ev && O.cv[sp.id];
+      if (C && Math.abs(C.tSet - ev.tSet) < 3600 && Math.max(...C.cv.slice(0, 5)) >= 0.15) { const e2 = base.apply(this, withCanvas(arguments, ev, C));
+        if (e2) { e2.satCanvas = C; e2.scoreNoSat = ev.score; (e2.reasons || (e2.reasons = [])).unshift(`Satellite (GOES visible): broken cloud along the ${g.AG_MODE === "sunrise" ? "sunrise" : "sunset"} path — ${C.cv.slice(0, 5).map((v, i) => `${C.km[i]} km ${Math.round(v * 100)}%`).join(", ")}; ${C.far < 0.3 ? "open horizon beyond" : "cloud on the horizon too"}. The model had little mid cloud here; using the observed cloud.`); ev = e2;
+          // broken cloud (not a solid deck) across the visible western sky + an open horizon = the lit-cloud sunset: 85–95
+          const brk = clamp(1 - Math.abs(C.west - 0.5) / 0.4), farOpen = clamp(1 - (C.far - 0.2) / 0.5) * (1 - clamp((C.farThick - 0.15) / 0.3)), solid = clamp((Math.max(...C.thick.slice(0, 4)) - 0.5) / 0.3);
+          const q = brk * farOpen * (1 - solid);
+          if (C.west >= 0.15 && q > 0.25) { const sc = Math.round(80 + 15 * q); if (sc > ev.score) { ev.scoreSatModel = ev.score; ev.score = sc; ev.satBoost = +q.toFixed(2); } } } } } catch (e) { console.warn("sat canvas", e); }
     try { Object.defineProperty(ev, "_h", { value: arguments[1] && arguments[1].hourly, enumerable: false }); Object.defineProperty(ev, "_sp", { value: sp, enumerable: false }); } catch (e) {}   // d16: hourly clouds for grayAt(t)
     try {
       if (/[?&]obs=0/.test(location.search) || !ev) return ev;
@@ -216,10 +259,10 @@
   };
   O.refresh = async (spots, results, day) => {
     if (day !== 0) return false;
-    const todo = results.filter(r => inWindow(r.ev.tSet));
+    const pr = g.AGPrio || (() => 0), todo = results.filter(r => inWindow(r.ev.tSet)).sort((a, b) => pr(a) - pr(b));   // d24: open spot, then the map view, then the rest
     let q = 0;
     await Promise.all(todo.map(async r => { await new Promise(res => setTimeout(res, (q++) * 60));
-      const [m, s, rd] = await Promise.all([metar(r.spot, r.ev.tSet), sat(r.spot, r.ev), radarAnti(r.spot, r.ev)]); O.metar[r.spot.id] = m; O.sat[r.spot.id] = s; O.radar[r.spot.id] = rd; }));
+      await canvas(r.spot, r.ev).catch(() => null); const [m, s, rd] = await Promise.all([metar(r.spot, r.ev.tSet), sat(r.spot, r.ev), radarAnti(r.spot, r.ev)]); O.metar[r.spot.id] = m; O.sat[r.spot.id] = s; O.radar[r.spot.id] = rd; }));
     O.ready = true; O.at = Date.now(); return todo.length > 0;
   };
 })(window);

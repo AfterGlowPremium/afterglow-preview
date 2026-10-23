@@ -37,6 +37,10 @@
       if (G.cth_km_med && G.obs_mid / tot > 0.5 && !(hs && hs.cbase_m)) out.midKm = clamp(G.cth_km_med - 1.5, 3, 7);
       const fg = N.goes.points[`${spot.id}@120`]; if (fg && fg.cloud_frac != null) out.gap = Math.min(out.gap || 1, clamp(1 - fg.cloud_frac * w - (1 - w) * (1 - (out.gap || 0))));
     }
+    // d24: GOES visible cloud canvas sampled along the sun path this evening (obs.js canvas()) — broken Ac/Cu the model missed is drawn, lit
+    const C = ev.satCanvas; if (C && Math.abs(t - C.tSet) < 3 * 3600) { const w = clamp(1 - Math.max(0, Math.abs(t - C.tSet) - 2400) / 3600), cvm = clamp(1.5 * Math.max(C.here, 0.9 * C.west)) * w;   // x1.5: at low sun thin Ac edges and sub-pixel cells fall under the threshold
+      if (cvm > out.mid) { out.mid = Math.max(out.mid, Math.min(0.85, cvm)); out.midKm = 4; out.src += "+GOESvis"; }
+      out.gap = Math.max(out.gap || 0, clamp(1 - (C.farThick + 0.5 * C.far)) * w); }
     out.high = clamp(out.high); out.mid = clamp(out.mid); out.low = clamp(out.low);
     return out;
   }
