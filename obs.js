@@ -172,9 +172,17 @@
       if (C && Math.abs(C.tSet - ev.tSet) < 3600 && Math.max(...C.cv.slice(0, 5)) >= 0.15) { const e2 = base.apply(this, withCanvas(arguments, ev, C));
         if (e2) { e2.satCanvas = C; e2.scoreNoSat = ev.score; (e2.reasons || (e2.reasons = [])).unshift(`Satellite (GOES visible): broken cloud along the ${g.AG_MODE === "sunrise" ? "sunrise" : "sunset"} path — ${C.cv.slice(0, 5).map((v, i) => `${C.km[i]} km ${Math.round(v * 100)}%`).join(", ")}; ${C.far < 0.3 ? "open horizon beyond" : "cloud on the horizon too"}. The model had little mid cloud here; using the observed cloud.`); ev = e2;
           // broken cloud (not a solid deck) across the visible western sky + an open horizon = the lit-cloud sunset: 85–95
-          const brk = clamp(1 - Math.abs(C.west - 0.5) / 0.4), farOpen = clamp(1 - (C.far - 0.2) / 0.5) * (1 - clamp((C.farThick - 0.15) / 0.3)), solid = clamp((Math.max(...C.thick.slice(0, 4)) - 0.5) / 0.3);
-          const q = brk * farOpen * (1 - solid);
-          if (C.west >= 0.15 && q > 0.25) { const sc = Math.round(80 + 15 * q); if (sc > ev.score) { ev.scoreSatModel = ev.score; ev.score = sc; ev.satBoost = +q.toFixed(2); } } } } } catch (e) { console.warn("sat canvas", e); }
+          let q;
+          if (C.irMid) {   // d24b: visible + infrared. Light-catchers = broken MID/HIGH tops 20-120 km west; blockers = closed low deck or solid overhead.
+            const mids = C.irMid.slice(1, 5).filter(m => m <= 0.88), lit = mids.length ? Math.max(...mids) : 0;
+            const lowDeck = Math.max(...C.irLow.slice(0, 5).map((l, i) => (C.irCv[i] >= 0.9 && l >= 0.5) ? 1 : 0));
+            const solid = clamp((Math.max(...C.irCv.slice(0, 2)) - 0.85) / 0.1), farOpen = clamp(1 - (C.irCv[6] - 0.2) / 0.4);
+            q = clamp((lit - 0.4) / 0.45) * farOpen * (1 - solid) * (1 - lowDeck);
+          } else {
+            const brk = clamp(1 - Math.abs(C.west - 0.5) / 0.4), farOpen = clamp(1 - (C.far - 0.2) / 0.5) * (1 - clamp((C.farThick - 0.15) / 0.3)), solid = clamp((Math.max(...C.thick.slice(0, 4)) - 0.5) / 0.3);
+            q = brk * farOpen * (1 - solid) * 0.8;
+          }
+          if (C.west >= 0.15 && q > 0.2) { const sc = Math.round(ev.score + (90 - ev.score) * q); if (sc > ev.score) { ev.scoreSatModel = ev.score; ev.score = sc; ev.satBoost = +q.toFixed(2); } } } } } catch (e) { console.warn("sat canvas", e); }
     try { Object.defineProperty(ev, "_h", { value: arguments[1] && arguments[1].hourly, enumerable: false }); Object.defineProperty(ev, "_sp", { value: sp, enumerable: false }); } catch (e) {}   // d16: hourly clouds for grayAt(t)
     try {
       if (/[?&]obs=0/.test(location.search) || !ev) return ev;
