@@ -97,7 +97,7 @@
     // d25d: forecast cloud at the event (ev.s — ev.sky is a text summary, which is why low/mid/high were missing) and at the photo time from the spot's hourly forecast
     const predFor = (id, ev, t) => { if (!ev) return null; const st = g.__agState, k = (g.__agSpots || []).findIndex(s => s.id === id), S = st && st.data && st.data.S && st.data.S[k], M = g.Model, r1 = v => v == null ? null : Math.round(v);
       const cl = (h, tt) => h && M && M.at ? { total: r1(M.at(h, "cloud_cover", tt)), low: r1(M.at(h, "cloud_cover_low", tt)), mid: r1(M.at(h, "cloud_cover_mid", tt)), high: r1(M.at(h, "cloud_cover_high", tt)), precip: M.at(h, "precipitation", tt) } : null;
-      const s = ev.s || {}; return { score: ev.score, raw: ev.scoreRaw != null ? ev.scoreRaw : ev.score, tSet: ev.tSet,
+      const s = ev.s || {}, A = st && st.arch; return { past: !!A, pastDay: A ? A.key : undefined, score: ev.score, raw: ev.scoreRaw != null ? ev.scoreRaw : ev.score, tSet: ev.tSet,
         sky: { total: r1(s.total), low: r1(s.low), mid: r1(s.mid), high: r1(s.high), precip: s.precip ?? null }, atShot: t && S ? Object.assign({ t: Math.round(t) }, cl(S.hourly, t)) : null }; };
     const evFor = id => { const st = g.__agState, r = st && st.results && st.results.find(x => x.spot.id === id); return r && r.ev; };
     const setDT = (d, src) => { $("#fb-date").value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; $("#fb-time").value = `${pad(d.getHours())}:${pad(d.getMinutes())}`; $("#fb-tz").textContent = "(" + tzLab(d) + ")"; $("#fb-src").textContent = src; };
@@ -120,6 +120,11 @@
     $("#fb-photo").onchange = async e => { const fs = [...e.target.files]; e.target.value = ""; if (!fs.length) return; let bad = 0, over = Math.max(0, P.length + fs.length - MAXP);
       for (const [k, f] of fs.slice(0, MAXP - P.length).entries()) { msg(`Reading photo ${k + 1} of ${Math.min(fs.length, MAXP - P.length)}…`);
         try { const [img, d] = await Promise.all([shrink(f), exifT(f)]); P.push({ img, d: d || formD(), src: d ? "exif" : "form" }); drawThumbs(); } catch (x) { bad++; } }
+      // d25j: photo taken on a different day than the one being viewed → offer to switch (past cards cover the last 7 days)
+      { const st = g.__agState, cur = st && st.arch ? st.arch.key : dStr(new Date()), ex = P.find(p => p.src === "exif" && dStr(p.d) !== cur);
+        if (ex) { const k = dStr(ex.d), can = (g.__agPastKeys ? g.__agPastKeys() : []).includes(k) || k === dStr(new Date()); setTimeout(() => { const m = $("#fb-msg"); if (!m) return;
+          m.innerHTML = `This photo was taken ${ex.d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}${can ? ` — <a href="#" id="fb-sw">switch to that day</a>?` : " (older than the last 7 days — its own date is kept)."}`;
+          const a = $("#fb-sw"); if (a) a.onclick = async e => { e.preventDefault(); m.textContent = "Switching…"; try { if (k === dStr(new Date())) { const t = document.querySelector('.day[data-day="0"]'); t && t.click(); } else await g.__agGoPast(k); m.textContent = `Now showing ${k}. Your photos keep their own times.`; } catch (x) { m.textContent = "Couldn't load that day."; } }; }, 50); } }
       msg((bad ? `${bad} photo${bad > 1 ? "s" : ""} couldn't be read here (HEIC on a computer?) — try JPEG or pick on the iPhone. ` : "") + (over ? `Only ${MAXP} photos per send — ${over} left out.` : "")); };
     $("#fb-send").onclick = async () => { const btn = $("#fb-send"); if (btn.disabled) return; btn.disabled = true; btn.textContent = "Sending…"; msg("");
       try { const a = load(), id = $("#fb-spot").value, ev = evFor(id), st = g.__agState, uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + "-" + Math.random().toString(36).slice(2));
