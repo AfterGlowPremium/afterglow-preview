@@ -799,3 +799,7 @@ html.ag-desk .stage .ev-toggle a{font-size:13px;padding:8px 14px}
 .rail-ctl #pv-fb.play.fb:active{background:rgba(16,24,20,.72);box-shadow:0 0 18px rgba(255,122,61,.45)}
 .rail-ctl .fb-score{align-self:center;font:500 11.5px/1 var(--sans);color:#f3efe4;background:rgba(16,24,20,.45);border:1px solid rgba(212,160,84,.3);border-radius:999px;padding:5px 8px;white-space:nowrap;letter-spacing:.02em}
 .rail-ctl .fb-score::first-letter{color:#d4a054}.rail-ctl .fb-score.none{color:rgba(243,239,228,.4);border-color:rgba(243,239,228,.12)}
+/* d25i: archive date picker tab — matches the day tabs, ink glass + gold hairline */
+.day.pick{display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;border:1px solid rgba(212,160,84,.35);background:rgba(16,24,20,.45)}
+.day.pick input{font:500 14px var(--sans);color:#f3efe4;background:transparent;border:0;border-bottom:1px solid rgba(212,160,84,.4);padding:1px 2px;max-width:128px;color-scheme:dark}
+.day.exit{border-color:rgba(110,143,98,.55)!important}
