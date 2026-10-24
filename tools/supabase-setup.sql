@@ -28,3 +28,6 @@ drop policy if exists feedback_anon_upload on storage.objects;
 create policy feedback_anon_upload on storage.objects for insert to anon
   with check (bucket_id = 'feedback' and name ~ '^[0-9-]{10}/[a-z0-9_-]+-[A-Za-z0-9-]+\.jpg$');
 -- No select/update/delete policies for anon: uploads can't be listed, read, overwritten or removed from the app.
+
+-- Nightly job (service key): read entries and mark them processed.
+grant select, update (processed_at) on public.feedback to service_role;
