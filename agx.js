@@ -63,7 +63,7 @@
       <label>How was it really? (0–100)<input id="fb-score" type="range" min="0" max="100" value="60"><output id="fb-o">60</output></label>
       <label>Forecast was<select id="fb-acc"><option>about right</option><option>too high</option><option>too low</option><option>wrong cloud type/placement</option></select></label>
       <label>Notes<textarea id="fb-note" rows="3" placeholder="e.g. cirrus lit up pink 10 min after sunset, water glassy"></textarea></label>
-      <label class="fb-file">📷 Add photo<input id="fb-photo" type="file" accept="image/*" capture="environment"></label><img id="fb-prev" alt="" hidden>
+      <label class="fb-file">📷 Add photo<input id="fb-photo" type="file" accept="image/*"></label><img id="fb-prev" alt="" hidden>
       <button id="fb-save" class="btn">Save</button> <button id="fb-exp" class="btn ghost">Export all (${items.length})</button>
       <p class="fine">Saved on this phone for now. Draft plan: a daily job uploads these, pairs each with that day's forecast inputs, and re-fits the score weights.</p>`;
     let img = null; const $ = s => el.querySelector(s);
