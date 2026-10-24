@@ -583,17 +583,18 @@
     const AN = window.__agAnim || (window.__agAnim = { n: 0, tok: 0, id: 0, last: 0, ema: 33, scale: 0.8, fps: 30, slow: 0, t30: 0 });
     // v21: desktop targets 60 fps with a 0.75 resolution floor; if it can't hold 60 even at the floor it drops to 30 (re-tries 60 every 20 s). Phones: 30 fps, floor 0.5 (unchanged).
     const desk = isDesk(); if (desk) { if (AN.fps !== 30 || !AN.t30) AN.fps = 60; AN.scale = Math.max(0.75, AN.scale); AN.ema = 1000 / AN.fps; } else { AN.fps = 30; }
-    if (AN.id) { cancelAnimationFrame(AN.id); AN.id = 0; } const myTok = AN.tok = ++AN.n;
+    AN.lockAt = 0; if (AN.id) { cancelAnimationFrame(AN.id); AN.id = 0; } const myTok = AN.tok = ++AN.n;
     const alive = () => AN.tok === myTok && !document.hidden && document.body.classList.contains("detail-open") && document.body.contains(cv);
     const animLoop = ts => { AN.id = 0; if (!alive()) return;
       const dt = ts - AN.last, fps = isDesk() ? AN.fps : 30, iv = 1000 / fps, floor = isDesk() ? 0.75 : 0.5;
       if (fps === 30 && AN.t30 && isDesk() && ts - AN.t30 > 20000) { AN.fps = 60; AN.t30 = 0; AN.slow = 0; AN.ema = 1000 / 60; }   // v21: re-try 60 fps
       if (dt >= iv - (fps === 60 ? 2 : 4)) {
-        if (AN.last) { AN.ema = AN.ema * 0.85 + Math.min(dt, 250) * 0.15;
+        if (!AN.lockAt) AN.lockAt = ts + 3000; const lockd = !isDesk() && ts > AN.lockAt && AN.ema < 45;   // d24e: phones settle resolution in ~3 s then hold it (no visible pumping on surf)
+        if (AN.last) { AN.ema = AN.ema * 0.85 + Math.min(dt, 250) * 0.15; if (!lockd) {
           const hi = fps === 60 ? 21 : 40, lo = fps === 60 ? 18 : 35;
           if (AN.ema > hi && AN.scale > floor) AN.scale = Math.max(floor, AN.scale * 0.92);        // can't hold the target → fewer pixels
           else if (AN.ema > hi && fps === 60) { if (!AN.slow) AN.slow = ts; else if (ts - AN.slow > 1500) { AN.fps = 30; AN.t30 = ts; AN.slow = 0; AN.ema = 1000 / 30; } }   // at the floor and still slow for 1.5 s → 30 fps
-          else if (AN.ema < lo && AN.scale < 1) { AN.scale = Math.min(1, AN.scale * 1.03); AN.slow = 0; } else if (AN.ema <= hi) AN.slow = 0; }        // headroom → claw quality back
+          else if (AN.ema < lo && AN.scale < 1) { AN.scale = Math.min(1, AN.scale * 1.03); AN.slow = 0; } else if (AN.ema <= hi) AN.slow = 0; } }        // headroom → claw quality back
         AN.real = AN.ema ? Math.round(1000 / AN.ema) : 0;
         AN.last = ts; render(true);
         if (!(PhotoStage.last && PhotoStage.last.surf)) return; }
@@ -641,7 +642,7 @@
         Object.keys(extra).forEach(k => extra[k] === undefined && delete extra[k]);
         o = PhotoStage.draw(cv, fsp, ev, t, Object.assign({}, wo, extra)); }
       if (o && o.mode !== "live") o = null;
-      const aq = anim ? { scale: AN.scale, dprCap: isDesk() ? 2 : 1.5, fast: AN.scale < 0.62 ? 1 : 0 } : {};   // v21: desktop animated frames keep DPR up to 2   // d14: animated frames: capped DPR + adaptive scale; stills stay full quality
+      const aq = anim ? { scale: AN.scale, dprCap: isDesk() ? 2 : 1.5, fast: (!isDesk() || AN.scale < 0.62) ? 1 : 0 } : {};   // v21: desktop animated frames keep DPR up to 2   // d14: animated frames: capped DPR + adaptive scale; stills stay full quality
       if (!o) o = turned ? Object.assign(Preview.state(sp, ev, t), Preview.drawBehind(back, sp, ev, t), { mode: "behind" }) : PhotoStage.draw(cv, sp, ev, t, Object.assign(playing && window.__agPlayQ ? playOpt() : dragging && isDesk() ? { scale: 0.75 } : { lq: dragging }, wOpt(), aq));   // v21: desktop drags render at the 0.75 floor (phones 0.42)
       if (anim) return;   // d14: animation frames only redraw the WebGL scene — no DOM/label/weather recompute
       { const gy = window.AGObs && AGObs.sceneAt ? AGObs.sceneAt(sp, ev, t).gray : ev.obs ? ev.obs.gray : 0; const fl = o.mode !== "live" && gy > 0 ? `saturate(${(1 - 0.65 * gy).toFixed(2)}) brightness(${(1 + 0.08 * gy).toFixed(2)})` : ""; if (cv.style.filter !== fl) cv.style.filter = fl; }   // d15: illustrated fallback goes gray too (d22: muted, not drained, and brighter)
