@@ -548,7 +548,7 @@ body.in-archive .hero{outline:1px dashed rgba(181,169,255,.5)}
 .ns-msg{position:relative;z-index:1;margin-top:30vh;background:rgba(20,24,28,.55);padding:14px 16px;border-radius:12px}
 /* v16: keep names clear of the phone browser bars (iOS Safari / Android Chrome) */
 .top{padding-top:calc(18px + env(safe-area-inset-top,0px))}
-.layout{height:calc(100dvh - 170px)}
+@media (min-width:901px){.layout{height:calc(100dvh - 170px)}}   /* d26m: desktop only — on phones the fixed height let the side column spill over "Satellite now" */
 @media (max-width:900px){
   .detail{height:92vh;height:calc(100dvh - 18px - env(safe-area-inset-top,0px));max-height:calc(100dvh - 18px - env(safe-area-inset-top,0px))}
   .stage{height:min(56vh,480px);height:min(56dvh,480px)}
