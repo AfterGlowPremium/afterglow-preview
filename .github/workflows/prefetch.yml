@@ -1,0 +1,20 @@
+name: forecast prefetch
+on:
+  schedule: [{ cron: "7,27,47 * * * *" }]   # every 20 min
+  workflow_dispatch: {}
+permissions: { contents: write }
+concurrency: { group: data-commit, cancel-in-progress: false }
+jobs:
+  prefetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm i --no-save jsdom@24
+      - run: node tools/prefetch.js
+      - run: |
+          git config user.name afterglow-bot; git config user.email actions@users.noreply.github.com
+          git add data/snap-base.json data/snap-sunset.json data/snap-sunrise.json data/forecast-latest.json
+          git diff --cached --quiet || (git commit -m "forecast prefetch $(TZ=America/New_York date +%H:%M)" && (git push || (git pull --rebase && git push)))

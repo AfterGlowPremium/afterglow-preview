@@ -139,6 +139,17 @@
     };
     // d25y: never show a forecast whose first day isn't today (a 7-day-old baked snapshot was shown as "Today Oct 17")
     const cur = c => { try { const S0 = c.S[0]; return ymd(S0.daily.time[0] + 43200, S0.timezone) === ymd(Date.now() / 1000, S0.timezone); } catch (e) { return false; } };
+    // d25z: server prefetch FIRST (preview Pages, refreshed every 20 min by the prefetch workflow; CDN-cached, costs no Open-Meteo quota).
+    // One app load is ~600 weighted Open-Meteo calls (88 spots × 19 vars + 264 path + 176 east points), i.e. the whole free per-minute
+    // quota of the user's IP — that is why phones saw 429 / "Forecast unavailable".
+    const PF = "https://afterglowpremium.github.io/afterglow-preview/data/", pre = async maxAge => { try {
+        const v = Math.floor(Date.now() / 120000), ctl = new AbortController(), to = setTimeout(() => ctl.abort(), 6000);
+        const [sb, sd] = await Promise.all(["base", MODE].map(x => fetch(`${PF}snap-${x}.json?_=${v}`, { signal: ctl.signal }).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }))); clearTimeout(to);
+        if (okB(sb) && okD(sd) && cur(sb) && Date.now() - Math.min(sb.at, sd.at) < maxAge) return join(sb, sd, { prefetch: true }); } catch (e) { console.warn("prefetch unavailable", e); } return null; };
+    const PREFETCH_RUN = /[?&]prefetch=1/.test(location.search);
+    if (!PREFETCH_RUN) { const lsAge = okB(B) && okD(D) && cur(B) ? Date.now() - Math.min(B.at, D.at) : Infinity, P0 = lsAge < 20 * 60e3 ? null : await pre(3 * 3600e3);
+      if (P0 && Date.now() - P0.at < lsAge) { lsSet(BK, Object.assign({}, P0, { W: undefined, E: undefined, prefetch: undefined })); lsSet(DK, { at: P0.at, sig, W: P0.W, E: P0.E });
+        if (Date.now() - P0.at > 40 * 60e3 && !force) { P0.bg = tryLive("gfs_seamless"); P0.bg.catch(() => {}); } return P0; } }
     // d25y: instant start — a same-day cache (< 12 h) renders at once; the live NOAA fetch refreshes it in the background (d.bg)
     if (!force && okB(B) && okD(D) && cur(B) && Date.now() - Math.min(B.at, D.at) < STALE_OK) { const d = join(B, D, { stale: true }); d.bg = tryLive("gfs_seamless").catch(() => tryLive(null)); d.bg.catch(() => {}); return d; }
     let err;
@@ -164,6 +175,9 @@
     try { await sleep(err.status === 429 ? 6000 : 1000); return await tryLive(null, true); } catch (e) { console.warn("lite fallback failed", e); }
     // 6) an older snapshot, then any cache at all
     if (snap && cur(snap)) return snap;
+    // d25z: before giving up — a slightly older server prefetch (still today), then live retries with backoff (lite set = half the quota)
+    if (!PREFETCH_RUN) { const P1 = await pre(8 * 3600e3); if (P1) return P1; }
+    for (const ms of [2000, 5000, 10000]) { await sleep(ms); try { return await tryLive(null, true); } catch (e) { console.warn("retry", ms, e); } }
     if (okB(B) && okD(D) && cur(B)) return join(B, D, { stale: true });
     throw err;
   }
@@ -1086,7 +1100,7 @@
     archSaveAll(); update();
     $("#loading").classList.add("done"); window.__agLiveMs = Math.round(performance.now() - window.__agT0);
     // d25y: past days start only once the LIVE forecast is in (after the background refresh when we started from cache), so they never compete with it
-    const pastGo = () => setTimeout(() => loadPast().catch(() => {}), 3000);
+    const pastGo = () => /[?&]prefetch=1/.test(location.search) ? 0 : setTimeout(() => loadPast().catch(() => {}), 3000);
     if (d.bg) d.bg.then(d2 => { if (state.arch) { state.live.data = d2; } else { applyMarine(d2, state.marineW || null); applyNoaa(d2, state.noaa); state.data = d2; archSaveAll(); update(); } }).catch(e => console.warn("background refresh", e)).finally(pastGo);
     else if (!d.snapshot) pastGo();
     // Draft: refresh forecast + renderings every 15 min (skipped while replaying the archive)
