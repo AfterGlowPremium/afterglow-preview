@@ -333,11 +333,24 @@
     // Draft: Low/Mid/High tabs, and Visible/IR/Radar on future days, are ESTIMATED from the forecast at event time.
     const estK = { low: "cloud_cover_low", mid: "cloud_cover_mid", high: "cloud_cover_high" }[o] || (state.day > 0 && { vis: "cloud_cover", cirrus: "cloud_cover_high", ir: "cloud_cover_high", radar: "precipitation" }[o]);
     if (estK && state.data) { const col = { cloud_cover_low: "#c9ccd4", cloud_cover_mid: "#e8e2d4", cloud_cover_high: "#ffffff", cloud_cover: "#ffffff", precipitation: "#3fd06a" }[estK];
-      state.est = L.layerGroup(state.results.map(r => { const k = SPOTS.findIndex(x => x.id === r.spot.id), H = state.data.S[k] && state.data.S[k].hourly; if (!H || !H[estK]) return null;
-        let i = 0, bd = 1e12; H.time.forEach((t, j) => { const dd = Math.abs(t - r.ev.tSet); if (dd < bd) { bd = dd; i = j; } }); const v = H[estK][i] || 0, a = estK === "precipitation" ? Math.min(1, v / 3) : v / 100;
-        return a > 0.03 ? L.circle(vPos(r.spot), { radius: 38000, stroke: false, fillColor: o === "ir" ? (a > 0.6 ? "#e04aff" : "#4ab0ff") : col, fillOpacity: 0.12 + 0.55 * a, interactive: false }) : null; }).filter(Boolean)).addTo(map); }
+      // d24w: ESTIMATED forecast field — inverse-distance blend of every spot's already-fetched hourly value at its event time (no extra fetches),
+      // faded out ~220 km from any spot, drawn as one semi-transparent image above the dark base; cached per day/mode/layer.
+      const ck = `${state.day}|${MODE}|${estK}|${o}|${state.data.at || ""}`; state.estCache = state.estCache || {};
+      let F = state.estCache[ck];
+      if (!F) { const pts = state.results.map(r => { const k = SPOTS.findIndex(x => x.id === r.spot.id), H = state.data.S[k] && state.data.S[k].hourly; if (!H || !H[estK] || !H.time) return null;
+          let i = 0, bd = 1e12; H.time.forEach((t, j) => { const dd = Math.abs(t - r.ev.tSet); if (dd < bd) { bd = dd; i = j; } }); const v = H[estK][i] || 0, p = vPos(r.spot);
+          return { lat: p[0], lng: p[1], a: estK === "precipitation" ? Math.min(1, v / 3) : v / 100, v }; }).filter(Boolean);
+        if (pts.length) { const la = pts.map(p => p.lat), ln = pts.map(p => p.lng), M = 4, b = [[Math.min(...la) - M, Math.min(...ln) - M], [Math.max(...la) + M, Math.max(...ln) + M]], GW = 120, GH = 160;
+          const cv2 = document.createElement("canvas"); cv2.width = GW; cv2.height = GH; const cx = cv2.getContext("2d"), im = cx.createImageData(GW, GH), hex = c => [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16));
+          for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) { const lat = b[1][0] - (y + 0.5) / GH * (b[1][0] - b[0][0]), lng = b[0][1] + (x + 0.5) / GW * (b[1][1] - b[0][1]); let sw = 0, sv = 0, dmin = 1e9;
+            for (const p of pts) { const dy = (lat - p.lat) * 111, dx = (lng - p.lng) * 111 * Math.cos(lat * Math.PI / 180), d2 = dx * dx + dy * dy + 400, w = 1 / d2; sw += w; sv += w * p.a; if (d2 < dmin) dmin = d2; }
+            const a = sv / sw, fade = Math.max(0, Math.min(1, (220 * 220 - dmin) / (120 * 120))), c = hex(o === "ir" ? (a > 0.6 ? "#e04aff" : "#4ab0ff") : o === "radar" ? "#3fd06a" : col), q = (y * GW + x) * 4;
+            im.data[q] = c[0]; im.data[q + 1] = c[1]; im.data[q + 2] = c[2]; im.data[q + 3] = Math.round(255 * fade * (a > 0.02 ? 0.12 + 0.6 * a : 0)); }
+          cx.putImageData(im, 0, 0); F = state.estCache[ck] = { url: cv2.toDataURL(), b, max: Math.max(...pts.map(p => p.v)) }; } }
+      if (F) { state.est = L.imageOverlay(F.url, F.b, { opacity: 1, interactive: false, className: "est-field" }).addTo(map); state.estMax = F.max; } }
     else if (overlays[o]) overlays[o].addTo(map);
     document.querySelectorAll("[data-overlay]").forEach(x => x.classList.toggle("on", x === b));
+    setTimeout(() => { const n = $("#overlay-note"); if (n && estK && state.est) { const mx = Math.round((state.estMax || 0) * 10) / 10, u = estK === "precipitation" ? " mm" : "%"; n.textContent = `Estimated · forecast — ${{ cloud_cover_low: "low cloud", cloud_cover_mid: "mid cloud", cloud_cover_high: "high cloud (cirrus)", cloud_cover: "total cloud", precipitation: "forecast precipitation" }[estK]} at ${EV}${state.day > 0 ? " on " + fmtDay(state.results[0].ev.tSet, state.results[0].tz, state.day) : ""}, not satellite. Max ${mx}${u}${mx < 3 ? " (essentially none — map stays clear)" : ""}.`; } }, 0);   // d24w
     $("#overlay-note").textContent = { none: "", vis: "Live GOES-East visible (daytime only) — bright = thick cloud.", cirrus: "Live GOES-East band 4 cirrus — bright = thin high ice cloud (the good canvas). Daytime only.", ir: "Live GOES-East infrared — colored = cold, high cloud tops.", radar: "Live NEXRAD radar — rain now.", low: "ESTIMATED from forecast: low cloud (stratus/cumulus, below 6,500 ft) at event time.", mid: "ESTIMATED from forecast: mid cloud (altocumulus/altostratus, 6,500–20,000 ft) at event time.", high: "ESTIMATED from forecast: high cloud (cirrus, above 20,000 ft) at event time." }[o] + (state.day > 0 && ["vis","cirrus","ir","radar"].includes(o) ? " · Future day → ESTIMATED from forecast, not satellite." : "");
   }));
   const markers = {};
@@ -378,7 +391,7 @@
       const lb = label(best);
       return `<button class="day ${i === state.day ? "on" : ""}${state.arch ? " past" : ""}" data-day="${i}"><span class="d1">${fmtDay(t + 43200, S0.timezone, i)}</span><span class="d2">${fmtDate(t + 43200, S0.timezone)}</span><span class="d3" style="--c:${lb.c}">best ${best}</span></button>`;
     }).join("");
-    document.querySelectorAll(".day[data-day]").forEach(b => b.addEventListener("click", () => { state.day = +b.dataset.day; state.autoDay = false; update(); if (state.arch) renderArchBar(); }));
+    document.querySelectorAll(".day[data-day]").forEach(b => b.addEventListener("click", () => { state.day = +b.dataset.day; state.autoDay = false; update(); if (state.arch) renderArchBar(); { const ob = state.overlay && state.overlay !== "none" && document.querySelector(`[data-overlay="${state.overlay}"]`); if (ob) ob.click(); } }));   // d24w: re-draw the active layer for the new day (live tiles today, estimated field on later days)
     const ex = $("#day-exit"); if (ex) ex.onclick = exitArchive;
   }
   function filtered() {
