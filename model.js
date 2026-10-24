@@ -442,7 +442,7 @@
   const likely = p => p >= 40 ? "High" : p >= 22 ? "Moderate" : p >= 10 ? "Low" : "Unlikely";
 
   // d25a: nightly calibration (tools/calibrate-feedback.js → data/calib.json). Bounded score offsets learned from user photos+ratings; absent file = no change.
-  g.AG_CAL = null; try { fetch("data/calib.json?_=" + Math.floor(Date.now() / 3600000), { cache: "no-store" }).then(r => r.ok ? r.json() : null).then(j => { g.AG_CAL = j; }).catch(() => {}); } catch (e) {}
+  g.AG_CAL = null; try { fetch("https://afterglowpremium.github.io/afterglow-preview/data/calib.json?_=" + Math.floor(Date.now() / 3600000), { cache: "no-store" }).then(r => r.ok ? r.json() : null).then(j => { g.AG_CAL = j; }).catch(() => {}); } catch (e) {}
   const evaluate0 = evaluate;
   function evaluateCal(sp, ...rest) { const ev = evaluate0(sp, ...rest), C = g.AG_CAL; if (!C || !ev || typeof ev.score !== "number") return ev;
     const m = (C[g.AG_MODE === "sunrise" ? "sunrise" : "sunset"]) || {}, off = Math.max(-10, Math.min(10, (m.global || 0) + ((m.spots || {})[sp.id] || 0)));

@@ -124,8 +124,8 @@
     $("#fb-send").onclick = async () => { const btn = $("#fb-send"); if (btn.disabled) return; btn.disabled = true; btn.textContent = "Sending…"; msg("");
       try { const a = load(), id = $("#fb-spot").value, ev = evFor(id), st = g.__agState, uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + "-" + Math.random().toString(36).slice(2));
         const grp = uid(), list = P.length ? P.map(p => ({ d: p.d, src: p.src, img: p.img })) : [{ d: formD(), src: dtUser ? "user" : "default", img: null }];
-        const mine = list.map((p, k) => { const pr = predFor(id, ev, p.d.getTime() / 1000); if (pr) { pr.group = grp; pr.gi = k; pr.gn = list.length; }
-          return { id: uid(), group: grp, up: false, ver: g.AG_BUILD || "", day: st ? st.day : null, pred: pr || { group: grp, gi: k, gn: list.length },
+        const mine = list.map((p, k) => { const pr = predFor(id, ev, p.d.getTime() / 1000); const appTag = /afterglow-premium/.test(location.pathname) ? "premium" : /afterglow-preview/.test(location.pathname) ? "preview" : location.pathname.split("/")[1] || "local"; if (pr) { pr.group = grp; pr.gi = k; pr.gn = list.length; pr.app = appTag; }
+          return { id: uid(), group: grp, up: false, ver: g.AG_BUILD || "", day: st ? st.day : null, pred: pr || { group: grp, gi: k, gn: list.length, app: appTag },
             at: new Date().toISOString(), shot: isoOff(p.d), shotSrc: p.src, mode: g.AG_MODE, spot: id, viewT: g.__agPvT || null, actual: +$("#fb-score").value, acc: $("#fb-acc").value, note: $("#fb-note").value, photo: p.img }; });
         a.push(...mine); let mem = [];
         try { localStorage.setItem(FK, JSON.stringify(a)); } catch (e) { mem = mine; a.splice(a.length - mine.length); try { localStorage.setItem(FK, JSON.stringify(a.concat(mine.map(m => Object.assign({}, m, { photo: null }))))); } catch (e2) {} }
