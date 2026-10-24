@@ -120,7 +120,7 @@
     if (C.trees) snags(x, W, H, hz);
     if (C.dune) dune(x, W, H, now);
     if (C.sea) sea(x, W, H, hz, C, now);
-    if (C.carrier) carrier(x, W, H, hz, C, now);
+    if (C.carrier) { carrier(x, W, H, hz, C, now); heli(x, W, H, hz, C, now); }
     if (C.ghost) ghostTree(x, W, H, hz, C, now);
     if (C.torn) tornado(x, W, H, hz, now);
     if (C.jets) jets(x, W, H, hz, C, now);
@@ -240,6 +240,28 @@
       x.fillStyle = `rgba(255,70,60,${(0.85 * tw * bl).toFixed(2)})`; x.fillRect(66 * u, -12.8 * u, 1, 1); x.fillStyle = `rgba(80,255,120,${(0.7 * tw).toFixed(2)})`; x.fillRect(99 * u, -3.8 * u, 1, 1); }
     const wk = (now / 4000) % 1; x.strokeStyle = `rgba(235,238,240,${(0.18 + 0.1 * lt).toFixed(2)})`; x.lineWidth = 0.8;   // faint wake astern + bow wave
     x.beginPath(); x.moveTo(0, 0.4); x.lineTo(-18 * u - wk * 4 * u, 0.9); x.stroke(); x.beginPath(); x.moveTo(99 * u, 0.2); x.lineTo(104 * u, 0.6); x.stroke();
+    x.restore(); }
+  // d26b: Fort Monroe — a CH-53K King Stallion passing by (real time, independent of the slider: one ~32 s pass every 50 s).
+  // Heavy-lift body, nose refuelling probe, side sponsons, tall tail pylon with a canted tail rotor, 7-blade main rotor as a blurred disc.
+  function heli(x, W, H, hz, C, now) { const P = 50000, D = 32000, ph = now % P; if (ph > D) return; const f = ph / D, e = C.elev != null ? C.elev : 5;
+    const u = Math.max(0.28, W / 1400), cx = -60 * u + f * (W + 120 * u), cy = hz - H * (0.3 + 0.03 * Math.sin(f * 3.1)) + Math.sin(now / 700) * 0.6;
+    const lt = clamp((e + 2) / 12), col = `rgba(${Math.round(34 + 60 * lt)},${Math.round(38 + 62 * lt)},${Math.round(44 + 64 * lt)},${(0.8 - 0.15 * lt).toFixed(2)})`;
+    x.save(); x.translate(cx, cy); x.scale(u, u); x.fillStyle = col; x.strokeStyle = col;
+    x.beginPath(); x.moveTo(-26, -4); x.quadraticCurveTo(-24, -11, -12, -11); x.lineTo(16, -11); x.quadraticCurveTo(26, -10, 29, -3); x.quadraticCurveTo(28, 2, 20, 3); x.lineTo(-22, 3); x.closePath(); x.fill();   // fuselage (nose right)
+    x.beginPath(); x.moveTo(-22, -9); x.lineTo(-50, -12); x.lineTo(-52, -26); x.lineTo(-47, -26); x.lineTo(-44, -14); x.lineTo(-22, -3); x.closePath(); x.fill();   // tail boom + tall pylon
+    x.fillRect(-8, -15, 18, 4); x.fillRect(-2, -18, 5, 3);   // engine housings + rotor mast
+    x.beginPath(); x.ellipse(2, 3, 11, 3, 0, 0, 6.283); x.fill();   // sponsons
+    x.lineWidth = 1; x.beginPath(); x.moveTo(27, -6); x.lineTo(40, -9); x.stroke();   // refuelling probe
+    x.fillRect(-14, 3, 1.2, 4); x.fillRect(14, 3, 1.2, 4);   // gear legs
+    const spin = now / 40;
+    x.save(); x.globalAlpha = 0.28; x.beginPath(); x.ellipse(0.5, -19, 40, 2.4, 0, 0, 6.283); x.fill(); x.restore();   // main rotor disc (motion blur)
+    x.lineWidth = 0.7; x.globalAlpha = 0.55; for (let k = 0; k < 7; k++) { const a = spin + k * 0.8976, c = Math.cos(a); if (Math.abs(c) < 0.3) continue; x.beginPath(); x.moveTo(0.5, -19); x.lineTo(0.5 + 40 * c, -19 + 2 * Math.sin(a)); x.stroke(); }   // 7 blades flicker
+    x.globalAlpha = 0.35; x.save(); x.translate(-50, -22); x.rotate(-0.35); x.beginPath(); x.ellipse(0, 0, 2, 8, 0, 0, 6.283); x.fill(); x.restore(); x.globalAlpha = 1;   // canted tail rotor
+    const rim = e > -3 && e < 12 && !C.turned ? clamp(1 - Math.abs(e - 2) / 10) : 0;
+    if (rim > 0.05) { x.fillStyle = `rgba(255,190,100,${(0.5 * rim).toFixed(2)})`; x.fillRect(-12, -11.6, 28, 0.9); }
+    if (e < 0) { const tw = clamp(-e / 5), on = (now % 1200) < 120;
+      if (on) { x.fillStyle = `rgba(255,60,50,${tw.toFixed(2)})`; x.fillRect(-3, -17, 2.2, 2.2); x.fillRect(-1, 3, 2, 2); }   // anti-collision beacons
+      x.fillStyle = `rgba(90,255,130,${(0.8 * tw).toFixed(2)})`; x.fillRect(4, 1, 1.6, 1.6); x.fillStyle = `rgba(255,255,240,${(0.8 * tw).toFixed(2)})`; x.fillRect(-51, -25, 1.6, 1.6); }
     x.restore(); }
   // d25v: Grandview's weathered dead tree standing in the surf (Sean's photo), drawn procedurally: forked silver-gray trunk,
   // twisting bare limbs, a small dark sign hanging by a wire, foam washing round the base. Right side of the frame, clear of the sun
