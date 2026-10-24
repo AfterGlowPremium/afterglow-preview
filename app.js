@@ -647,8 +647,9 @@
       if (anim) return;   // d14: animation frames only redraw the WebGL scene — no DOM/label/weather recompute
       { const gy = window.AGObs && AGObs.sceneAt ? AGObs.sceneAt(sp, ev, t).gray : ev.obs ? ev.obs.gray : 0; const fl = o.mode !== "live" && gy > 0 ? `saturate(${(1 - 0.65 * gy).toFixed(2)}) brightness(${(1 + 0.08 * gy).toFixed(2)})` : ""; if (cv.style.filter !== fl) cv.style.filter = fl; }   // d15: illustrated fallback goes gray too (d22: muted, not drained, and brighter)
       const turnedIll = turned && o.mode === "behind";
-      { const FG = { lionsbridge: { src: "img/lion-fg.svg", w: "34%", side: "right", tilt: 0 } }[sp.id], st = cv.parentElement; let el = st && st.querySelector(".pv-fg");   // d24g: Lions Bridge — lion statue silhouette in the foreground (sunset view)
-        if (FG && !turned && !/mode=sunrise/.test(location.search) && st) { if (!el) { el = document.createElement("img"); el.className = "pv-fg"; el.alt = ""; st.appendChild(el); } if (el.getAttribute("src") !== FG.src) el.src = FG.src; el.style.width = FG.w; el.style[FG.side] = "-2%"; el.hidden = false; }
+      { const FG = { lionsbridge: { src: "img/lionsbridge-fg.webp" } }[sp.id], st = cv.parentElement; let el = st && st.querySelector(".pv-fg");   // d24h: Lions Bridge — the real foreground (lion statue, pedestal, wall, shore, railing) cut from Sean's photo; lit by the sun, silhouette only after dark
+        if (FG && !turned && !/mode=sunrise/.test(location.search) && st) { if (!el) { el = document.createElement("img"); el.className = "pv-fg"; el.alt = ""; st.appendChild(el); } if (el.getAttribute("src") !== FG.src) el.src = FG.src; el.hidden = false;
+          const e = o.elev != null ? o.elev : 0, lt = Math.max(0, Math.min(1, (e + 6) / 8)), f = `brightness(${(0.1 + 0.9 * lt).toFixed(2)}) saturate(${(0.35 + 0.65 * lt).toFixed(2)})`; if (el.style.filter !== f) el.style.filter = f; }
         else if (el) el.hidden = true; }
       if (o.mode === "live" && !/[?&]still=1/.test(location.search) && (window.PhotoStage && PhotoStage.last && PhotoStage.last.surf) && !dragging && !playing) startAnim();   // d14: keep the surf breaking at a steady 30 fps (was setTimeout 70 ms full re-render, ~12 fps, kept running behind the map)
       if (back) back.hidden = !turnedIll;
