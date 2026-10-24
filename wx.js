@@ -183,11 +183,11 @@
     }
     x.restore();
   }
-  // d24p: Windmill Point (Langley AFB next door) — three F-22 Raptors in tight echelon, a banking turn across the upper sky every ~25 s
+  // d24p: Windmill Point (Langley AFB next door) — three F-22 Raptors in tight echelon, a banking turn across the upper sky every 10 s
   // (pass ~6 s). Top-down planform: angular nose + chines, diamond wing with clipped tips, notched trailing edge, stabs, twin canted tails.
   const F22 = [[1,0],[.62,.07],[.3,.12],[.12,.2],[-.06,.5],[-.2,.5],[-.36,.2],[-.44,.2],[-.6,.38],[-.78,.38],[-.72,.14],[-.86,.1],[-.86,-.1],[-.72,-.14],[-.78,-.38],[-.6,-.38],[-.44,-.2],[-.36,-.2],[-.2,-.5],[-.06,-.5],[.12,-.2],[.3,-.12],[.62,-.07]];
   function jets(x, W, H, hz, C, now) {
-    const P = 25000, D = 6000, ph = (now % P); if (ph > D) return; const u = ph / D;
+    const P = 10000, D = 6000, ph = (now % P); if (ph > D) return; const u = ph / D;
     const p = t => ({ x: W * (-0.1 + 1.2 * t), y: H * (0.3 - 0.16 * Math.sin(t * Math.PI)) }), a = p(u), b = p(Math.min(1, u + 0.01)), hd = Math.atan2(b.y - a.y, b.x - a.x);
     const bank = 0.25 + 0.65 * Math.sin(u * Math.PI), L = W * 0.032, e = C.elev != null ? C.elev : 5, lt = clamp((e + 2) / 10);
     const col = `rgb(${Math.round(28 + 80 * lt)},${Math.round(30 + 84 * lt)},${Math.round(36 + 92 * lt)})`;
