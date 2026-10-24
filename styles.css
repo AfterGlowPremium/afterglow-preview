@@ -874,3 +874,7 @@ html.show-home .home.hi-ui .home-card{transform:none;opacity:1}
 .home:not(.hi-ui) .home-card *{animation-play-state:paused}
 @media (prefers-reduced-motion:reduce){.home-cv,.hi-intro,.hi-pill,html.show-home .home-card{transition:none}}
 .hi-pill{animation:hiFade .8s .3s backwards}@keyframes hiFade{from{opacity:0}}
+/* d26u: photoreal welcome — scene shifted up so the horizon, sun glow and storm cell sit above the chooser; chooser trimmed */
+html.show-home #home-gl,html.show-home #home-cv{top:-24svh;height:124svh}
+html.show-home .home-card .home-logo,html.show-home .home-card .home-sub{display:none}
+html.show-home .home-card{background:rgba(14,10,34,.45)}
