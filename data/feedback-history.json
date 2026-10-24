@@ -102,11 +102,16 @@
   "at": "2026-10-24T12:54:27.723944+00:00",
   "shot": null,
   "saved": "2026-10-24T12:54:27.723944+00:00",
-  "spot": "cadillac",
+  "spot": "lionsbridge",
   "mode": "sunset",
   "rating": 60,
-  "raw": 54,
-  "sky": {},
+  "raw": 53,
+  "sky": {
+   "total": 38,
+   "low": 38,
+   "mid": 0,
+   "high": 0
+  },
   "photo": {
    "w": 1280,
    "h": 853,
@@ -115,52 +120,71 @@
    "warm": 0.42,
    "vivid": 0.186,
    "cloud": 0.496,
-   "colorScore": 100
+   "colorScore": 85
   },
   "ver": "d24a",
-  "resid": 18,
-  "test": true
+  "resid": 14,
+  "group": "lb-20261024-1254",
+  "retag": "cadillac\u2192lionsbridge, prediction recomputed (Open-Meteo gfs_seamless, model.js)",
+  "cloudErr": 12
  },
  {
   "id": "8d7e500a-63bb-4007-a4de-06ed56cc8df2",
   "at": "2026-10-24T12:54:27.855082+00:00",
   "shot": null,
   "saved": "2026-10-24T12:54:27.855082+00:00",
-  "spot": "cadillac",
+  "spot": "lionsbridge",
   "mode": "sunset",
   "rating": 60,
-  "raw": 54,
-  "sky": {},
+  "raw": 53,
+  "sky": {
+   "total": 38,
+   "low": 38,
+   "mid": 0,
+   "high": 0
+  },
   "photo": null,
   "ver": "d24a",
-  "resid": 6,
-  "test": true
+  "resid": 7,
+  "group": "lb-20261024-1254",
+  "retag": "cadillac\u2192lionsbridge, prediction recomputed (Open-Meteo gfs_seamless, model.js)"
  },
  {
   "id": "e8c11837-8635-4280-b951-1ae89aa98540",
   "at": "2026-10-24T12:54:27.939048+00:00",
   "shot": null,
   "saved": "2026-10-24T12:54:27.939048+00:00",
-  "spot": "cadillac",
+  "spot": "lionsbridge",
   "mode": "sunset",
   "rating": 81,
-  "raw": 54,
-  "sky": {},
+  "raw": 53,
+  "sky": {
+   "total": 38,
+   "low": 38,
+   "mid": 0,
+   "high": 0
+  },
   "photo": null,
   "ver": "d24a",
-  "resid": 27,
-  "test": true
+  "resid": 28,
+  "group": "lb-20261024-1254",
+  "retag": "cadillac\u2192lionsbridge, prediction recomputed (Open-Meteo gfs_seamless, model.js)"
  },
  {
   "id": "8d7b5c26-83aa-4c09-9c44-8db6ec263b5a",
   "at": "2026-10-23T18:07:00",
   "shot": "2026-10-23T18:07:00",
   "saved": "2026-10-24T12:55:31.462572+00:00",
-  "spot": "cadillac",
+  "spot": "lionsbridge",
   "mode": "sunset",
   "rating": 78,
-  "raw": 54,
-  "sky": {},
+  "raw": 55,
+  "sky": {
+   "total": 45,
+   "low": 45,
+   "mid": 0,
+   "high": 0
+  },
   "photo": {
    "w": 1280,
    "h": 853,
@@ -169,10 +193,12 @@
    "warm": 0.42,
    "vivid": 0.186,
    "cloud": 0.496,
-   "colorScore": 100
+   "colorScore": 85
   },
   "ver": "d24a",
-  "resid": 31,
-  "test": true
+  "resid": 25,
+  "group": "8d7b5c26-83aa-4c09-9c44-8db6ec263b5a",
+  "retag": "cadillac\u2192lionsbridge, prediction recomputed (Open-Meteo gfs_seamless, model.js)",
+  "cloudErr": 5
  }
 ]
