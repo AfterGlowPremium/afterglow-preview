@@ -378,7 +378,7 @@
   // ---------- Compute ----------
   function compute() {
     const { S, W, E, AQ } = state.data;
-    state.results = SPOTS.map((spot, i) => ({ spot, i, tz: S[i].timezone, ev: evaluate(spot, S[i], [W[i * 3], W[i * 3 + 1], W[i * 3 + 2]], E[i], state.day, AQ && AQ[i]) }));
+    state.results = SPOTS.map((spot, i) => ({ spot, i, tz: S[i].timezone, ev: evaluate(spot, S[i], [W[i * 3], W[i * 3 + 1], W[i * 3 + 2]], E[i], state.day, AQ && AQ[i]) })); window.__agState = state;
   }
 
   // ---------- Render ----------
@@ -616,7 +616,7 @@
     const word = l => l.lit < 0.08 ? "in shadow" : (l.c[1] > 200 ? "lit gold-white" : l.c[1] > 150 ? "lit gold" : l.c[1] > 100 ? "lit orange" : "lit pink-red");
     const render = anim => {
       if (anim !== true) anim = false;
-      raf = 0; const t = +sl.value; state.pvT = t; state.pvSpot = sp.id;
+      raf = 0; const t = +sl.value; state.pvT = t; state.pvSpot = sp.id; window.__agPvT = t;
       const back = $("#pv-back"), turned = !!state.turn && back;
       // Draft: when the view behind you is open water, render it with the same photoreal sky+water shader (sun behind camera)
       const wNow = Object.assign({}, Model.windAt(ev, t) || {});
@@ -1046,7 +1046,7 @@
   // boot
   Promise.all([loadData(), loadNoaa(), loadMarine()]).then(([d, N, MW]) => {
     applyMarine(d, MW); state.noaa = N; window.AGNoaa = N; window.AGDay = () => state.day; applyNoaa(d, N); state.data = d;
-    if (RISE && d.S[0] && d.S[0].daily.sunrise[0] + 3600 < Date.now() / 1000) { state.day = 1; state.autoDay = true; }   // this morning's sunrise is over → show tomorrow
+// (removed)     if (RISE && d.S[0] && d.S[0].daily.sunrise[0] + 3600 < Date.now() / 1000) { state.day = 1; state.autoDay = true; }   // this morning's sunrise is over → show tomorrow
     archSaveAll(); update();
     $("#loading").classList.add("done");
     // Draft: refresh forecast + renderings every 15 min (skipped while replaying the archive)
