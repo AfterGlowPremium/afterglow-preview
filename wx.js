@@ -120,6 +120,7 @@
     if (C.trees) snags(x, W, H, hz);
     if (C.dune) dune(x, W, H, now);
     if (C.sea) sea(x, W, H, hz, C, now);
+    if (C.ghost) ghostTree(x, W, H, hz, C, now);
     if (C.torn) tornado(x, W, H, hz, now);
     if (C.jets) jets(x, W, H, hz, C, now);
     if (C.cb || C.tcu || C.storms) towers(x, W, H, hz, C, now);
@@ -218,6 +219,40 @@
     x.restore();
   }
   // Grandview Beach landmark: bare dead trees (eroded maritime forest) standing in the surf — soft, haze-faded silhouettes
+  // d25v: Grandview's weathered dead tree standing in the surf (Sean's photo), drawn procedurally: forked silver-gray trunk,
+  // twisting bare limbs, a small dark sign hanging by a wire, foam washing round the base. Right side of the frame, clear of the sun
+  // column (sun/glitter sit at the centre); silhouetted at low sun with a gold rim on the sun-facing (left) edges.
+  let GT = null;
+  function ghostGeom() { if (GT) return GT; let sd = 7; const rnd = () => ((sd = (sd * 16807) % 2147483647) / 2147483647); const segs = [];
+    const br = (x0, y0, a, L, w, d) => { const n = 4; let x1 = x0, y1 = y0, aa = a; const pts = [[x0, y0]];
+      for (let i = 0; i < n; i++) { aa += (rnd() - 0.5) * 0.55; x1 += Math.cos(aa) * L / n; y1 -= Math.sin(aa) * L / n; pts.push([x1, y1]); }
+      segs.push({ pts, w, d }); if (d >= 4 || w < 0.003) return;
+      const k = d < 2 ? 2 : 1 + (rnd() < 0.6 ? 1 : 0);
+      for (let j = 0; j < k; j++) { const sp = (j - (k - 1) / 2) * (0.75 + rnd() * 0.4) + (rnd() - 0.5) * 0.25; br(x1, y1, aa + sp, L * (0.72 + rnd() * 0.18), w * 0.6, d + 1); } };
+    br(0, 0, Math.PI / 2 + 0.05, 0.2, 0.045, 0);   // trunk, forks at the top
+    const ai = segs.length; br(0.012, -0.13, 0.3, 0.13, 0.02, 2);          // low arm reaching right (the sign hangs from it)
+    br(-0.008, -0.025, Math.PI - 0.15, 0.07, 0.018, 3);   // low stub reaching left over the water
+    const arm = segs[ai].pts; GT = { segs, sign: arm[2] }; return GT; }
+  function ghostTree(x, W, H, hz, C, now) { const G = ghostGeom(), S = H * 1.05, bx = W * 0.8, by = hz + H * 0.24, e = C.elev != null ? C.elev : 5;
+    const lt = C.turned ? clamp((e + 4) / 10) : clamp((e - 1) / 12), rim = !C.turned && e > -3 && e < 12 ? clamp(1 - Math.abs(e - 2) / 10) : 0;   // turned (sun behind you): front-lit, no rim
+    const c0 = [26 + 120 * lt, 24 + 116 * lt, 24 + 108 * lt].map(Math.round), P = p => [bx + p[0] * S, by + p[1] * S];
+    x.save(); x.lineCap = x.lineJoin = "round";
+    const path = s => { x.beginPath(); const a = P(s.pts[0]); x.moveTo(a[0], a[1]); for (let i = 1; i < s.pts.length - 1; i++) { const b = P(s.pts[i]), c = P(s.pts[i + 1]); x.quadraticCurveTo(b[0], b[1], (b[0] + c[0]) / 2, (b[1] + c[1]) / 2); } const z = P(s.pts[s.pts.length - 1]); x.lineTo(z[0], z[1]); };
+    for (const s of G.segs) { path(s); x.strokeStyle = `rgb(${c0})`; x.lineWidth = Math.max(0.8, s.w * S); x.stroke(); }
+    if (rim > 0.02) { x.globalCompositeOperation = "lighter"; x.translate(-Math.max(0.6, S * 0.002), 0);
+      for (const s of G.segs) { if (s.w * S < 1.2) continue; path(s); x.strokeStyle = `rgba(255,${170 + 40 * lt | 0},80,${0.4 * rim})`; x.lineWidth = Math.max(0.5, s.w * S * 0.14); x.stroke(); }
+      x.setTransform(x.getTransform().a, 0, 0, x.getTransform().d, 0, 0); x.globalCompositeOperation = "source-over"; }
+    // the sign: dark box on a wire, swinging a little in the wind
+    { const [sx, sy] = P(G.sign), sw = Math.sin(now / 900) * 0.06 * (0.4 + clamp((C.wind || 0) / 25)), L = S * 0.045, ex = sx + Math.sin(sw) * L, ey = sy + Math.cos(sw) * L, bw = S * 0.04, bh = S * 0.025;
+      x.strokeStyle = `rgba(${c0},.8)`; x.lineWidth = 0.8; x.beginPath(); x.moveTo(sx, sy); x.lineTo(ex, ey); x.stroke();
+      x.fillStyle = `rgb(${Math.round(30 + 40 * lt)},${Math.round(24 + 30 * lt)},${Math.round(20 + 24 * lt)})`; x.fillRect(ex - bw / 2, ey, bw, bh); }
+    // surf washing round the base: animated foam rings + a darker wet band on the trunk
+    { const t = now / 1000, fl = 0.75 + 0.25 * lt;
+      x.fillStyle = `rgba(${c0.map(v => v * 0.6 | 0)},.5)`; x.fillRect(bx - S * 0.03, by - S * 0.012, S * 0.06, S * 0.012);
+      for (let i = 0; i < 4; i++) { const ph = (t * 0.35 + i / 4) % 1, r = S * (0.035 + 0.06 * ph), a = (1 - ph) * 0.55 * fl;
+        x.strokeStyle = `rgba(238,240,240,${a.toFixed(3)})`; x.lineWidth = 1.2 + 2 * (1 - ph); x.beginPath(); x.ellipse(bx, by, r, r * 0.16, 0, Math.PI * 0.05, Math.PI * 1.95); x.stroke(); }
+      const g2 = x.createRadialGradient(bx, by, 0, bx, by, S * 0.05); g2.addColorStop(0, `rgba(245,246,246,${0.6 * fl})`); g2.addColorStop(1, "rgba(245,246,246,0)"); x.fillStyle = g2; x.beginPath(); x.ellipse(bx, by + 1, S * 0.05, S * 0.012, 0, 0, 6.283); x.fill(); }
+    x.restore(); }
   function snags(x, W, H, hz) {
     const T = [[0.12, 0.30, 1.0], [0.21, 0.22, 0.8], [0.33, 0.12, 0.55], [0.82, 0.18, 0.7], [0.9, 0.26, 0.9]];
     x.save(); x.filter = "blur(0.8px)"; x.lineCap = "round";

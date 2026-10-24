@@ -810,3 +810,11 @@ html.ag-desk .stage .ev-toggle a{font-size:13px;padding:8px 14px}
 .days .day-home:hover,.days .day-home:active{box-shadow:0 0 14px rgba(255,179,71,.4)}.days .day-home[hidden]{display:none}
 .rc .swell{color:#f3efe4;opacity:.9}.rc .swell i{display:inline-block;color:#d4a054;font-style:normal;margin-right:3px}
 .rc .wq{font-weight:600;color:#f3efe4}
+
+/* d25w: slider thumb = play/pause */
+.pv-play-hid{position:absolute!important;width:1px!important;height:1px!important;overflow:hidden!important;clip:rect(0 0 0 0)!important;padding:0!important;border:0!important;margin:0!important}
+.scrub input[type=range]::-webkit-slider-thumb{width:34px;height:34px;cursor:pointer}
+.scrub input[type=range]::-moz-range-thumb{width:28px;height:28px;cursor:pointer}
+.scrub input[type=range]{touch-action:pan-y}
+.thumb-glyph{position:absolute;transform:translate(-50%,-50%);pointer-events:none;font:800 12px/1 Inter,sans-serif;color:#1b1333;letter-spacing:-1px;text-shadow:0 1px 0 rgba(255,246,221,.6);z-index:2}
+.thumb-glyph:not(.on){padding-left:2px}
