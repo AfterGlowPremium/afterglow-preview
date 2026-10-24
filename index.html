@@ -24,7 +24,6 @@
 <meta name="twitter:title" content="Afterglow Premium — free sunset tracker">
 <meta name="twitter:description" content="East Coast sunrise &amp; sunset forecasts with realistic skies, rainbow odds, lightning, sun dogs and Trifecta alerts.">
 <meta name="twitter:image" content="https://afterglowpremium.github.io/afterglow-real/og-afterglow.png">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='62' r='26' fill='%23ff8a3d'/><rect y='62' width='100' height='38' fill='%23251a44'/></svg>">
 <style>
   html,body{margin:0;height:100%;background:#120c22;overflow:hidden}
   #app{position:fixed;inset:0;width:100%;height:100%;height:100dvh;border:0;display:block;background:#120c22}
@@ -33,11 +32,17 @@
   #music-btn.on{background:rgba(255,154,90,.85);color:#111}
   #music-btn.off::after{content:"";position:absolute;left:9px;right:9px;top:50%;height:2px;background:#fff;transform:rotate(-40deg)}
 </style>
+<link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=1">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=1">
+<link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png?v=1">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Afterglow">
 </head>
 <body>
 <!-- Shell: owns the URL, the self-update and the background music; the app runs in the iframe so its page loads never stop the song -->
 <script>
-  window.AG_BUILD = "d26u";
+  window.AG_BUILD = "d26v";
   (function () { try { fetch("version.json?ts=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (v) {
     if (!v || !v.build || v.build === window.AG_BUILD) return; var u = new URL(location.href); if (u.searchParams.get("b") === v.build) return;
     u.searchParams.set("b", v.build); location.replace(u.toString()); }).catch(function () {}); } catch (e) {} })();
@@ -47,7 +52,7 @@
 <script>
   (function () {
     var f = document.getElementById("app"), probe = document.getElementById("sa-probe");
-    f.src = "app.html?b=d26u" + (location.search ? "&" + location.search.slice(1) : "") + location.hash;   // build param: busts Safari's cached app.html
+    f.src = "app.html?b=d26v" + (location.search ? "&" + location.search.slice(1) : "") + location.hash;   // build param: busts Safari's cached app.html
     function insets() { try { var d = f.contentDocument; if (d) d.documentElement.style.setProperty("--ag-sat", probe.getBoundingClientRect().height + "px"); } catch (e) {} }
     var last = "";
     function sync() {   // mirror the app's address (mode, spot, …) and title into the real address bar so links stay shareable
