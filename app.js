@@ -137,13 +137,17 @@
       if (b !== B && !b.lite) lsSet(BK, b); if (dd !== D) lsSet(DK, dd);   // never cache the lite set over a full one
       return join(b, dd, b.lite ? { lite: true } : null);
     };
+    // d25y: never show a forecast whose first day isn't today (a 7-day-old baked snapshot was shown as "Today Oct 17")
+    const cur = c => { try { const S0 = c.S[0]; return ymd(S0.daily.time[0] + 43200, S0.timezone) === ymd(Date.now() / 1000, S0.timezone); } catch (e) { return false; } };
+    // d25y: instant start — a same-day cache (< 12 h) renders at once; the live NOAA fetch refreshes it in the background (d.bg)
+    if (!force && okB(B) && okD(D) && cur(B) && Date.now() - Math.min(B.at, D.at) < STALE_OK) { const d = join(B, D, { stale: true }); d.bg = tryLive("gfs_seamless").catch(() => tryLive(null)); d.bg.catch(() => {}); return d; }
     let err;
     // Live budget: if Open-Meteo hasn't answered in 10 s, show cached/snapshot data now; the live fetch keeps going and refreshes the cache.
     const live = tryLive("gfs_seamless");
     try { return await Promise.race([live, sleep(10000).then(() => { const e = new Error("Open-Meteo too slow"); e.slow = true; throw e; })]); }
     catch (e) { err = e; console.warn("NOAA HRRR/GFS mirror failed/slow", e); live.catch(() => {}); }
     // 1) recent cache (even if past the 45-min refresh window)
-    if (okB(B) && okD(D) && Date.now() - Math.min(B.at, D.at) < STALE_OK) return join(B, D, { stale: true });
+    if (okB(B) && okD(D) && cur(B) && Date.now() - Math.min(B.at, D.at) < STALE_OK) return join(B, D, { stale: true });
     // 2) NOAA snapshot baked into the site (d22f: tried before more live calls — instant, and costs no quota)
     let snap = null;
     try {
@@ -151,7 +155,7 @@
       const [sb, sd] = await Promise.all(["base", MODE].map(x => fetch(`data/snap-${x}.json?_=${v}`).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })));
       if (okB(sb) && okD(sd)) snap = join(sb, sd, { snapshot: true }); else console.warn("snapshot does not match spot list");
     } catch (e) { console.warn("snapshot unavailable", e); }
-    if (snap && Date.now() - snap.at < STALE_OK) return snap;
+    if (snap && cur(snap) && Date.now() - snap.at < STALE_OK) return snap;
     // 3) d22f: slow is not failed — keep waiting for the live NOAA fetch (it has its own 45 s timeout + retries) instead of dead-ending
     if (err && err.slow) { try { return await Promise.race([live, sleep(40000).then(() => { throw Object.assign(new Error("Open-Meteo no answer in 50 s"), { slow: true }); })]); } catch (e) { err = e; console.warn("NOAA HRRR/GFS mirror failed", e); } }
     // 4) Open-Meteo best-match (skip if rate-limited — it hits the same quota)
@@ -159,8 +163,8 @@
     // 5) d22f: fewer variables (10 per point = half the weighted quota; drops cape/pressure/upper-level RH) after a pause
     try { await sleep(err.status === 429 ? 6000 : 1000); return await tryLive(null, true); } catch (e) { console.warn("lite fallback failed", e); }
     // 6) an older snapshot, then any cache at all
-    if (snap) return snap;
-    if (okB(B) && okD(D)) return join(B, D, { stale: true });
+    if (snap && cur(snap)) return snap;
+    if (okB(B) && okD(D) && cur(B)) return join(B, D, { stale: true });
     throw err;
   }
 
@@ -188,7 +192,7 @@
 
   // ---------- NOAA direct data (written by noaa/fetch_noaa.py on the host) ----------
   async function loadNoaa() {
-    try { const r = await fetch("data/noaa.json?_=" + Math.floor(Date.now() / 60000), { cache: "no-store" }); if (!r.ok) throw new Error(r.status); return await r.json(); }
+    try { const r = await fetch("data/noaa.json?_=" + Math.floor(Date.now() / 60000), { cache: "no-store" }); if (!r.ok) throw new Error(r.status); const j = await r.json(); if (!j.generated_utc || Date.now() - Date.parse(j.generated_utc) > 6 * 3600e3) { console.warn("NOAA direct feed stale", j.generated_utc); return null; } return j; }
     catch (e) { console.warn("NOAA direct feed unavailable", e); return null; }
   }
   // Overwrite model hours with HRRR values pulled straight from NOAA's HRRR grib2 (AWS Open Data); GOES-19 AOD for tonight.
@@ -392,7 +396,7 @@
       const lb = typeof sc === "number" ? label(sc) : null;
       return `<button class="day ${cls}" ${attr}><span class="d1">${d1}</span><span class="d2">${d2}</span><span class="d3"${lb ? ` style="--c:${lb.c}"` : ""}>${typeof sc === "number" ? "best " + sc : sc}</span></button>`; };
     const keys = pastKeys().slice(0, PAST).reverse(), pb = pbLoad();
-    const past = keys.map(k => { const c = CH[chunkOf(k)] || {}, D = c.data; let sc = typeof pb[k] === "number" ? pb[k] : c.err ? "↻ retry" : "…";
+    const past = keys.map(k => { const c = CH[chunkOf(k)] || {}, D = c.data; let sc = typeof pb[k] === "number" ? pb[k] : c.err && !c.retrying ? "↻ retry" : "…";
       if (D && typeof pb[k] !== "number") { const S1 = D.S[0], idx = S1.daily.time.findIndex(t => ymd(t + 43200, S1.timezone) === k); if (idx < 0) sc = "—"; else try { sc = bestOf(D, idx); } catch (e) { sc = "—"; } }
       const t = Date.parse(k + "T12:00:00Z") / 1000, yest = k === ymd(Date.now() / 1000 - 86400, "America/New_York");
       return card(`past${state.arch && state.arch.key === k ? " on" : ""}`, `data-past="${k}"${sc === "…" ? ' aria-busy="true"' : ""}`, yest ? "Yesterday" : new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" }).format(new Date(t * 1000)), fmtDate(t, "UTC"), sc); }).join("");
@@ -1016,10 +1020,10 @@
   const CH = {}; let pastErr = null, pastQ = Promise.resolve();
   function loadChunk(c) {
     if (CH[c] && (CH[c].data || CH[c].busy)) return CH[c].busy || Promise.resolve(CH[c].data);
-    const ks = chunkKeys(c).sort(); if (!ks.length) return Promise.reject(new Error("no days"));
+    const n0 = (CH[c] && CH[c].n) || 0; const ks = chunkKeys(c).sort(); if (!ks.length) return Promise.reject(new Error("no days"));
     const d0 = new Date(Date.parse(ks[0] + "T12:00:00Z") - 86400000).toISOString().slice(0, 10), ex = { start_date: d0, end_date: ks[ks.length - 1] };
     const T = (pr, ms) => Promise.race([pr, new Promise((_, no) => setTimeout(() => no(new Error("timeout")), ms))]), H = Math.ceil(SPOTS.length / 3);
-    CH[c] = { busy: null };
+    CH[c] = { busy: null, n: n0 };
     const run = () => T(Promise.all([0, 1, 2].map(q => fetchBatch(SPOTS.slice(q * H, q * H + H), SPOT_VARS, "sunset,sunrise", API, "gfs_seamless", 1, ex))
         .concat([fetchBatch(SPOTS.map(s => s.path[1]), WEST_VARS, null, API, "gfs_seamless", 1, ex)])), 25000).then(R => {
       const S = R.slice(0, 3).flat(), Wm = R[3], D = { at: Date.now(), S, W: SPOTS.flatMap((_, i) => [Wm[i], Wm[i], Wm[i]]), E: S, AQ: null, fcModel: "noaa", prov: {}, past: true };
@@ -1027,7 +1031,9 @@
       CH[c] = { data: D };
       if (window.AGX && AGX.loadBuoys) AGX.loadBuoys().then(() => { if (state.arch && window.__agQueue) window.__agQueue(); if (state.arch) update(); }).catch(() => {});   // d25p: that chunk's own archived waves/swell (background)
       return D; });
-    CH[c].busy = pastQ = pastQ.catch(() => {}).then(run).catch(e => { CH[c] = { err: e }; console.warn("past chunk " + c, e); throw e; }).finally(() => { if ($("#days") && state.data) renderDays(); });
+    CH[c].busy = pastQ = pastQ.catch(() => {}).then(run).catch(e => { const n = ((CH[c] && CH[c].n) || 0) + 1; console.warn("past chunk " + c, e);
+      if (n <= 3) { CH[c] = { err: e, n, retrying: true }; setTimeout(() => { if (CH[c] && CH[c].retrying) { CH[c] = { n }; loadChunk(c).catch(() => {}); } }, [10000, 30000, 90000][n - 1] * (e && e.status === 429 ? 2 : 1)); }   // d25y: auto-retry with backoff
+      else CH[c] = { err: e, n }; throw e; }).finally(() => { if ($("#days") && state.data) renderDays(); });
     return CH[c].busy;
   }
   const loadPast = () => loadChunk(0);
@@ -1069,12 +1075,20 @@
   }
 
   // boot
-  Promise.all([loadData(), loadNoaa(), loadMarine()]).then(([d, N, MW]) => {
-    applyMarine(d, MW); state.noaa = N; window.AGNoaa = N; window.AGDay = () => state.day; applyNoaa(d, N); state.data = d;
+  // d25y: the loading screen waits only for the forecast itself; NOAA HRRR overrides + marine join within 1.2 s or are applied when they land
+  const nP = loadNoaa(), mP = loadMarine().catch(() => null), soon = p => Promise.race([p, sleep(1200).then(() => undefined)]);
+  window.__agT0 = performance.now();
+  loadData().then(async d => { const [N, MW] = await Promise.all([soon(nP), soon(mP)]); return [d, N, MW]; }).then(([d, N, MW]) => {
+    if (N === undefined) nP.then(N2 => { state.noaa = N2; window.AGNoaa = N2; if (!state.arch && state.data) { applyNoaa(state.data, N2); update(); } });
+    if (MW === undefined) mP.then(M2 => { if (state.data && !state.arch) { applyMarine(state.data, M2); update(); } });
+    applyMarine(d, MW || null); state.marineW = MW || null; N = N || null; state.noaa = N; window.AGNoaa = N; window.AGDay = () => state.day; applyNoaa(d, N); state.data = d;
 // (removed)     if (RISE && d.S[0] && d.S[0].daily.sunrise[0] + 3600 < Date.now() / 1000) { state.day = 1; state.autoDay = true; }   // this morning's sunrise is over → show tomorrow
     archSaveAll(); update();
-    $("#loading").classList.add("done");
-    setTimeout(() => loadPast().catch(() => {}), 2500);   // d25j: past-day cards fill in after the live forecast is up
+    $("#loading").classList.add("done"); window.__agLiveMs = Math.round(performance.now() - window.__agT0);
+    // d25y: past days start only once the LIVE forecast is in (after the background refresh when we started from cache), so they never compete with it
+    const pastGo = () => setTimeout(() => loadPast().catch(() => {}), 3000);
+    if (d.bg) d.bg.then(d2 => { if (state.arch) { state.live.data = d2; } else { applyMarine(d2, state.marineW || null); applyNoaa(d2, state.noaa); state.data = d2; archSaveAll(); update(); } }).catch(e => console.warn("background refresh", e)).finally(pastGo);
+    else if (!d.snapshot) pastGo();
     // Draft: refresh forecast + renderings every 15 min (skipped while replaying the archive)
     // d24: CURRENT-DAY auto-refresh (Sean): every 15 min while the app is open, and on returning to the tab if a cycle is due — no reload,
     // music keeps playing. Each cycle: model clouds by layer (refetched when > 28 min old), marine, then the observed sky for today's events
