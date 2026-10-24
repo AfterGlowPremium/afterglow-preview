@@ -120,9 +120,13 @@
     if (C.trees) snags(x, W, H, hz);
     if (C.dune) dune(x, W, H, now);
     if (C.sea) sea(x, W, H, hz, C, now);
-    { const hzS = (C.hz != null ? C.hz : 0.6) * H;   // d26f: on the SCENE's horizon (was the fixed 0.6·H guess — the carrier sat in the water below the real horizon)
-      if (C.carrier) { carrier(x, W, H, hzS, C, now); heli(x, W, H, hzS, C, now); } if (C.chinook) chinook(x, W, H, hzS, C, now); }
-    if (C.ghost) ghostTree(x, W, H, hz, C, now);
+    // d26g: world-locked props. The scene zooms by narrowing the camera FOV (pinch / zoom slider → fovMul), so screen offsets from the
+    // image centre scale by k = tan(base/2)/tan(vfov/2). Props are drawn at zoom 1 on the unzoomed horizon, then scaled by k about the
+    // centre — the horizon lands exactly on the scene's current horizon (C.hz) and position/size track the sky and sun.
+    { const hzF = C.hz != null ? C.hz : 0.6, a = W / H, base = a < 1 ? 62 : a < 1.5 ? 50 : 40, k = C.vfov && C.vfov !== 20 ? Math.tan(base * Math.PI / 360) / Math.tan(C.vfov * Math.PI / 360) : 1;
+      const hz0 = (0.5 + (hzF - 0.5) / k) * H; g.__agPropK = k;
+      if (C.carrier || C.chinook || C.ghost) { x.save(); x.translate(W / 2, H / 2); x.scale(k, k); x.translate(-W / 2, -H / 2);
+        if (C.carrier) { carrier(x, W, H, hz0, C, now); heli(x, W, H, hz0, C, now); } if (C.chinook) chinook(x, W, H, hz0, C, now); if (C.ghost) ghostTree(x, W, H, hz, C, now); x.restore(); } }
     if (C.torn) tornado(x, W, H, hz, now);
     if (C.jets) jets(x, W, H, hz, C, now);
     if (C.cb || C.tcu || C.storms) towers(x, W, H, hz, C, now);
@@ -224,10 +228,11 @@
   // d26a: Fort Monroe — a distant US Navy carrier (Nimitz/Ford profile) hull-down on the horizon, left of the sun column.
   // Flat flight deck with the angled-deck overhang, island right of centre with mast + radar; hazy silhouette, gold rim at low sun,
   // a few tiny deck/nav lights in twilight, faint wake.
-  function carrier(x, W, H, hz, C, now) { const e = C.elev != null ? C.elev : 5, L = Math.max(60, W * 0.13), u = L / 100, cx = W * 0.26, y = hz;
+  const k1 = (hz, dpr) => (g.__agPropK || 1) === 1 ? Math.round(hz * dpr) / dpr : hz;
+  function carrier(x, W, H, hz, C, now) { const e = C.elev != null ? C.elev : 5, L = Math.max(120, W * 0.26), u = L / 100, cx = W * 0.22, dpr = Math.min(2, g.devicePixelRatio || 1), y = k1(hz, dpr);   // d26g: 2× (26% of frame), waterline snapped to the device-pixel row of the horizon
     const lt = clamp((e + 2) / 12), haze = 0.92 - 0.12 * lt, col = `rgba(${Math.round(30 + 46 * lt)},${Math.round(33 + 48 * lt)},${Math.round(40 + 52 * lt)},${haze.toFixed(2)})`;   // d26f: darker, less haze — readable on a phone
     x.save(); x.translate(cx - L / 2, y); x.fillStyle = col; x.beginPath();
-    x.moveTo(0, -3.2 * u); x.lineTo(4 * u, -1 * u); x.lineTo(92 * u, -0.6 * u); x.lineTo(100 * u, -3 * u);   // hull (bow right), waterline at 0
+    x.moveTo(0, -3.2 * u); x.lineTo(1.5 * u, 0); x.lineTo(97 * u, 0); x.lineTo(100 * u, -3 * u);   // hull (bow right), flat waterline exactly at the horizon (y = 0)
     x.lineTo(100 * u, -4.2 * u); x.lineTo(70 * u, -4.4 * u); x.lineTo(58 * u, -5.4 * u); x.lineTo(14 * u, -5.4 * u); x.lineTo(2 * u, -4.6 * u); x.closePath(); x.fill();   // deck + angled-deck overhang (port side, aft)
     x.fillRect(60 * u, -10 * u, 7 * u, 4.8 * u); x.fillRect(61.5 * u, -12.5 * u, 4 * u, 2.6 * u);   // island, two tiers (starboard, right of centre)
     x.fillRect(63.2 * u, -17 * u, 0.9 * u, 4.6 * u); x.fillRect(61.6 * u, -15.6 * u, 4.2 * u, 0.7 * u);   // mast + yard
@@ -239,6 +244,8 @@
       x.fillStyle = `rgba(255,236,190,${(0.8 * tw).toFixed(2)})`; for (const k of [10, 22, 34, 46, 56, 72, 86]) x.fillRect(k * u, -5.2 * u, 0.7, 0.7);
       x.fillStyle = `rgba(255,250,235,${(0.9 * tw).toFixed(2)})`; x.fillRect(63.5 * u, -17.3 * u, 1, 1);
       x.fillStyle = `rgba(255,70,60,${(0.85 * tw * bl).toFixed(2)})`; x.fillRect(66 * u, -12.8 * u, 1, 1); x.fillStyle = `rgba(80,255,120,${(0.7 * tw).toFixed(2)})`; x.fillRect(99 * u, -3.8 * u, 1, 1); }
+    { const wb = x.createLinearGradient(0, -0.5 * u, 0, 1.4 * u); wb.addColorStop(0, "rgba(70,78,92,0)"); wb.addColorStop(0.35, `rgba(${Math.round(60 + 50 * lt)},${Math.round(68 + 52 * lt)},${Math.round(82 + 56 * lt)},.55)`); wb.addColorStop(1, "rgba(60,68,82,0)");
+      x.fillStyle = wb; x.fillRect(-2 * u, -0.5 * u, 104 * u, 1.9 * u); }   // water band over the waterline so the hull sits IN the sea
     const wk = (now / 4000) % 1; x.strokeStyle = `rgba(235,238,240,${(0.18 + 0.1 * lt).toFixed(2)})`; x.lineWidth = 0.8;   // faint wake astern + bow wave
     x.beginPath(); x.moveTo(0, 0.4); x.lineTo(-18 * u - wk * 4 * u, 0.9); x.stroke(); x.beginPath(); x.moveTo(99 * u, 0.2); x.lineTo(104 * u, 0.6); x.stroke();
     x.restore(); }
