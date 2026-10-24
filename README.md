@@ -1,8 +1,8 @@
 # Afterglow Real — Sunrise & Sunset (East Coast)
 
 Third standalone Afterglow build, for side-by-side comparison with:
-- Canvas app: https://stoneridgeclothingco.github.io/afterglow-sunset/
-- Realistic preview: https://stoneridgeclothingco.github.io/afterglow-events/
+- Canvas app: https://afterglowpremium.github.io/afterglow-sunset/
+- Realistic preview: https://afterglowpremium.github.io/afterglow-events/
 
 Welcome page -> Sunrise (east-facing views) or Sunset (west-facing views). Each spot opens a forecast-driven WebGL sky render
 (NOAA HRRR/GFS cloud decks, GOES satellite cross-check) with a time slider and Play.
