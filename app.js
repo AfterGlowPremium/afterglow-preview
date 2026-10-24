@@ -81,6 +81,7 @@
     if (daily) p.set("daily", daily);
     if (models) p.set("models", models);
     if (extra) for (const k in extra) p.set(k, extra[k]);
+    if (extra && extra.start_date) p.delete("forecast_days");
     if (base !== API) ["temperature_unit", "wind_speed_unit", "precipitation_unit"].forEach(k => p.delete(k));
     let last = null, rl = 0;
     for (let attempt = 0; attempt < tries; attempt++) {
@@ -390,18 +391,23 @@
     const L = state.arch ? state.live.data : state.data, S0 = L.S[0], card = (cls, attr, d1, d2, sc) => {
       const lb = typeof sc === "number" ? label(sc) : null;
       return `<button class="day ${cls}" ${attr}><span class="d1">${d1}</span><span class="d2">${d2}</span><span class="d3"${lb ? ` style="--c:${lb.c}"` : ""}>${typeof sc === "number" ? "best " + sc : sc}</span></button>`; };
-    const keys = pastKeys().slice(0, PAST).reverse(), P = pastData, PS = P && P.S[0];
-    const past = keys.map(k => { let sc = pastErr ? "—" : "…";
-      if (PS) { const idx = PS.daily.time.findIndex(t => ymd(t + 43200, PS.timezone) === k); if (idx < 0) sc = "—"; else { if (pastBest[k] == null) try { pastBest[k] = bestOf(P, idx); } catch (e) { pastBest[k] = "—"; } sc = pastBest[k]; } }
+    const keys = pastKeys().slice(0, PAST).reverse(), pb = pbLoad();
+    const past = keys.map(k => { const c = CH[chunkOf(k)] || {}, D = c.data; let sc = typeof pb[k] === "number" ? pb[k] : c.err ? "—" : "…";
+      if (D && typeof pb[k] !== "number") { const S1 = D.S[0], idx = S1.daily.time.findIndex(t => ymd(t + 43200, S1.timezone) === k); if (idx < 0) sc = "—"; else try { sc = bestOf(D, idx); } catch (e) { sc = "—"; } }
       const t = Date.parse(k + "T12:00:00Z") / 1000, yest = k === ymd(Date.now() / 1000 - 86400, "America/New_York");
-      return card(`past${state.arch && state.arch.key === k ? " on" : ""}`, `data-past="${k}"${PS || pastErr ? "" : ' aria-busy="true"'}`, yest ? "Yesterday" : new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" }).format(new Date(t * 1000)), fmtDate(t, "UTC"), sc); }).join("");
+      return card(`past${state.arch && state.arch.key === k ? " on" : ""}`, `data-past="${k}"${sc === "…" ? ' aria-busy="true"' : ""}`, yest ? "Yesterday" : new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" }).format(new Date(t * 1000)), fmtDate(t, "UTC"), sc); }).join("");
     const live = S0.daily.time.map((t, i) => card(`${!state.arch && i === state.day ? "on" : ""}${i === 0 ? " today" : ""}`, `data-day="${i}"`, (() => { const a = state.arch; state.arch = null; const v = fmtDay(t + 43200, S0.timezone, i); state.arch = a; return v; })(), fmtDate(t + 43200, S0.timezone), bestOf(L, i))).join("");
-    const box = $("#days"), keep = box.scrollLeft, first = !box.dataset.ready; box.innerHTML = past + live;
+    const box = $("#days"), keep = box.scrollLeft, first = !box.dataset.ready; box.innerHTML = past + live + `<button id="day-home" class="day-home" hidden aria-label="Back to ${RISE ? "today" : "tonight"}">↩ ${RISE ? "Today" : "Tonight"}</button>`;
     // initial scroll: Tonight first. iOS may not have laid out the row yet (loading screen up) → retry on the next frames until it sticks.
     const td = box.querySelector(".day.today"), toToday = () => { const x = td.offsetLeft - box.firstElementChild.offsetLeft; if (x > 0) { box.scrollLeft = x; if (box.scrollLeft > 0) box.dataset.ready = 1; } };
     if (first && td) { toToday(); if (!box.dataset.ready) { let n = 0; const tick = () => { if (box.dataset.ready || n++ > 40) return; toToday(); requestAnimationFrame(tick); }; requestAnimationFrame(tick); } } else box.scrollLeft = keep;
     box.querySelectorAll(".day[data-day]").forEach(b => b.addEventListener("click", () => { if (state.arch) exitArchive(true); state.day = +b.dataset.day; state.autoDay = false; update(); { const ob = state.overlay && state.overlay !== "none" && document.querySelector(`[data-overlay="${state.overlay}"]`); if (ob) ob.click(); } }));   // d24w: re-draw the active layer for the new day
     box.querySelectorAll(".day[data-past]").forEach(b => b.addEventListener("click", () => enterArchive(b.dataset.past, b)));
+    // "↩ Tonight" pill (sticky at the row's right edge): shown when scrolled away from today or on a past day; selects today, scrolls back
+    const home = $("#day-home"), homeX = () => td ? td.offsetLeft - box.firstElementChild.offsetLeft : 0, homeUpd = () => { home.hidden = !(state.arch || Math.abs(box.scrollLeft - homeX()) > 60); };
+    home.onclick = () => { if (state.arch) exitArchive(true); state.day = 0; state.autoDay = false; update(); const b2 = $("#days"); const t2 = b2.querySelector(".day.today"); if (t2) b2.scrollTo({ left: t2.offsetLeft - b2.firstElementChild.offsetLeft, behavior: "smooth" }); };
+    if (!box.dataset.sc) { box.dataset.sc = 1; let to = 0; box.addEventListener("scroll", () => { const h = $("#day-home"); if (h) h.hidden = !(state.arch || Math.abs(box.scrollLeft - ((box.querySelector(".day.today") || {}).offsetLeft - box.firstElementChild.offsetLeft || 0)) > 60); clearTimeout(to); to = setTimeout(pastNear, 150); }, { passive: true }); }
+    homeUpd(); setTimeout(pastNear, 50);
   }
   function filtered() {
     const reg = REGIONS[state.region].states;
@@ -955,7 +961,7 @@
   //    opened are marked "viewed". Kept 30 days, per mode, in localStorage.
   // 2) Any of the last 14 days can be replayed in full (map, list, sky animation) from NOAA HRRR/GFS short-range model
   //    hours (Open-Meteo past_days) — labelled clearly as a past prediction / model replay, not a live forecast.
-  const AK = "afterglow-archive-" + MODE, AKEEP = 30, PAST = 7;   // d25j: 7 past-day cards
+  const AK = "afterglow-archive-" + MODE, AKEEP = 30, PAST = 30;   // d25m: 30 past-day cards, loaded in chunks (7 newest first, then 8-day chunks on scroll)
   const ymd = (t, tz) => new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: tz }).format(new Date(t * 1000));
   const todayKey = () => ymd(Date.now() / 1000, "America/New_York");
   const archLoad = () => { const a = lsGet(AK); return a && typeof a === "object" && a.days ? a : { v: 1, days: {} }; };
@@ -988,28 +994,38 @@
   // a weighted Open-Meteo cost far over the per-minute quota right after the live load, so it hit 429 and sat in 45 s timeouts + retries.
   // Now: 7 days, 4 parallel requests (spots in 3 slices; one 120 km sun-path point per spot reused for the 3 path slots; the spot stands in for the
   // anti-solar points), one try, 15 s cap, started in the background after the live forecast renders. Cards show "…" then the score, or "—".
-  let pastData = null, pastBusy = null, pastErr = null;
-  async function loadPast() {
-    if (pastData && Date.now() - pastData.at < 3 * 3600 * 1000) return pastData;
-    if (pastBusy) return pastBusy;
-    const ex = { past_days: String(PAST), forecast_days: "1" }, T = (pr, ms) => Promise.race([pr, new Promise((_, no) => setTimeout(() => no(new Error("timeout")), ms))]);
-    pastErr = null;
-    pastBusy = (async () => {
-      // spots in 3 parallel slices: one 88-spot x 19-variable request took ~14 s server-side; three slices finish in ~1–2 s
-      const H = Math.ceil(SPOTS.length / 3), R = await T(Promise.all([0, 1, 2].map(q => fetchBatch(SPOTS.slice(q * H, q * H + H), SPOT_VARS, "sunset,sunrise", API, "gfs_seamless", 1, ex))
-        .concat([fetchBatch(SPOTS.map(s => s.path[1]), WEST_VARS, null, API, "gfs_seamless", 1, ex)])), 15000), S = R.slice(0, 3).flat(), Wm = R[3];
-      const W = SPOTS.flatMap((_, i) => [Wm[i], Wm[i], Wm[i]]);
-      pastData = { at: Date.now(), S, W, E: S, AQ: null, fcModel: "noaa", prov: {}, past: true };
-      return pastData;
-    })().catch(e => { pastErr = e; console.warn("past days", e); throw e; }).finally(() => { pastBusy = null; if ($("#days") && state.data) renderDays(); });
-    return pastBusy;
+  // d25m: chunks of past days by explicit date range. Chunk 0 = the 7 newest days (loaded in the background after the live forecast);
+  // older chunks (8 days each) load only when their cards scroll near view. One try, 15 s cap, one chunk at a time, no retry storm.
+  // Best scores cached per day in localStorage so repeat visits show them instantly (the replay data itself is refetched on tap).
+  const PBK = "afterglow-pastbest-" + MODE, pbLoad = () => lsGet(PBK) || {}, pbSave = o => { try { const ks = Object.keys(o).sort(); while (ks.length > 40) delete o[ks.shift()]; localStorage.setItem(PBK, JSON.stringify(o)); } catch (e) {} };
+  const chunkOf = k => { const a = pastKeys().indexOf(k); return a < 0 ? -1 : a < 7 ? 0 : 1 + Math.floor((a - 7) / 8); };
+  const chunkKeys = c => pastKeys().filter(k => chunkOf(k) === c);
+  const CH = {}; let pastErr = null, pastQ = Promise.resolve();
+  function loadChunk(c) {
+    if (CH[c] && (CH[c].data || CH[c].busy)) return CH[c].busy || Promise.resolve(CH[c].data);
+    const ks = chunkKeys(c).sort(); if (!ks.length) return Promise.reject(new Error("no days"));
+    const d0 = new Date(Date.parse(ks[0] + "T12:00:00Z") - 86400000).toISOString().slice(0, 10), ex = { start_date: d0, end_date: ks[ks.length - 1] };
+    const T = (pr, ms) => Promise.race([pr, new Promise((_, no) => setTimeout(() => no(new Error("timeout")), ms))]), H = Math.ceil(SPOTS.length / 3);
+    CH[c] = { busy: null };
+    const run = () => T(Promise.all([0, 1, 2].map(q => fetchBatch(SPOTS.slice(q * H, q * H + H), SPOT_VARS, "sunset,sunrise", API, "gfs_seamless", 1, ex))
+        .concat([fetchBatch(SPOTS.map(s => s.path[1]), WEST_VARS, null, API, "gfs_seamless", 1, ex)])), 15000).then(R => {
+      const S = R.slice(0, 3).flat(), Wm = R[3], D = { at: Date.now(), S, W: SPOTS.flatMap((_, i) => [Wm[i], Wm[i], Wm[i]]), E: S, AQ: null, fcModel: "noaa", prov: {}, past: true };
+      const S0 = S[0], pb = pbLoad(); S0.daily.time.forEach((t, i) => { const k = ymd(t + 43200, S0.timezone); if (ks.includes(k)) try { pb[k] = bestOf(D, i); } catch (e) {} }); pbSave(pb);
+      CH[c] = { data: D }; return D; });
+    CH[c].busy = pastQ = pastQ.catch(() => {}).then(run).catch(e => { CH[c] = { err: e }; console.warn("past chunk " + c, e); throw e; }).finally(() => { if ($("#days") && state.data) renderDays(); });
+    return CH[c].busy;
+  }
+  const loadPast = () => loadChunk(0);
+  function pastNear() {   // load chunks whose cards are within ~1.5 screens of the visible part of the row
+    const box = $("#days"); if (!box) return; const L = box.scrollLeft - box.clientWidth * 1.5, R = box.scrollLeft + box.clientWidth * 2.5;
+    box.querySelectorAll(".day[data-past]").forEach(b => { const c = chunkOf(b.dataset.past), x = b.offsetLeft - box.firstElementChild.offsetLeft; if (c > 0 && !CH[c] && x > L && x < R && CH[0] && CH[0].data) loadChunk(c).catch(() => {}); });
   }
   window.__agGoPast = k => enterArchive(k);   // feedback: "switch to the photo's date"
   window.__agPastKeys = () => pastKeys().slice(0, PAST);
   async function enterArchive(key, btn) {
-    if (btn) { btn.classList.add("busy"); const d3 = btn.querySelector(".d3"); if (d3 && !pastData) d3.textContent = "…"; }
+    if (btn) { btn.classList.add("busy"); const d3 = btn.querySelector(".d3"); if (d3 && !(CH[chunkOf(key)] || {}).data) d3.textContent = "…"; }
     try {
-      const P = await loadPast(), S0 = P.S[0];
+      const P = await loadChunk(chunkOf(key)), S0 = P.S[0];
       const idx = S0.daily.time.findIndex(t => ymd(t + 43200, S0.timezone) === key);
       if (idx < 0) throw new Error("day not in replay window");
       if (!state.arch) state.live = { data: state.data, day: state.day, noaa: state.noaa, gN: window.AGNoaa };

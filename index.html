@@ -37,7 +37,7 @@
 <body>
 <!-- Shell: owns the URL, the self-update and the background music; the app runs in the iframe so its page loads never stop the song -->
 <script>
-  window.AG_BUILD = "d25l";
+  window.AG_BUILD = "d25m";
   (function () { try { fetch("version.json?ts=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (v) {
     if (!v || !v.build || v.build === window.AG_BUILD) return; var u = new URL(location.href); if (u.searchParams.get("b") === v.build) return;
     u.searchParams.set("b", v.build); location.replace(u.toString()); }).catch(function () {}); } catch (e) {} })();
@@ -47,7 +47,7 @@
 <script>
   (function () {
     var f = document.getElementById("app"), probe = document.getElementById("sa-probe");
-    f.src = "app.html?b=d25l" + (location.search ? "&" + location.search.slice(1) : "") + location.hash;   // build param: busts Safari's cached app.html
+    f.src = "app.html?b=d25m" + (location.search ? "&" + location.search.slice(1) : "") + location.hash;   // build param: busts Safari's cached app.html
     function insets() { try { var d = f.contentDocument; if (d) d.documentElement.style.setProperty("--ag-sat", probe.getBoundingClientRect().height + "px"); } catch (e) {} }
     var last = "";
     function sync() {   // mirror the app's address (mode, spot, …) and title into the real address bar so links stay shareable
