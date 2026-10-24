@@ -80,8 +80,8 @@
   g.addEventListener("online", () => UP.flush()); setTimeout(() => UP.flush(), 4000);
   const pad = n => String(n).padStart(2, "0"), tzLab = d => (new Intl.DateTimeFormat("en-US", { timeZoneName: "short" }).formatToParts(d).find(p => p.type === "timeZoneName") || {}).value || "";
   const isoOff = d => { const o = -d.getTimezoneOffset(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00${o >= 0 ? "+" : "-"}${pad(Math.floor(Math.abs(o) / 60))}:${pad(Math.abs(o) % 60)}`; };
-  function panel() {
-    const sp = (g.__agSpots || []).find(s => s.id === g.__agSpot);
+  function panel(o) {
+    o = o && o.spot ? o : {}; const sp = (g.__agSpots || []).find(s => s.id === (o.spot || g.__agSpot));
     let el = document.getElementById("fb-panel"); if (!el) { el = document.createElement("aside"); el.id = "fb-panel"; document.body.appendChild(el); }
     el.innerHTML = `<button class="fb-x" aria-label="Close">✕</button><h3>Photo & feedback</h3>
       <label>Location<select id="fb-spot">${(g.__agSpots || []).map(s => `<option value="${s.id}"${sp && s.id === sp.id ? " selected" : ""}>${s.name}, ${s.state}</option>`).join("")}</select></label>
@@ -102,7 +102,7 @@
     const evFor = id => { const st = g.__agState, r = st && st.results && st.results.find(x => x.spot.id === id); return r && r.ev; };
     const setDT = (d, src) => { $("#fb-date").value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; $("#fb-time").value = `${pad(d.getHours())}:${pad(d.getMinutes())}`; $("#fb-tz").textContent = "(" + tzLab(d) + ")"; $("#fb-src").textContent = src; };
     let dtUser = false, dtExif = false; const dflt = () => { if (dtUser || dtExif) return; const ev = evFor($("#fb-spot").value); setDT(ev && ev.tSet ? new Date(ev.tSet * 1000) : new Date(), ev && ev.tSet ? "Set to this day's " + (g.AG_MODE === "sunrise" ? "sunrise" : "sunset") + " — change it if needed" : ""); };
-    dflt(); $("#fb-spot").onchange = dflt; $("#fb-date").oninput = $("#fb-time").oninput = () => { dtUser = true; $("#fb-src").textContent = ""; };
+    if (o.t > 1e9) { dtUser = true; setDT(new Date(o.t * 1000), "From the preview slider — change it if needed"); } else dflt(); $("#fb-spot").onchange = () => { dtUser = false; dflt(); }; $("#fb-date").oninput = $("#fb-time").oninput = () => { dtUser = true; $("#fb-src").textContent = ""; };
     // photo: EXIF capture time read from the original bytes (re-encoding strips EXIF) fills date & time; decoded via object URL, downscaled to 1280 px JPEG
     // d25e: up to 6 photos; each gets its own date & time (EXIF capture time, else the form's date & time), editable under its thumbnail.
     const MAXP = 6, P = []; const exifT = f => f.slice(0, 262144).arrayBuffer().then(b => { const m = /(\d{4}):(\d\d):(\d\d) (\d\d):(\d\d):(\d\d)/.exec(new TextDecoder("latin1").decode(b)); return m ? new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5]) : null; }).catch(() => null);
@@ -137,6 +137,5 @@
     $("#fb-dl").onclick = ev => { ev.preventDefault(); const b = new Blob([JSON.stringify(load(), null, 1)], { type: "application/json" }), u = URL.createObjectURL(b), l = document.createElement("a"); l.href = u; l.download = "afterglow-feedback.json"; document.body.appendChild(l); l.click(); l.remove(); setTimeout(() => URL.revokeObjectURL(u), 4000); };
     el.classList.add("open");
   }
-  addEventListener("DOMContentLoaded", () => { const b = document.createElement("button"); b.id = "fb-tab"; b.textContent = "📷 Feedback"; b.onclick = panel; document.body.appendChild(b); });
   X.panel = panel;
 })(window);

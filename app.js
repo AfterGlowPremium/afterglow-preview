@@ -511,7 +511,7 @@
         <div id="pv-gen" class="pv-gen" hidden></div>
         <div class="stage-rail">
           <div class="rail-top"><div class="stage-score" title="${EV} score"><b>${ev.score}</b><i>${lb.t}</i></div><div id="pv-wxl" class="pv-wxl" hidden></div></div>
-          <div class="rail-ctl"><button id="pv-play" class="play" title="Play the ${RISE ? "morning" : "evening"} (Space)">${PLAY}</button><button id="pv-turn" class="play turn" aria-pressed="false" title="Turn around and see the sky behind you (${RISE ? "west" : "east"}) — where rainbows appear">↻ 180°</button>
+          <div class="rail-ctl"><button id="pv-play" class="play" title="Play the ${RISE ? "morning" : "evening"} (Space)">${PLAY}</button><button id="pv-turn" class="play turn" aria-pressed="false" title="Turn around and see the sky behind you (${RISE ? "west" : "east"}) — where rainbows appear">↻ 180°</button><button id="pv-fb" class="play fb" title="Send a photo &amp; rating for this spot">Feedback</button>
             <div class="rail-zoom" role="group" aria-label="Zoom"><button class="zb" data-z="+" aria-label="Zoom in">+</button><output id="pv-zo">1.0×</output><button class="zb" data-z="-" aria-label="Zoom out">−</button><input id="pv-zoom" type="range" min="1" max="4" step="0.01" value="1" aria-label="Zoom into the scene" hidden></div></div>
           <div class="stage-bottom">
             <div class="stage-now"><b id="pv-time"></b><span id="pv-phase"></span><small id="pv-elev"></small></div>
@@ -750,6 +750,7 @@
         if (Q.ema > tgt * 1.25) { if (Q.eff > lo) Q.eff = Math.max(lo, Q.eff * 0.93); else if (!desk && ++Q.slow > 20) Q.fast = true; }
         else if (Q.ema < tgt * 1.05) { Q.slow = 0; if (Q.fast) Q.fast = false; else Q.eff = Math.min(hi, Q.eff * 1.02); } }
       Q.last = ts; };
+    $("#pv-fb").onclick = () => { stop(); window.AGX && AGX.panel && AGX.panel({ spot: sp.id, t: +sl.value }); };   // d25g: Feedback lives in the preview panel, prefilled with this spot + slider time
     $("#pv-play").onclick = () => {
       if (playing) return stop();
       if (window.__agPlayQ) window.__agPlayQ.last = 0;
