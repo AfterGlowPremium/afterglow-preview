@@ -150,8 +150,8 @@
   }
   O.canvas = canvas;
   // d24k: satellite reads hours ahead are less predictive → weight ~0.25 at 9 h before the event, 1 within 1 h
-  O.satW = C => { const h = C && C.at ? Math.max(0, (C.tSet - C.at) / 3600) : 0; return Math.max(0.1, Math.min(1, 1 - 0.75 * (h - 1) / 8)); };
-  O.satNote = C => { const h = Math.max(0, (C.tSet - C.at) / 3600); return ` (satellite read ${h < 1 ? Math.round(h * 60) + ' min' : h.toFixed(1) + ' h'} before the event, weight ${Math.round(O.satW(C) * 100)}%)`; };
+  O.satW = C => { const h = C && C.at ? Math.max(0, (C.tSet - C.at) / 3600) : 0; return Math.max(0.1, Math.min(1, 1 - 0.75 * (h - 1) / 8)) * (C.src === "goes-ir4km-only" ? 0.8 : 1); };   // d24l: IR-only reads miss some thin/low cloud
+  O.satNote = C => { const h = Math.max(0, (C.tSet - C.at) / 3600); return ` (satellite read ${h < 1 ? Math.round(h * 60) + ' min' : h.toFixed(1) + ' h'} before the event${C.src === "goes-ir4km-only" ? ", infrared only, visible dark" : ""}, weight ${Math.round(O.satW(C) * 100)}%)`; };
   // d24j: opposite-sky/overhead lighting. Broken MID/HIGH tops overhead or 20-200 km opposite the sun (± 45°), not a closed low deck,
   // AND an open sun-path horizon (light gets in under them). Per-spot readings only; 0..1.
   O.oppGlow = C => { if (!C || !C.antiIrMid || !C.irCv) return 0; const cl = x => Math.max(0, Math.min(1, x));
@@ -183,7 +183,7 @@
     let ev = base.apply(this, arguments);
     try { const C = !/[?&](obs|sat)=0/.test(location.search) && ev && O.cv[sp.id];
       if (C && Math.abs(C.tSet - ev.tSet) < 3600 && Math.max(...C.cv.slice(0, 5)) >= 0.15) { const e2 = base.apply(this, withCanvas(arguments, ev, C));
-        if (e2) { e2.satCanvas = C; e2.scoreNoSat = ev.score; (e2.reasons || (e2.reasons = [])).unshift(`Satellite (GOES visible): broken cloud along the ${g.AG_MODE === "sunrise" ? "sunrise" : "sunset"} path — ${C.cv.slice(0, 5).map((v, i) => `${C.km[i]} km ${Math.round(v * 100)}%`).join(", ")}; ${C.far < 0.3 ? "open horizon beyond" : "cloud on the horizon too"}. The model had little mid cloud here; using the observed cloud${O.satNote(C)}.`); ev = e2;
+        if (e2) { e2.satCanvas = C; e2.scoreNoSat = ev.score; (e2.reasons || (e2.reasons = [])).unshift(`Satellite (GOES ${C.src === "goes-ir4km-only" ? "infrared" : "visible+IR"}): broken cloud along the ${g.AG_MODE === "sunrise" ? "sunrise" : "sunset"} path — ${C.cv.slice(0, 5).map((v, i) => `${C.km[i]} km ${Math.round(v * 100)}%`).join(", ")}; ${C.far < 0.3 ? "open horizon beyond" : "cloud on the horizon too"}. The model had little mid cloud here; using the observed cloud${O.satNote(C)}.`); ev = e2;
           // broken cloud (not a solid deck) across the visible western sky + an open horizon = the lit-cloud sunset: 85–95
           let q;
           if (C.irMid) {   // d24b: visible + infrared. Light-catchers = broken MID/HIGH tops 20-120 km west; blockers = closed low deck or solid overhead.
