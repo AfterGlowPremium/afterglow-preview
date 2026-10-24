@@ -878,3 +878,8 @@ html.show-home .home.hi-ui .home-card{transform:none;opacity:1}
 html.show-home #home-gl,html.show-home #home-cv{top:-24svh;height:124svh}
 html.show-home .home-card .home-logo,html.show-home .home-card .home-sub{display:none}
 html.show-home .home-card{background:rgba(14,10,34,.45)}
+/* welcome v3: 2D hero fills the screen normally; bold intro title like the OG image; logo/sub stay hidden */
+html.show-home #home-cv{top:0;height:100%}
+.hi-intro{top:calc(9svh + env(safe-area-inset-top,0px))}
+.hi-t{font-size:clamp(52px,16vw,78px);font-weight:700;letter-spacing:-.01em}.hi-t em{color:#f2b14f}
+.home.hi-push .home-cv{transform:scale(1.05)}
