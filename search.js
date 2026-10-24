@@ -34,7 +34,7 @@
   function render() {
     const q = norm(inp.value.trim()); let html = "", last = null; items = [];
     spots().forEach(sp => {
-      if (q && !norm(sp.name + " " + sp.state + " " + (sp.type || "")).includes(q)) return;
+      if (q && !norm(sp.name + " " + (sp.aka || "") + " " + sp.state + " " + (sp.type || "")).includes(q)) return;
       if (sp.state !== last) { html += `<div class="srch-st">${esc(sp.state)}</div>`; last = sp.state; }
       html += `<button class="srch-it" data-id="${esc(sp.id)}"><span>${esc(sp.name)}</span><small>${esc(sp.state)} · ${sp.lat.toFixed(2)}°N</small></button>`;
       items.push(sp.id);
