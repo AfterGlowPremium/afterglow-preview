@@ -30,7 +30,7 @@
   // length/thickness/direction, overshooting top, multi-cell clusters, ragged vs smooth edges. Light follows the sun elevation.
   function skyLight(e) {   // [lit-top colour, mid, shade] for the sun elevation (deg) — gold day → orange/pink at sunset → dim pink-grey → dark slate
     const k = [[8, [255, 236, 205], [196, 190, 192], [92, 96, 110]], [3, [255, 206, 140], [178, 150, 140], [76, 76, 92]], [0, [255, 150, 100], [150, 110, 116], [62, 58, 74]],
-      [-2.5, [214, 120, 132], [116, 90, 108], [50, 46, 62]], [-5, [128, 98, 120], [84, 72, 92], [38, 36, 50]], [-8, [60, 58, 76], [46, 46, 60], [26, 26, 36]]];
+      [-2.5, [176, 98, 112], [98, 74, 92], [44, 40, 54]], [-5, [72, 56, 72], [44, 40, 52], [24, 23, 32]], [-8, [28, 27, 36], [22, 22, 30], [14, 14, 20]]];   // after sunset the towers go darker than the sky (silhouettes), tops only faintly pink
     if (e >= k[0][0]) return k[0].slice(1); for (let i = 1; i < k.length; i++) if (e >= k[i][0]) { const t = (e - k[i][0]) / (k[i - 1][0] - k[i][0]); return [1, 2, 3].map(j => k[i][j].map((v, n) => Math.round(v + (k[i - 1][j][n] - v) * t))); }
     return k[k.length - 1].slice(1); }
   function towerBody(kind, h, e, seed) {
