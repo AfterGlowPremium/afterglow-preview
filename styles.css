@@ -803,3 +803,4 @@ html.ag-desk .stage .ev-toggle a{font-size:13px;padding:8px 14px}
 .day.pick{display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;border:1px solid rgba(212,160,84,.35);background:rgba(16,24,20,.45)}
 .day.pick input{font:500 14px var(--sans);color:#f3efe4;background:transparent;border:0;border-bottom:1px solid rgba(212,160,84,.4);padding:1px 2px;max-width:128px;color-scheme:dark}
 .day.exit{border-color:rgba(110,143,98,.55)!important}
+.day.past{opacity:.86;border-style:dashed}.day.past.on{opacity:1}.day.past.busy .d3{opacity:.6}

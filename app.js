@@ -382,21 +382,24 @@
   }
 
   // ---------- Render ----------
+  // d25j: one chronological day row — past days (lazy replay, scores fill in) to the LEFT of Tonight/Today, live days to the right.
+  // On load the row scrolls so Tonight is the first visible card; swipe right to see past days. Tapping a past card swaps in that day's replay.
+  const bestOf = (D, i) => Math.max(...SPOTS.map((sp, k) => evaluate(sp, D.S[k], [D.W[k * 3], D.W[k * 3 + 1], D.W[k * 3 + 2]], D.E[k], i, D.AQ && D.AQ[k]).score));
+  const pastBest = {};
   function renderDays() {
-    const S0 = state.data.S[0], tk = state.arch ? todayKey() : null;
-    // d25i: archive = previous days as day tabs (newest first) + a date picker; "↩ Today" returns to the live forecast
-    const order = state.arch ? S0.daily.time.map((_, i) => i).reverse() : S0.daily.time.map((_, i) => i);
-    const ks = state.arch ? S0.daily.time.map(t => ymd(t + 43200, S0.timezone)).filter(k => k < tk).sort() : [], dmin = ks[0] || "", dmax = ks[ks.length - 1] || "", dcur = state.arch ? ymd(S0.daily.time[state.day] + 43200, S0.timezone) : "";
-    $("#days").innerHTML = (state.arch ? `<button class="day exit" id="day-exit"><span class="d1">↩ Today</span><span class="d2">live</span><span class="d3">forecast</span></button>` : "") + order.map(i => { const t = S0.daily.time[i];
-      if (state.arch && ymd(t + 43200, S0.timezone) >= tk) return "";
-      // best score that day
-      const best = Math.max(...SPOTS.map((sp, k) => evaluate(sp, state.data.S[k], [state.data.W[k * 3], state.data.W[k * 3 + 1], state.data.W[k * 3 + 2]], state.data.E[k], i, state.data.AQ && state.data.AQ[k]).score));
-      const lb = label(best);
-      return `<button class="day ${i === state.day ? "on" : ""}${state.arch ? " past" : ""}" data-day="${i}"><span class="d1">${fmtDay(t + 43200, S0.timezone, i)}</span><span class="d2">${fmtDate(t + 43200, S0.timezone)}</span><span class="d3" style="--c:${lb.c}">best ${best}</span></button>`;
-    }).join("") + (state.arch ? `<label class="day pick" title="Jump to any past date"><span class="d1">📅 Date</span><input id="day-pick" type="date" min="${dmin}" max="${dmax}" value="${dcur}" aria-label="Pick a past date"><span class="d3">${dmin ? "back to " + dayLbl(dmin).replace(/^\w+, /, "") : ""}</span></label>` : "");
-    { const dp = $("#day-pick"); if (dp) dp.onchange = () => { const i = S0.daily.time.findIndex(t => ymd(t + 43200, S0.timezone) === dp.value); if (i >= 0) { state.day = i; state.autoDay = false; update(); renderArchBar(); } else dp.value = dcur; }; }
-    document.querySelectorAll(".day[data-day]").forEach(b => b.addEventListener("click", () => { state.day = +b.dataset.day; state.autoDay = false; update(); if (state.arch) renderArchBar(); { const ob = state.overlay && state.overlay !== "none" && document.querySelector(`[data-overlay="${state.overlay}"]`); if (ob) ob.click(); } }));   // d24w: re-draw the active layer for the new day (live tiles today, estimated field on later days)
-    const ex = $("#day-exit"); if (ex) ex.onclick = exitArchive;
+    const L = state.arch ? state.live.data : state.data, S0 = L.S[0], card = (cls, attr, d1, d2, sc) => {
+      const lb = typeof sc === "number" ? label(sc) : null;
+      return `<button class="day ${cls}" ${attr}><span class="d1">${d1}</span><span class="d2">${d2}</span><span class="d3"${lb ? ` style="--c:${lb.c}"` : ""}>${typeof sc === "number" ? "best " + sc : sc}</span></button>`; };
+    const keys = pastKeys().slice(0, PAST).reverse(), P = pastData, PS = P && P.S[0];
+    const past = keys.map(k => { let sc = pastErr ? "—" : "…";
+      if (PS) { const idx = PS.daily.time.findIndex(t => ymd(t + 43200, PS.timezone) === k); if (idx < 0) sc = "—"; else { if (pastBest[k] == null) try { pastBest[k] = bestOf(P, idx); } catch (e) { pastBest[k] = "—"; } sc = pastBest[k]; } }
+      const t = Date.parse(k + "T12:00:00Z") / 1000, yest = k === ymd(Date.now() / 1000 - 86400, "America/New_York");
+      return card(`past${state.arch && state.arch.key === k ? " on" : ""}`, `data-past="${k}"${PS || pastErr ? "" : ' aria-busy="true"'}`, yest ? "Yesterday" : new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" }).format(new Date(t * 1000)), fmtDate(t, "UTC"), sc); }).join("");
+    const live = S0.daily.time.map((t, i) => card(`${!state.arch && i === state.day ? "on" : ""}${i === 0 ? " today" : ""}`, `data-day="${i}"`, (() => { const a = state.arch; state.arch = null; const v = fmtDay(t + 43200, S0.timezone, i); state.arch = a; return v; })(), fmtDate(t + 43200, S0.timezone), bestOf(L, i))).join("");
+    const box = $("#days"), keep = box.scrollLeft, first = !box.dataset.ready; box.innerHTML = past + live;
+    const td = box.querySelector(".day.today"); if (first && td) { box.scrollLeft = td.offsetLeft - box.offsetLeft - 4; box.dataset.ready = 1; } else box.scrollLeft = keep;
+    box.querySelectorAll(".day[data-day]").forEach(b => b.addEventListener("click", () => { if (state.arch) exitArchive(true); state.day = +b.dataset.day; state.autoDay = false; update(); { const ob = state.overlay && state.overlay !== "none" && document.querySelector(`[data-overlay="${state.overlay}"]`); if (ob) ob.click(); } }));   // d24w: re-draw the active layer for the new day
+    box.querySelectorAll(".day[data-past]").forEach(b => b.addEventListener("click", () => enterArchive(b.dataset.past, b)));
   }
   function filtered() {
     const reg = REGIONS[state.region].states;
@@ -886,7 +889,7 @@
   function closeDetail() { if (window.__agAnim && window.__agAnim.id) { cancelAnimationFrame(window.__agAnim.id); window.__agAnim.id = 0; } state.spot = null; $("#detail").classList.remove("open"); document.body.classList.remove("detail-open"); Object.keys(markers).forEach(k => { const ic = markers[k]._icon; if (ic) ic.classList.remove("sel"); }); if (isDesk()) setTimeout(() => map.invalidateSize({ pan: false }), 480); }
   $("#detail-close").addEventListener("click", closeDetail);
   $("#scrim").addEventListener("click", closeDetail);
-  document.addEventListener("keydown", e => { if (e.key !== "Escape") return; if (document.body.classList.contains("arch-open")) return;   // archive closes first
+  document.addEventListener("keydown", e => { if (e.key !== "Escape") return; 
     const fb = document.getElementById("fb-panel"); if (fb && fb.classList.contains("open")) { fb.classList.remove("open"); return; }
     if (state.wxOpen && state.spot) { state.wxOpen = false; const wl = $("#pv-wxl"); if (wl) wl.dataset.tx = ""; window.__agQueue && __agQueue(); return; }
     closeDetail(); });
@@ -897,7 +900,7 @@
   try { const P = window.parent; if (P !== window && P.document) { P.__agKeyWin = window;
     if (!P.__agKeyFwd) { P.__agKeyFwd = 1; P.document.addEventListener("keydown", e => { const tn = e.target && e.target.tagName; if (tn === "INPUT" || tn === "TEXTAREA" || tn === "BUTTON") return; try { P.__agKeyWin && P.__agKeyWin.__agKey && P.__agKeyWin.__agKey(e); } catch (x) {} }); } } } catch (x) {}
   document.addEventListener("keydown", e => {
-    if (!state.spot || e.altKey || e.metaKey || e.ctrlKey || document.body.classList.contains("arch-open")) return;
+    if (!state.spot || e.altKey || e.metaKey || e.ctrlKey) return;
     const tg = e.target, tn = tg && tg.tagName, typing = tn === "TEXTAREA" || tn === "SELECT" || (tn === "INPUT" && tg.type !== "range") || (tg && tg.isContentEditable);
     if (typing || (tg && tg.id === "pv-zoom")) return;
     const sl = $("#scrub"); if (!sl) return;
@@ -950,7 +953,7 @@
   //    opened are marked "viewed". Kept 30 days, per mode, in localStorage.
   // 2) Any of the last 14 days can be replayed in full (map, list, sky animation) from NOAA HRRR/GFS short-range model
   //    hours (Open-Meteo past_days) — labelled clearly as a past prediction / model replay, not a live forecast.
-  const AK = "afterglow-archive-" + MODE, AKEEP = 30, PAST = 30;   // d25i: 30 replay days (Open-Meteo past_days ≤ 92)
+  const AK = "afterglow-archive-" + MODE, AKEEP = 30, PAST = 7;   // d25j: 7 past-day cards
   const ymd = (t, tz) => new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: tz }).format(new Date(t * 1000));
   const todayKey = () => ymd(Date.now() / 1000, "America/New_York");
   const archLoad = () => { const a = lsGet(AK); return a && typeof a === "object" && a.days ? a : { v: 1, days: {} }; };
@@ -979,64 +982,47 @@
     const nb = rows.filter(r => r[2] >= BONUS_MIN).length, nl = rows.filter(r => r[4].includes("⚡")).length, nt = rows.filter(r => r[5]).length;
     return { rows, b, lb, nb, nl, nt };
   }
-  function renderArchive() {
-    // Draft: grouped by LOCATION, then dates newest-first. Tap a date → replays that day and auto-plays the sky animation.
-    const box = $("#arch-body"); if (!box) return;
-    const a = archLoad(), tk = todayKey(), keys = pastKeys().sort().reverse();
-    const age = k => Math.round((Date.parse(tk) - Date.parse(k)) / 86400000);
-    const q = (state.archQ || "").toLowerCase();
-    const groups = SPOTS.slice().sort((x, y) => (x.state + x.name).localeCompare(y.state + y.name)).filter(sp => !q || (sp.name + " " + sp.state).toLowerCase().includes(q)).map(sp => {
-      const days = keys.map(k => { const e = a.days[k], row = e && e.rows && e.rows.find(r => r[0] === sp.id), ok = age(k) >= 1 && age(k) <= PAST; return (row || ok) ? { k, row, ok, viewed: e && e.viewed } : null; }).filter(Boolean);
-      if (!days.length) return "";
-      const best = days.filter(d => d.row).sort((x, y) => y.row[1] - x.row[1])[0];
-      return `<details class="ar-loc"${q ? " open" : ""}><summary><b>${sp.name}</b><span>${sp.state} · ${days.length} days${best ? ` · best ${best.row[1]} on ${dayLbl(best.k)}` : ""}</span></summary><ul class="ar-dates">${days.map(d => { const sc = d.row ? d.row[1] : null, lb = sc != null ? label(sc) : null;
-        return `<li><button class="ar-date" data-key="${d.k}" data-spot="${sp.id}"${d.ok ? "" : " disabled"} style="--c:${lb ? lb.c : "#667"}"><span class="ar-dl">${dayLbl(d.k)}</span><span class="ar-sc">${sc != null ? sc : "–"}</span><span class="ar-ic">${d.row ? (d.row[2] >= BONUS_MIN ? "🌈" : "") + (d.row[3] >= BONUS_MIN ? "◉" : "") + (d.row[4] || "") + (d.row[5] ? "✦" : "") : ""}${d.viewed ? " 👁" : ""}</span><span class="ar-go">${d.ok ? "▶" : "saved"}</span></button></li>`; }).join("")}</ul></details>`;
-    }).join("");
-    box.innerHTML = `<input id="ar-q" class="ar-q" type="search" placeholder="Find a location…" value="${state.archQ || ""}">
-      <p class="ar-intro">Pick a location, then a date (newest first). Tapping a date replays that ${EV} from NOAA HRRR/GFS model hours and starts playing. Scores = the forecast saved on this device; "–" = not saved, replay only. Past predictions, not photos.</p>
-      ${groups || `<div class="ar-none">Nothing archived yet.</div>`}<p class="site-copy">© Sean Tuttle 2026</p>`;
-    const qi = $("#ar-q"); qi.addEventListener("input", () => { state.archQ = qi.value; renderArchive(); const n = $("#ar-q"); n.focus(); n.setSelectionRange(n.value.length, n.value.length); });
-    box.querySelectorAll(".ar-date:not([disabled])").forEach(b => b.addEventListener("click", async () => {
-      await enterArchive(b.dataset.key, b); if (!state.arch) return;
-      await openDetail(b.dataset.spot); setTimeout(() => { const p = $("#pv-play"); if (p && !/Pause/.test(p.textContent)) p.click(); }, 600);
-    }));
-  }
-  function openArchive() { renderArchive(); $("#archive").classList.add("open"); document.body.classList.add("arch-open"); }
-  function closeArchive() { $("#archive").classList.remove("open"); document.body.classList.remove("arch-open"); }
-  let pastData = null, pastBusy = null;
+  // d25j: past days were stuck on iPhone: 3 sequential requests (86 spots + 258 path + 172 east points) x past_days=30 — ~10 MB of JSON and
+  // a weighted Open-Meteo cost far over the per-minute quota right after the live load, so it hit 429 and sat in 45 s timeouts + retries.
+  // Now: 7 days, 4 parallel requests (spots in 3 slices; one 120 km sun-path point per spot reused for the 3 path slots; the spot stands in for the
+  // anti-solar points), one try, 15 s cap, started in the background after the live forecast renders. Cards show "…" then the score, or "—".
+  let pastData = null, pastBusy = null, pastErr = null;
   async function loadPast() {
     if (pastData && Date.now() - pastData.at < 3 * 3600 * 1000) return pastData;
     if (pastBusy) return pastBusy;
-    const ex = { past_days: String(PAST), forecast_days: "1" };
+    const ex = { past_days: String(PAST), forecast_days: "1" }, T = (pr, ms) => Promise.race([pr, new Promise((_, no) => setTimeout(() => no(new Error("timeout")), ms))]);
+    pastErr = null;
     pastBusy = (async () => {
-      const S = await fetchBatch(SPOTS, SPOT_VARS, "sunset,sunrise", API, "gfs_seamless", 2, ex);
-      const W = await fetchBatch(SPOTS.flatMap(s => s.path), WEST_VARS, null, API, "gfs_seamless", 2, ex);
-      const E = mergeE(await fetchBatch(SPOTS.flatMap(s => s.eastPts), EAST_VARS, null, API, "gfs_seamless", 2, ex));
-      pastData = { at: Date.now(), S, W, E, AQ: null, fcModel: "noaa", prov: {}, past: true };
+      // spots in 3 parallel slices: one 88-spot x 19-variable request took ~14 s server-side; three slices finish in ~1–2 s
+      const H = Math.ceil(SPOTS.length / 3), R = await T(Promise.all([0, 1, 2].map(q => fetchBatch(SPOTS.slice(q * H, q * H + H), SPOT_VARS, "sunset,sunrise", API, "gfs_seamless", 1, ex))
+        .concat([fetchBatch(SPOTS.map(s => s.path[1]), WEST_VARS, null, API, "gfs_seamless", 1, ex)])), 15000), S = R.slice(0, 3).flat(), Wm = R[3];
+      const W = SPOTS.flatMap((_, i) => [Wm[i], Wm[i], Wm[i]]);
+      pastData = { at: Date.now(), S, W, E: S, AQ: null, fcModel: "noaa", prov: {}, past: true };
       return pastData;
-    })().finally(() => { pastBusy = null; });
+    })().catch(e => { pastErr = e; console.warn("past days", e); throw e; }).finally(() => { pastBusy = null; if ($("#days") && state.data) renderDays(); });
     return pastBusy;
   }
+  window.__agGoPast = k => enterArchive(k);   // feedback: "switch to the photo's date"
+  window.__agPastKeys = () => pastKeys().slice(0, PAST);
   async function enterArchive(key, btn) {
-    if (btn) { btn.disabled = true; btn.textContent = "Loading past model hours…"; }
+    if (btn) { btn.classList.add("busy"); const d3 = btn.querySelector(".d3"); if (d3 && !pastData) d3.textContent = "…"; }
     try {
       const P = await loadPast(), S0 = P.S[0];
       const idx = S0.daily.time.findIndex(t => ymd(t + 43200, S0.timezone) === key);
       if (idx < 0) throw new Error("day not in replay window");
       if (!state.arch) state.live = { data: state.data, day: state.day, noaa: state.noaa, gN: window.AGNoaa };
       state.arch = { key, P }; state.data = P; state.day = idx; state.noaa = null; if ("AGNoaa" in window) window.AGNoaa = null;
-      closeArchive(); closeDetail(); document.body.classList.add("in-archive"); update(); renderArchBar();
+      closeDetail(); document.body.classList.add("in-archive"); update(); renderArchBar();
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (e) {
       console.warn("archive replay failed", e);
-      state.archErr = e && e.status === 429 ? "Forecast service busy — try again" : "Couldn't load past days";
-      if (btn) { btn.disabled = false; btn.textContent = e && e.status === 429 ? "Forecast service busy — try again in a minute" : "Couldn't load — tap to retry"; }
+      if (btn) { btn.classList.remove("busy"); const d3 = btn.querySelector(".d3"); if (d3) d3.textContent = e && e.status === 429 ? "busy" : "—"; }
     }
   }
-  function exitArchive() {
+  function exitArchive(quiet) {
     if (!state.arch) return; const L0 = state.live;
     state.arch = null; state.data = L0.data; state.day = L0.day; state.noaa = L0.noaa; if ("AGNoaa" in window) window.AGNoaa = L0.gN;
-    document.body.classList.remove("in-archive"); closeDetail(); update(); renderArchBar(); { const b = $("#archive-btn"); if (b) b.textContent = b.dataset.lbl || "Archive"; }
+    document.body.classList.remove("in-archive"); closeDetail(); if (!quiet) update(); renderArchBar();
   }
   function renderArchBar() {
     const bar = $("#archbar"); if (!bar) return;
@@ -1045,12 +1031,9 @@
     let cmp = "";
     if (e && e.rows) { const s = savedSummary(e); cmp = ` · Your saved forecast that day: best <b>${spotName(s.b[0])} ${s.b[1]}</b> (${e.lead === 0 ? "same day" : e.lead + "d ahead"})${e.viewed ? " 👁" : ""}`; }
     bar.hidden = false;
-    bar.innerHTML = `<div><b>📜 Past prediction · ${dayLbl(key)}</b><span>Replayed from NOAA HRRR/GFS short-range model hours — not a live forecast, not a photo${cmp}</span></div><button id="arch-exit" class="pill">↩ Back to Today</button>`;
+    bar.innerHTML = `<div><b>Past · ${dayLbl(key).replace(/^\w+, /, "")}</b><span>Replayed from NOAA HRRR/GFS short-range model hours — not a live forecast, not a photo${cmp}</span></div><button id="arch-exit" class="pill">↩ ${RISE ? "Today" : "Tonight"}</button>`;
     $("#arch-exit").onclick = exitArchive;
   }
-  { const b = $("#archive-btn"); if (b) b.addEventListener("click", async () => { if (state.arch) return exitArchive(); const o = b.textContent; b.disabled = true; b.textContent = "Loading past days…";
-      await enterArchive(ymd(Date.now() / 1000 - 86400, "America/New_York")); b.disabled = false; b.textContent = state.arch ? "↩ Today" : (state.archErr || o); if (!state.arch) setTimeout(() => b.textContent = o, 4000); }); const c = $("#archive-close"); if (c) c.addEventListener("click", closeArchive); const sc = $("#arch-scrim"); if (sc) sc.addEventListener("click", closeArchive); }
-  document.addEventListener("keydown", e => { if (e.key === "Escape" && document.body.classList.contains("arch-open")) closeArchive(); });
 
   // boot
   Promise.all([loadData(), loadNoaa(), loadMarine()]).then(([d, N, MW]) => {
@@ -1058,6 +1041,7 @@
 // (removed)     if (RISE && d.S[0] && d.S[0].daily.sunrise[0] + 3600 < Date.now() / 1000) { state.day = 1; state.autoDay = true; }   // this morning's sunrise is over → show tomorrow
     archSaveAll(); update();
     $("#loading").classList.add("done");
+    setTimeout(() => loadPast().catch(() => {}), 2500);   // d25j: past-day cards fill in after the live forecast is up
     // Draft: refresh forecast + renderings every 15 min (skipped while replaying the archive)
     // d24: CURRENT-DAY auto-refresh (Sean): every 15 min while the app is open, and on returning to the tab if a cycle is due — no reload,
     // music keeps playing. Each cycle: model clouds by layer (refetched when > 28 min old), marine, then the observed sky for today's events
