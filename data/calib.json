@@ -2,11 +2,9 @@
  "updated": "2026-10-24T12:56:27.130Z",
  "note": "score offsets from user feedback; bounded ±8 global, ±5 per spot",
  "sunset": {
-  "n": 4,
+  "n": 0,
   "global": 0,
-  "spots": {
-   "cadillac": 5
-  },
+  "spots": {},
   "cloudBias": 0,
   "cloudN": 0
  },

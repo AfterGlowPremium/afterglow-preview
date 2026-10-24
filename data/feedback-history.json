@@ -118,7 +118,8 @@
    "colorScore": 100
   },
   "ver": "d24a",
-  "resid": 18
+  "resid": 18,
+  "test": true
  },
  {
   "id": "8d7e500a-63bb-4007-a4de-06ed56cc8df2",
@@ -132,7 +133,8 @@
   "sky": {},
   "photo": null,
   "ver": "d24a",
-  "resid": 6
+  "resid": 6,
+  "test": true
  },
  {
   "id": "e8c11837-8635-4280-b951-1ae89aa98540",
@@ -146,7 +148,8 @@
   "sky": {},
   "photo": null,
   "ver": "d24a",
-  "resid": 27
+  "resid": 27,
+  "test": true
  },
  {
   "id": "8d7b5c26-83aa-4c09-9c44-8db6ec263b5a",
@@ -169,6 +172,7 @@
    "colorScore": 100
   },
   "ver": "d24a",
-  "resid": 31
+  "resid": 31,
+  "test": true
  }
 ]
