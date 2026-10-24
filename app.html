@@ -28,7 +28,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="styles.css?v=d26q">
+<link rel="stylesheet" href="styles.css?v=d26r">
 <style>/* inside the shell iframe: use the insets the shell measured */
 .top{padding-top:calc(18px + max(env(safe-area-inset-top,0px), var(--ag-sat,0px)))}
 @media (max-width:900px){
@@ -41,15 +41,18 @@
 </head>
 <body>
 <script>if (window.parent === window) location.replace("./" + location.search + location.hash);</script>
-<script>window.AG_BUILD = "d26q"; window.AG_SHELL = window.parent !== window;</script>
+<script>window.AG_BUILD = "d26r"; window.AG_SHELL = window.parent !== window;</script>
 <script>window.AG = { realistic: true };</script>
-<script src="config.js?v=d26q"></script>
+<script src="config.js?v=d26r"></script>
 <script>
   // No ?mode= → show the welcome homepage first (app.js stays idle until a choice is made)
   (function () { var m = new URLSearchParams(location.search).get("mode"); if (m !== "sunrise" && m !== "sunset") document.documentElement.classList.add("show-home"); })();
 </script>
 <section id="home" class="home" aria-label="Welcome to Afterglow Premium">
   <canvas id="home-cv" class="home-cv" aria-hidden="true"></canvas>
+  <div class="hi-intro" aria-hidden="true"><div class="hi-t">Afterglow <em>Premium</em></div><div class="hi-tag">East Coast sunrise &amp; sunset forecasts</div></div>
+  <div class="hi-pill hi-rb" aria-hidden="true"><i></i>Rainbow</div><div class="hi-pill hi-tri" aria-hidden="true"><i></i>Trifecta watch</div><div class="hi-pill hi-lt" aria-hidden="true"><i></i>Lightning</div>
+  
   <div class="home-card">
     <div class="logo home-logo"><span class="sun"></span></div>
     <h1>Welcome to Afterglow Premium</h1>
@@ -62,24 +65,36 @@
     <p class="site-copy">© Sean Tuttle 2026</p>
   </div>
 </section>
-<script>/* d26q: welcome animation — dawn→dusk sky cycle, sun over water with reflection, drifting clouds. Canvas 2D, no data needed. */
-(function(){if(!document.documentElement.classList.contains("show-home"))return;var cv=document.getElementById("home-cv");if(!cv)return;var x=cv.getContext("2d"),W=0,H=0,D=1,RM=matchMedia("(prefers-reduced-motion: reduce)").matches;
-var K=[[0,"#07061a","#1a1440","#2b1d55"],[.18,"#1c1a4a","#7a4b9a","#ff8fa3"],[.3,"#3c5fb8","#f7a8b8","#ffd08a"],[.5,"#3f7fd0","#8fc0ea","#e9f2ff"],[.7,"#3a3c8f","#ff5f9e","#ffb347"],[.82,"#1b1446","#9b3d8a","#ff6a3d"],[1,"#07061a","#1a1440","#2b1d55"]];
-function hx(h){return[parseInt(h.substr(1,2),16),parseInt(h.substr(3,2),16),parseInt(h.substr(5,2),16)]}function mix(a,b,f){a=hx(a);b=hx(b);return"rgb("+Math.round(a[0]+(b[0]-a[0])*f)+","+Math.round(a[1]+(b[1]-a[1])*f)+","+Math.round(a[2]+(b[2]-a[2])*f)+")"}
-function pal(p){for(var i=0;i<K.length-1;i++)if(p<=K[i+1][0]){var f=(p-K[i][0])/(K[i+1][0]-K[i][0]);f=f*f*(3-2*f);return[mix(K[i][1],K[i+1][1],f),mix(K[i][2],K[i+1][2],f),mix(K[i][3],K[i+1][3],f)]}return K[0].slice(1)}
-var st=[],cl=[];for(var i=0;i<90;i++)st.push([Math.random(),Math.random()*.6,Math.random()*1.3+.3,Math.random()*6]);for(i=0;i<7;i++)cl.push([Math.random(),.12+Math.random()*.38,.12+Math.random()*.2,.4+Math.random()*.6,.004+Math.random()*.008]);
+<script>/* d26r: welcome intro (after Sean's reference): sunset seascape full-screen, rainbow left, lightning right, intro title + pills,
+   push-in, then the glass chooser slides up. One-way; scene keeps gently moving. Tap skips. Reduce-motion → final state at once. */
+(function(){var R=document.documentElement;if(!R.classList.contains("show-home"))return;var cv=document.getElementById("home-cv"),hm=document.getElementById("home");if(!cv)return;
+var x=cv.getContext("2d"),W=0,H=0,D=1,RM=matchMedia("(prefers-reduced-motion: reduce)").matches,bolt=0,nextB=performance.now()+1200;
+var cl=[];for(var i=0;i<6;i++)cl.push([Math.random(),.1+Math.random()*.32,.18+Math.random()*.22,.006+Math.random()*.008]);
 function size(){D=Math.min(2,devicePixelRatio||1);W=cv.clientWidth;H=cv.clientHeight;cv.width=W*D;cv.height=H*D}addEventListener("resize",size);size();
-var T0=performance.now(),CYC=24000;
-function frame(now){var p=RM?.76:((now-T0)%CYC)/CYC,c=pal(p),hz=H*.64;x.setTransform(D,0,0,D,0,0);
-var g=x.createLinearGradient(0,0,0,hz);g.addColorStop(0,c[0]);g.addColorStop(.6,c[1]);g.addColorStop(1,c[2]);x.fillStyle=g;x.fillRect(0,0,W,hz);
-var night=Math.max(0,Math.abs(p-.5)*4-1.1);if(night>0){x.fillStyle="#fff";for(var i=0;i<st.length;i++){var s=st[i];x.globalAlpha=night*(.5+.5*Math.sin(now/700+s[3]));x.fillRect(s[0]*W,s[1]*hz,s[2],s[2])}x.globalAlpha=1}
-var a=(p-.1)/.8*Math.PI,sx=W*(.15+.7*(p-.1)/.8),sy=hz-Math.sin(Math.max(0,Math.min(Math.PI,a)))*hz*.62+12,up=p>.1&&p<.9,R=Math.max(16,Math.min(W,H)*.06);
-if(up){var gl=x.createRadialGradient(sx,sy,0,sx,sy,R*7);gl.addColorStop(0,"rgba(255,236,190,.75)");gl.addColorStop(.25,"rgba(255,160,110,.35)");gl.addColorStop(1,"rgba(255,120,160,0)");x.fillStyle=gl;x.fillRect(0,0,W,hz);x.save();x.beginPath();x.rect(0,0,W,hz);x.clip();x.fillStyle="#fff4d6";x.beginPath();x.arc(sx,sy,R,0,6.283);x.fill();x.restore()}
-for(i=0;i<cl.length;i++){var q=cl[i];if(!RM)q[0]+=q[4]/60;if(q[0]>1.3)q[0]=-.3;var cx=q[0]*W,cy=q[1]*hz,w=q[2]*W;var lg=x.createLinearGradient(0,cy-w*.12,0,cy+w*.12);lg.addColorStop(0,"rgba(255,255,255,"+(.1+.2*(1-night))+")");lg.addColorStop(1,c[2].replace("rgb","rgba").replace(")",","+(.55*q[3])+")"));x.fillStyle=lg;x.beginPath();x.ellipse(cx,cy,w*.5,w*.08,0,0,6.283);x.ellipse(cx+w*.15,cy-w*.04,w*.25,w*.07,0,0,6.283);x.fill()}
-var wg=x.createLinearGradient(0,hz,0,H);wg.addColorStop(0,c[2]);wg.addColorStop(.25,c[1]);wg.addColorStop(1,"#0a0718");x.globalAlpha=.85;x.fillStyle=wg;x.fillRect(0,hz,W,H-hz);x.globalAlpha=1;
-if(up){for(var y=hz+2;y<H;y+=3){var k=(y-hz)/(H-hz),ww=R*(1.2+k*5)*(.6+.4*Math.sin(y*.21+now/400)),al=.55*(1-k)*(1-Math.min(1,(hz-sy)/(hz*.7)))+.08;x.fillStyle="rgba(255,226,170,"+al.toFixed(3)+")";x.fillRect(sx-ww/2+Math.sin(y*.13+now/600)*4,y,ww,1.4)}}
-x.strokeStyle="rgba(255,255,255,.07)";x.lineWidth=1;for(y=hz+6;y<H;y+=10+(y-hz)*.06){x.beginPath();for(var xx=0;xx<=W;xx+=12)x.lineTo(xx,y+Math.sin(xx*.03+now/900+y)*1.5*(1+(y-hz)/H*3));x.stroke()}
-if(!RM&&document.documentElement.classList.contains("show-home"))requestAnimationFrame(frame)}requestAnimationFrame(frame)})();</script>
+function boltPath(x0,y0,y1,seed){var p=[[x0,y0]],y=y0,xx=x0,r=seed;while(y<y1){r=(r*9301+49297)%233280;y+=(y1-y0)/9;xx+=((r/233280)-.5)*W*.06;p.push([xx,y])}return p}
+var bp=null;
+function frame(now){x.setTransform(D,0,0,D,0,0);var hz=H*.62,t=now/1000;
+var g=x.createLinearGradient(0,0,0,hz);g.addColorStop(0,"#1c0f2e");g.addColorStop(.35,"#3B1C4A");g.addColorStop(.62,"#9b3d7a");g.addColorStop(.84,"#ff7a3d");g.addColorStop(.95,"#FFA500");g.addColorStop(1,"#FFD700");x.fillStyle=g;x.fillRect(0,0,W,hz);
+var sx=W*.5,sy=hz+2,Rr=Math.max(22,Math.min(W,H)*.075);var gl=x.createRadialGradient(sx,sy,0,sx,sy,Rr*8);gl.addColorStop(0,"rgba(255,240,200,.95)");gl.addColorStop(.18,"rgba(255,190,90,.55)");gl.addColorStop(1,"rgba(255,90,140,0)");x.fillStyle=gl;x.fillRect(0,0,W,hz);
+x.save();x.beginPath();x.rect(0,0,W,hz);x.clip();x.fillStyle="#fff6dc";x.beginPath();x.arc(sx,sy,Rr,0,6.283);x.fill();
+// rainbow arching from the left
+var rc=[W*.62,hz+H*.02],rr=Math.max(W,H)*.52,cols=["255,60,60","255,150,40","255,230,60","80,220,90","70,150,255","120,80,230","180,90,220"];x.lineWidth=Math.max(3,W*.011);
+for(var k=0;k<cols.length;k++){var gg=x.createLinearGradient(rc[0]-rr,0,rc[0],0);gg.addColorStop(0,"rgba("+cols[k]+",.55)");gg.addColorStop(.75,"rgba("+cols[k]+",.4)");gg.addColorStop(1,"rgba("+cols[k]+",0)");x.strokeStyle=gg;x.beginPath();x.arc(rc[0],rc[1],rr-k*x.lineWidth,Math.PI,Math.PI*1.62);x.stroke()}
+// clouds
+for(i=0;i<cl.length;i++){var q=cl[i];if(!RM)q[0]+=q[3]/60;if(q[0]>1.3)q[0]=-.3;var cx=q[0]*W,cy=q[1]*hz,w=q[2]*W,lg=x.createLinearGradient(0,cy-w*.1,0,cy+w*.1);lg.addColorStop(0,"rgba(120,70,140,.55)");lg.addColorStop(1,"rgba(255,140,120,.55)");x.fillStyle=lg;x.beginPath();x.ellipse(cx,cy,w*.5,w*.07,0,0,6.283);x.ellipse(cx+w*.16,cy-w*.035,w*.24,w*.06,0,0,6.283);x.fill()}
+// lightning on the right horizon
+if(!RM&&now>nextB){bolt=now;bp=boltPath(W*(.8+Math.random()*.1),hz*.12,hz-2,Math.floor(Math.random()*1e5));nextB=now+3500+Math.random()*3500}
+var ba=bolt?Math.max(0,1-(now-bolt)/380):0;if(ba>0&&bp){x.fillStyle="rgba(200,180,255,"+(.18*ba)+")";x.fillRect(0,0,W,hz);x.strokeStyle="rgba(240,235,255,"+ba+")";x.shadowColor="#b9a6ff";x.shadowBlur=14;x.lineWidth=2.2;x.beginPath();bp.forEach(function(p,j){j?x.lineTo(p[0],p[1]):x.moveTo(p[0],p[1])});x.stroke();x.shadowBlur=0}
+x.restore();
+// water + reflection
+var wg=x.createLinearGradient(0,hz,0,H);wg.addColorStop(0,"#ff9a3d");wg.addColorStop(.12,"#8a3d7a");wg.addColorStop(.5,"#2a1640");wg.addColorStop(1,"#0b0718");x.fillStyle=wg;x.fillRect(0,hz,W,H-hz);
+for(var y=hz+1;y<H;y+=3){var kk=(y-hz)/(H-hz),ww=Rr*(1.4+kk*6)*(.55+.45*Math.sin(y*.23+t*2.4)),al=.75*(1-kk)+.06;x.fillStyle="rgba(255,214,140,"+al.toFixed(3)+")";x.fillRect(sx-ww/2+Math.sin(y*.11+t*1.6)*5,y,ww,1.5)}
+x.strokeStyle="rgba(255,200,220,.08)";x.lineWidth=1;for(y=hz+5;y<H;y+=8+(y-hz)*.07){x.beginPath();for(var xx=0;xx<=W;xx+=12)x.lineTo(xx,y+Math.sin(xx*.03+t*1.1+y)*1.4*(1+(y-hz)/H*3));x.stroke()}
+if(R.classList.contains("show-home")&&!document.hidden)requestAnimationFrame(frame);else setTimeout(function(){requestAnimationFrame(frame)},500)}
+requestAnimationFrame(frame);
+var st=function(c){hm.classList.add(c)},T=[];function fin(){T.forEach(clearTimeout);st("hi-push");st("hi-ui")}
+if(RM)fin();else{T.push(setTimeout(function(){st("hi-push")},1000));T.push(setTimeout(function(){st("hi-ui")},3000));hm.addEventListener("pointerdown",function(e){if(!hm.classList.contains("hi-ui")){e.preventDefault();fin()}},{once:false})}
+})();</script>
 <div class="sky-bg"></div>
 <header class="top">
   <div class="brand">
@@ -159,14 +174,14 @@ if(!RM&&document.documentElement.classList.contains("show-home"))requestAnimatio
 <div id="loading" class="loading"><div class="ld-sun"></div><p>Reading the sky…</p></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="spots.js?v=d26q"></script>
-<script src="search.js?v=d26q"></script>
-<script src="model.js?v=d26q"></script>
-<script src="preview.js?v=d26q"></script>
-<script src="photoreal.js?v=d26q"></script>
-<script src="ground.js?v=d26q"></script>
-<script src="photostage.js?v=d26q"></script>
-<script src="satellite.js?v=d26q"></script>
+<script src="spots.js?v=d26r"></script>
+<script src="search.js?v=d26r"></script>
+<script src="model.js?v=d26r"></script>
+<script src="preview.js?v=d26r"></script>
+<script src="photoreal.js?v=d26r"></script>
+<script src="ground.js?v=d26r"></script>
+<script src="photostage.js?v=d26r"></script>
+<script src="satellite.js?v=d26r"></script>
 <script>
   (function () {
     var m = new URLSearchParams(location.search).get("mode"); if (m !== "sunrise" && m !== "sunset") return;
@@ -182,12 +197,12 @@ if(!RM&&document.documentElement.classList.contains("show-home"))requestAnimatio
     }
   })();
 </script>
-<script src="obs.js?v=d26q"></script>
-<script src="wx.js?v=d26q"></script>
-<script src="agx.js?v=d26q"></script>
-<script src="looks.js?v=d26q"></script>
-<script src="app.js?v=d26q"></script>
-<script src="scene.js?v=d26q"></script>
-<script>/* d26q */(function(){function f(){var h=document.querySelector(".top"),c=h&&h.querySelector(".top-ctl");if(c)document.documentElement.style.setProperty("--brandH",Math.max(0,c.offsetTop-6)+"px");}addEventListener("load",f);addEventListener("resize",f);setTimeout(f,1500);})();</script>
+<script src="obs.js?v=d26r"></script>
+<script src="wx.js?v=d26r"></script>
+<script src="agx.js?v=d26r"></script>
+<script src="looks.js?v=d26r"></script>
+<script src="app.js?v=d26r"></script>
+<script src="scene.js?v=d26r"></script>
+<script>/* d26r */(function(){function f(){var h=document.querySelector(".top"),c=h&&h.querySelector(".top-ctl");if(c)document.documentElement.style.setProperty("--brandH",Math.max(0,c.offsetTop-6)+"px");}addEventListener("load",f);addEventListener("resize",f);setTimeout(f,1500);})();</script>
 </body>
 </html>
