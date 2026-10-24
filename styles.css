@@ -774,3 +774,5 @@ html.ag-desk .stage .ev-toggle a{font-size:13px;padding:8px 14px}
 @media (min-width:1024px) and (pointer:fine),(min-width:1024px) and (pointer:none){
   .pin span{font-size:10px}
 }
+
+.stage .pv-fg{position:absolute;bottom:-1%;max-width:360px;pointer-events:none;z-index:2;filter:drop-shadow(0 0 1px rgba(255,170,120,.35))}
