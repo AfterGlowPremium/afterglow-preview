@@ -144,7 +144,7 @@
     const v = r.map(x => x ? x.cv : 0), th = r.map(x => x ? x.thick : 0);
     const o = { tSet: ev.tSet, at: n, km: CVK, cv: v.map(x => +x.toFixed(2)), thick: th.map(x => +x.toFixed(2)),
       here: 0.3 * v[0] + 0.25 * v[1] + 0.25 * v[2] + 0.2 * v[3], west: (v[0] + v[1] + v[2] + v[3] + v[4]) / 5, far: 0.5 * v[5] + 0.5 * v[6], farThick: Math.max(th[5], th[6]) };
-    const P = O.cv[sp.id]; if (P && P.irMid && P.tSet === o.tSet && n - P.at < 2400) Object.assign(o, { irCv: P.irCv, irMid: P.irMid, irLow: P.irLow }); if (P && P.antiIrMid && P.tSet === o.tSet && n - P.at < 2400) for (const k in P) if (/^(anti|side|over)/.test(k)) o[k] = P[k];   // d24j: keep the opposite-sky/overhead reads too   // keep the 15-min snapshot's IR heights
+    const P = O.cv[sp.id]; if (P && P.irMid && P.tSet === o.tSet && n - P.at < 2400) Object.assign(o, { irCv: P.irCv, irMid: P.irMid, irLow: P.irLow }); if (P && P.storms && P.tSet === o.tSet) { o.storms = P.storms; if (P.stormsAnti) o.stormsAnti = P.stormsAnti; }   // d24t: radar storm cells from the snapshot if (P && P.antiIrMid && P.tSet === o.tSet && n - P.at < 2400) for (const k in P) if (/^(anti|side|over|storms)/.test(k)) o[k] = P[k];   // d24j: keep the opposite-sky/overhead reads too   // keep the 15-min snapshot's IR heights
     O.cv[sp.id] = o; const keep = {}; for (const k in O.cv) if (n - O.cv[k].tSet < 86400) keep[k] = O.cv[k]; lsSet("ag-obs-cv", keep);
     return o;
   }

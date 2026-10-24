@@ -177,7 +177,7 @@ float dens(int L, vec2 p, float fp, float dist){
     puff = mix(puff, .45, fpp);
     float cells = clamp((m * puff * 1.5 - (1. - det) * .55) * 1.2, 0., 1.);
     // forecast says the deck is (near) solid: altostratus sheet with soft undulations, cells only as texture on top
-    float sheetW = smoothstep(.55, .95, cov);
+    float sheetW = smoothstep(.45, .85, cov);   // d24t: matches the label (altostratus from 50% mid cover)
     // thin, translucent fill between the cells (so gaps glow instead of showing open sky) + slow undulation rolls
     float roll = .5 + .5*sin(dot(q, vec2(.9, .25)) * .55 + fbm(q*.2, fp*.2, 3)*5.);
     float sheet = (.12 + .30*fbm(q*.12 + 4., fp*.12, 5) + .12*roll) * (.75 + .25*det);

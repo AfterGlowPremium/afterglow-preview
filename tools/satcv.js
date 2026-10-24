@@ -24,6 +24,34 @@ async function frame(t, band = "vis") {   // nearest archived slot at/before t (
       frames[key] = { t: s, px: b.subarray(off, off + W * H), W, H }; return frames[key]; } catch (e) { frames[key] = null; } }
   return null;
 }
+// d24t: NEXRAD composite reflectivity (IEM n0q, 0.005°, UL -126/50, 8-bit palette index → dBZ = idx/2 − 32.5), decoded with zlib only.
+const zlib = require("zlib");
+let radarF;
+async function radar(t) {
+  if (radarF !== undefined) return radarF; radarF = null;
+  let s = Math.floor(Math.min(t, Date.now() / 1000 - 300) / 300) * 300;
+  for (let k = 0; k < 4; k++, s -= 300) { const d = new Date(s * 1000), p = v => String(v).padStart(2, "0"), ymd = `${d.getUTCFullYear()}/${p(d.getUTCMonth() + 1)}/${p(d.getUTCDate())}`, st = `${d.getUTCFullYear()}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}${p(d.getUTCHours())}${p(d.getUTCMinutes())}`;
+    try { const r = await fetch(`https://mesonet.agron.iastate.edu/archive/data/${ymd}/GIS/uscomp/n0q_${st}.png`); if (!r.ok) continue; const b = Buffer.from(await r.arrayBuffer());
+      const W = b.readUInt32BE(16), H = b.readUInt32BE(20); const idat = []; for (let o = 8; o < b.length;) { const n = b.readUInt32BE(o), ty = b.toString("ascii", o + 4, o + 8); if (ty === "IDAT") idat.push(b.subarray(o + 8, o + 8 + n)); o += 12 + n; }
+      const raw = zlib.inflateSync(Buffer.concat(idat)), px = Buffer.alloc(W * H), st2 = W + 1;
+      for (let y = 0; y < H; y++) { const f = raw[y * st2], o = y * st2 + 1, q = y * W; for (let x = 0; x < W; x++) { const a = x ? px[q + x - 1] : 0, up = y ? px[q - W + x] : 0, ul = x && y ? px[q - W + x - 1] : 0; let v = raw[o + x];
+        if (f === 1) v += a; else if (f === 2) v += up; else if (f === 3) v += (a + up) >> 1; else if (f === 4) { const pp = a + up - ul, pa = Math.abs(pp - a), pb = Math.abs(pp - up), pc = Math.abs(pp - ul); v += pa <= pb && pa <= pc ? a : pb <= pc ? up : ul; } px[q + x] = v & 255; } }
+      return (radarF = { t: s, W, H, px }); } catch (e) {} }
+  return null;
+}
+const dbzAt = (R, lat, lng) => { const x = Math.round((lng + 126) / 0.005), y = Math.round((50 - lat) / 0.005); let m = 0; for (let j = -2; j <= 2; j++) for (let i = -2; i <= 2; i++) { const v = R.px[(y + j) * R.W + x + i] || 0; if (v > m) m = v; } return m ? m / 2 - 32.5 : -99; };
+// GOES IR count → brightness temperature (McIDAS 8-bit IR: c ≤ 176 → 330 − c/2, else 418 − c); cloud top ≈ (T_sfc − Tb) / 6.5 K/km
+const topKmAt = (F, lat, lng, tSfc = 293) => { if (!F) return null; const x = Math.round((lng + 130) / 0.04), y = Math.round((52 - lat) / 0.04); let c = 0; for (let j = -2; j <= 2; j++) for (let i = -2; i <= 2; i++) c = Math.max(c, F.px[(y + j) * F.W + x + i] || 0);
+  const tb = c <= 176 ? 330 - c / 2 : 418 - c; return Math.max(0, Math.min(17, (tSfc - tb) / 6.5)); };
+// storms in a ±60° sector around a bearing, 10–200 km: per 4° bin the nearest >= 40 dBZ echo, its peak dBZ and IR cloud-top height; a LINE = >= 4 adjacent bins
+async function storms(sp, az, t, FI) {
+  const R = await radar(t); if (!R) return null; const out = [];
+  for (let db = -60; db <= 60; db += 4) { const b = (az + db + 360) % 360; for (let d = 10; d <= 200; d += 4) { const p = offset(sp.lat, sp.lng, b, d), z = dbzAt(R, p.lat, p.lng);
+      if (z >= 40) { let mz = z; for (let d2 = d + 4; d2 <= d + 20; d2 += 4) { const q = offset(sp.lat, sp.lng, b, d2); mz = Math.max(mz, dbzAt(R, q.lat, q.lng)); }
+        const tk = topKmAt(FI, p.lat, p.lng); out.push([db, d, Math.round(mz), tk == null ? null : +tk.toFixed(1)]); break; } } }
+  let run = 0, best = 0; for (let db = -60, k = 0; db <= 60; db += 4) { if (out[k] && out[k][0] === db) { run++; k++; } else run = 0; best = Math.max(best, run); }
+  return { t: R.t, cells: out, line: best >= 4 };
+}
 function stripOff(b) { const ifd = b.readUInt32LE(4), n = b.readUInt16LE(ifd); for (let i = 0; i < n; i++) { const e = ifd + 2 + 12 * i; if (b.readUInt16LE(e) === 273) { const cnt = b.readUInt32LE(e + 4), v = b.readUInt32LE(e + 8); return cnt === 1 ? v : b.readUInt32LE(v); } } return 0; }
 function canvasAt(F, lat, lng) {
   const x = Math.round((lng + 130) / 0.04), y = Math.round((52 - lat) / 0.04); if (x < 35 || y < 35 || x >= F.W - 35 || y >= F.H - 35) return null;
@@ -63,8 +91,9 @@ function irAt(F, lat, lng) {
     { const A = row(anti), L = row((anti + 315) % 360), R = row((anti + 45) % 360), o0 = canvasAt(F, sp.lat, sp.lng), i0 = FI && FI.t === F.t ? irAt(FI, sp.lat, sp.lng) : null;
       Object.assign(ax, { antiKm: AKM, antiCv: A.cv, antiIrCv: A.irCv, antiIrMid: A.irMid, antiIrLow: A.irLow, sideCv: AKM.map((_, i) => f2((L.cv[i] + R.cv[i]) / 2)), sideIrMid: AKM.map((_, i) => f2((L.irMid[i] + R.irMid[i]) / 2)), sideIrLow: AKM.map((_, i) => f2((L.irLow[i] + R.irLow[i]) / 2)),
         overCv: f2(irOnly ? (i0 ? i0.cv : 0) : o0 ? o0.cv : 0), overIrCv: f2(i0 ? i0.cv : 0), overIrMid: f2(i0 ? i0.mid : 0), overIrLow: f2(i0 ? i0.low : 0) }); }
+    const stS = await storms(sp, az, F.t, FI && FI.t === F.t ? FI : null), stA = await storms(sp, (az + 180) % 360, F.t, FI && FI.t === F.t ? FI : null);   // d24t: radar storm cells sun-side + opposite
     res[sp.id] = { tSet, at: F.t, km: KM, cv: v.map(f2), thick: th.map(f2), here: f2(0.3 * v[0] + 0.25 * v[1] + 0.25 * v[2] + 0.2 * v[3]), west: f2((v[0] + v[1] + v[2] + v[3] + v[4]) / 5),
-      far: f2(0.5 * v[5] + 0.5 * v[6]), farThick: f2(Math.max(th[5], th[6])), ...irx, ...ax, hrsToEvent: +((tSet - F.t) / 3600).toFixed(2), src: irOnly ? "goes-ir4km-only" : irx.irCv ? "goes-vis+ir4km-archive" : "goes-vis4km-archive" };
+      far: f2(0.5 * v[5] + 0.5 * v[6]), farThick: f2(Math.max(th[5], th[6])), ...irx, ...ax, hrsToEvent: +((tSet - F.t) / 3600).toFixed(2), ...(stS ? { storms: stS } : {}), ...(stA ? { stormsAnti: stA } : {}), src: irOnly ? "goes-ir4km-only" : irx.irCv ? "goes-vis+ir4km-archive" : "goes-vis4km-archive" };
   }
   fs.writeFileSync(out, JSON.stringify({ v: 1, day, gen: new Date().toISOString(), spots: res }));
   console.log("satcv", day, Object.keys(res).length, "spots ->", out);
