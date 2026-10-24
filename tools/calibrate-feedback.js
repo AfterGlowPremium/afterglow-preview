@@ -28,7 +28,7 @@ function metrics(buf) {   // sky photo → brightness, saturation, warm-colour s
     let m = null;
     if (e.photo_path) try { const p = await fetch(`${URL0}/storage/v1/object/feedback/${e.photo_path}`, { headers: H }); if (!p.ok) throw new Error(p.status); m = metrics(Buffer.from(await p.arrayBuffer())); } catch (x) { log.push(`- ${e.id}: photo unreadable (${x.message})`); }
     const raw = e.pred && typeof e.pred.raw === "number" ? e.pred.raw : null, sky = e.pred && e.pred.sky;
-    const rec = { id: e.id, at: e.created_at, spot: e.spot, mode: e.mode, rating: e.rating, raw, sky, photo: m, ver: e.app_version };
+    const rec = { id: e.id, at: e.shot_at || e.created_at, shot: e.shot_at || null, saved: e.created_at, spot: e.spot, mode: e.mode, rating: e.rating, raw, sky, photo: m, ver: e.app_version };
     if (raw != null && typeof e.rating === "number") rec.resid = Math.round(m ? .7 * (e.rating - raw) + .3 * (m.colorScore - raw) : e.rating - raw);
     if (m && sky && typeof sky.total === "number") rec.cloudErr = Math.round(100 * m.cloud - sky.total);
     if (e.spot === "test") rec.test = true;

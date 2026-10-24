@@ -787,3 +787,4 @@ html.ag-desk .stage .ev-toggle a{font-size:13px;padding:8px 14px}
 .stage .pv-fg2.pv-hr{transform:none;object-position:0% 100%;transform-origin:12.8% 74.2%;animation:hrhead 13s ease-in-out infinite}
 @keyframes hrhead{0%,38%{transform:rotate(0)}44%,60%{transform:rotate(-4deg) translateX(-.2%)}66%,100%{transform:rotate(0)}}
 @media (prefers-reduced-motion:reduce){.stage .pv-fg.pv-hr,.stage .pv-fg2.pv-hr{animation:none}}
+#fb-panel .fb-dt{display:flex;gap:6px;margin-top:4px}#fb-panel input[type=date],#fb-panel input[type=time]{flex:1;min-width:0;font-size:16px;background:#ffffff12;color:inherit;border:1px solid #ffffff30;border-radius:8px;padding:8px}#fb-panel #fb-send{width:100%;font-size:16px;padding:12px;margin-top:6px}#fb-panel #fb-msg{min-height:1.2em;font-size:14px}

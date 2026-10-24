@@ -58,53 +58,67 @@
   // d25a: Supabase upload + offline retry queue. Entries stay in localStorage with up:false until both the photo and the row are accepted;
   // retried on Save, on app open and when the phone comes back online. Uploaded photos are dropped locally to free space.
   const UP = {
-    cfg: () => g.AG_CONFIG || {}, on: () => !!(UP.cfg().SUPABASE_URL && UP.cfg().SUPABASE_ANON_KEY), busy: null,
+    cfg: () => g.AG_CONFIG || {}, on: () => !!(UP.cfg().SUPABASE_URL && UP.cfg().SUPABASE_ANON_KEY), busy: null, err: "",
     async one(e) { const C = UP.cfg(), base = C.SUPABASE_URL.replace(/\/$/, ""), H = { apikey: C.SUPABASE_ANON_KEY }; if (!/^sb_/.test(C.SUPABASE_ANON_KEY)) H.Authorization = "Bearer " + C.SUPABASE_ANON_KEY;   // new sb_publishable keys go in apikey only
-      let path = null;
-      if (e.photo) { path = `${(e.at || "").slice(0, 10)}/${e.spot}-${e.id}.jpg`; const blob = await (await fetch(e.photo)).blob();
-        const r = await fetch(`${base}/storage/v1/object/feedback/${path}`, { method: "POST", headers: Object.assign({ "Content-Type": "image/jpeg", "x-upsert": "false" }, H), body: blob });
-        if (!r.ok && r.status !== 409 && !/Duplicate|already exists/i.test(await r.text().catch(() => ""))) throw new Error("photo " + r.status); }
-      const row = { id: e.id, spot: e.spot, mode: e.mode || "sunset", saved_at: e.at, shot_at: e.shot, view_t: e.viewT ? new Date(e.viewT * 1000).toISOString() : null, day: e.day,
-        rating: e.actual, accuracy: e.acc, notes: (e.note || "").slice(0, 2000), photo_path: path, app_version: e.ver, pred: e.pred };
+      let path = e.photoPath || null;
+      if (e.photo && !path) { const p = `${(e.at || "").slice(0, 10)}/${String(e.spot).toLowerCase().replace(/[^a-z0-9_-]/g, "")}-${e.id}.jpg`, blob = await (await fetch(e.photo)).blob();
+        const r = await fetch(`${base}/storage/v1/object/feedback/${p}`, { method: "POST", headers: Object.assign({ "Content-Type": "image/jpeg", "x-upsert": "false" }, H), body: blob });
+        const t = r.ok ? "" : await r.text().catch(() => ""); if (!r.ok && r.status !== 409 && !/Duplicate|already exists/i.test(t)) throw new Error(`photo upload ${r.status} ${t.slice(0, 120)}`);
+        path = e.photoPath = p; }
+      const row = { id: e.id, spot: e.spot, mode: e.mode === "sunrise" ? "sunrise" : "sunset", saved_at: e.at, shot_at: e.shot || null, view_t: e.viewT ? new Date(e.viewT * 1000).toISOString() : null, day: e.day,
+        rating: e.actual, accuracy: e.acc, notes: (e.note || "").slice(0, 2000), photo_path: path, app_version: String(e.ver || "").slice(0, 20), pred: e.pred };
       const r2 = await fetch(`${base}/rest/v1/feedback`, { method: "POST", headers: Object.assign({ "Content-Type": "application/json", Prefer: "return=minimal" }, H), body: JSON.stringify(row) });
-      if (!r2.ok && r2.status !== 409) throw new Error("row " + r2.status); },
-    flush() { if (!UP.on()) return Promise.resolve({ fail: 0 }); if (UP.busy) return UP.busy;
-      return UP.busy = (async () => { const a = load(); let fail = 0;
-        for (const e of a) { if (e.up || !e.id) continue; try { await UP.one(e); e.up = true; e.photo = null; } catch (x) { fail++; } }
-        try { localStorage.setItem(FK, JSON.stringify(a)); } catch (x) {} UP.busy = null; return { fail }; })(); }
+      if (!r2.ok && r2.status !== 409) throw new Error(`feedback ${r2.status} ${(await r2.text().catch(() => "")).slice(0, 160)}`); },
+    // queued sends run one after another (a send started while another runs waits for it, then runs again so the new entry is included)
+    flush() { if (!UP.on()) return Promise.resolve({ fail: load().filter(e => !e.up).length, off: true });
+      const run = async () => { const a = load(); let fail = 0; UP.err = "";
+        for (const e of a) { if (e.up || !e.id) continue; try { await UP.one(e); e.up = true; e.photo = null; } catch (x) { fail++; UP.err = String(x.message || x); console.warn("feedback send", x); } }
+        try { localStorage.setItem(FK, JSON.stringify(a)); } catch (x) {} return { fail, err: UP.err }; };
+      return UP.busy = (UP.busy || Promise.resolve()).catch(() => {}).then(run); }
   };
   g.addEventListener("online", () => UP.flush()); setTimeout(() => UP.flush(), 4000);
+  const pad = n => String(n).padStart(2, "0"), tzLab = d => (new Intl.DateTimeFormat("en-US", { timeZoneName: "short" }).formatToParts(d).find(p => p.type === "timeZoneName") || {}).value || "";
+  const isoOff = d => { const o = -d.getTimezoneOffset(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00${o >= 0 ? "+" : "-"}${pad(Math.floor(Math.abs(o) / 60))}:${pad(Math.abs(o) % 60)}`; };
   function panel() {
-    const sp = (g.__agSpots || []).find(s => s.id === g.__agSpot), items = load();
+    const sp = (g.__agSpots || []).find(s => s.id === g.__agSpot);
     let el = document.getElementById("fb-panel"); if (!el) { el = document.createElement("aside"); el.id = "fb-panel"; document.body.appendChild(el); }
     el.innerHTML = `<button class="fb-x" aria-label="Close">✕</button><h3>Photo & feedback</h3>
       <label>Location<select id="fb-spot">${(g.__agSpots || []).map(s => `<option value="${s.id}"${sp && s.id === sp.id ? " selected" : ""}>${s.name}, ${s.state}</option>`).join("")}</select></label>
+      <label class="fb-file">📷 Add photo<input id="fb-photo" type="file" accept="image/*"></label><img id="fb-prev" alt="" hidden>
+      <label>Photo date &amp; time <span id="fb-tz" class="fine"></span><span class="fb-dt"><input id="fb-date" type="date"> <input id="fb-time" type="time"></span><span id="fb-src" class="fine"></span></label>
       <label>How was it really? (0–100)<input id="fb-score" type="range" min="0" max="100" value="60"><output id="fb-o">60</output></label>
       <label>Forecast was<select id="fb-acc"><option>about right</option><option>too high</option><option>too low</option><option>wrong cloud type/placement</option></select></label>
       <label>Notes<textarea id="fb-note" rows="3" placeholder="e.g. cirrus lit up pink 10 min after sunset, water glassy"></textarea></label>
-      <label class="fb-file">📷 Add photo<input id="fb-photo" type="file" accept="image/*"></label><img id="fb-prev" alt="" hidden>
-      <button id="fb-save" class="btn">Save</button> <button id="fb-exp" class="btn ghost">Export all (${items.length})</button><p id="fb-msg" class="fine" role="status"></p>
-      <p class="fine">Saved on this phone for now. Draft plan: a daily job uploads these, pairs each with that day's forecast inputs, and re-fits the score weights.</p>`;
-    let img = null; const $ = s => el.querySelector(s);
+      <button id="fb-send" class="btn">Send feedback</button><p id="fb-msg" class="fine" role="status" aria-live="polite"></p>
+      <p class="fine"><a href="#" id="fb-dl">Download my feedback backup</a></p>`;
+    let img = null; const $ = s => el.querySelector(s), msg = t => { $("#fb-msg").textContent = t; };
     $(".fb-x").onclick = () => el.classList.remove("open"); $("#fb-score").oninput = e => $("#fb-o").textContent = e.target.value;
-    let shot = null; const msg = t => { $("#fb-msg").textContent = t; };
-    // d24y: read the photo's EXIF capture time from the original bytes (re-encoding strips EXIF), decode via an object URL (iPhone memory),
-    // downscale to 1280 px JPEG. Browsers apply EXIF orientation when drawing; iOS hands HEIC over as JPEG. Unreadable files say so.
-    $("#fb-photo").onchange = e => { const f = e.target.files[0]; img = null; shot = null; if (!f) return; msg("Reading photo…");
-      f.slice(0, 262144).arrayBuffer().then(b => { const m = /(\d{4}):(\d\d):(\d\d) (\d\d):(\d\d):(\d\d)/.exec(new TextDecoder("latin1").decode(b)); if (m) shot = `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}`; }).catch(() => {});
+    const evFor = id => { const st = g.__agState, r = st && st.results && st.results.find(x => x.spot.id === id); return r && r.ev; };
+    const setDT = (d, src) => { $("#fb-date").value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; $("#fb-time").value = `${pad(d.getHours())}:${pad(d.getMinutes())}`; $("#fb-tz").textContent = "(" + tzLab(d) + ")"; $("#fb-src").textContent = src; };
+    let dtUser = false, dtExif = false; const dflt = () => { if (dtUser || dtExif) return; const ev = evFor($("#fb-spot").value); setDT(ev && ev.tSet ? new Date(ev.tSet * 1000) : new Date(), ev && ev.tSet ? "Set to this day's " + (g.AG_MODE === "sunrise" ? "sunrise" : "sunset") + " — change it if needed" : ""); };
+    dflt(); $("#fb-spot").onchange = dflt; $("#fb-date").oninput = $("#fb-time").oninput = () => { dtUser = true; $("#fb-src").textContent = ""; };
+    // photo: EXIF capture time read from the original bytes (re-encoding strips EXIF) fills date & time; decoded via object URL, downscaled to 1280 px JPEG
+    $("#fb-photo").onchange = e => { const f = e.target.files[0]; img = null; if (!f) return; msg("Reading photo…");
+      f.slice(0, 262144).arrayBuffer().then(b => { const m = /(\d{4}):(\d\d):(\d\d) (\d\d):(\d\d):(\d\d)/.exec(new TextDecoder("latin1").decode(b)); if (m && !dtUser) { dtExif = true; setDT(new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5]), "From the photo"); } }).catch(() => {});
       const u = URL.createObjectURL(f), im = new Image();
-      im.onload = () => { const c = document.createElement("canvas"), k = Math.min(1, 1280 / Math.max(im.naturalWidth, im.naturalHeight)); c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k);
-        c.getContext("2d").drawImage(im, 0, 0, c.width, c.height); URL.revokeObjectURL(u); img = c.toDataURL("image/jpeg", 0.72); $("#fb-prev").src = img; $("#fb-prev").hidden = false; msg(`Photo ready (${c.width}×${c.height}${shot ? ", taken " + shot.replace("T", " ") : ""}).`); };
+      im.onload = () => { try { const c = document.createElement("canvas"), k = Math.min(1, 1280 / Math.max(im.naturalWidth, im.naturalHeight)); c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k);
+        c.getContext("2d").drawImage(im, 0, 0, c.width, c.height); img = c.toDataURL("image/jpeg", 0.72); $("#fb-prev").src = img; $("#fb-prev").hidden = false; msg(""); } catch (x) { msg("Couldn't prepare this photo: " + x.message); } URL.revokeObjectURL(u); };
       im.onerror = () => { URL.revokeObjectURL(u); msg("Couldn't read this photo here (HEIC on a computer?). Try a JPEG, or pick it on the iPhone."); };
       im.src = u; };
-    $("#fb-save").onclick = () => { const btn = $("#fb-save"); if (btn.disabled) return; btn.disabled = true; const a = load();
-      const st = g.__agState, r = st && st.results && st.results.find(x => x.spot.id === $("#fb-spot").value), ev = r && r.ev;
-      a.push({ id: (crypto.randomUUID ? crypto.randomUUID() : Date.now() + "-" + Math.random().toString(36).slice(2)), up: false, ver: g.AG_BUILD || "", day: st ? st.day : null,
-        pred: ev ? { score: ev.score, raw: ev.scoreRaw != null ? ev.scoreRaw : ev.score, tSet: ev.tSet, sky: ev.sky ? { total: ev.sky.total, low: ev.sky.low, mid: ev.sky.mid, high: ev.sky.high } : null } : null, at: new Date().toISOString(), shot, mode: g.AG_MODE, spot: $("#fb-spot").value, viewT: g.__agPvT || null, actual: +$("#fb-score").value, acc: $("#fb-acc").value, note: $("#fb-note").value, photo: img });
-      let ok = UP.on() ? "Saved ✓ — uploading…" : "Saved ✓ on this phone — use Export to send it";
-      try { localStorage.setItem(FK, JSON.stringify(a)); } catch (e) { a[a.length - 1].photo = null; try { localStorage.setItem(FK, JSON.stringify(a)); ok = "Saved without the photo (phone storage full) — Export, then clear"; } catch (e2) { ok = "Not saved: phone storage is full. Export, then clear."; } }
-      msg(ok); $("#fb-exp").textContent = `Export all (${load().length})`; img = null; shot = null; $("#fb-photo").value = ""; $("#fb-prev").hidden = true; $("#fb-note").value = ""; setTimeout(() => btn.disabled = false, 800); if (UP.on()) UP.flush().then(n => msg(n.fail ? `Saved on this phone; upload will retry (${n.fail} waiting)` : `Saved ✓ and sent — thank you`)); };
-    $("#fb-exp").onclick = () => { const b = new Blob([JSON.stringify(load(), null, 1)], { type: "application/json" }), u = URL.createObjectURL(b), l = document.createElement("a"); l.href = u; l.download = "afterglow-feedback.json"; l.click(); };
+    $("#fb-send").onclick = async () => { const btn = $("#fb-send"); if (btn.disabled) return; btn.disabled = true; btn.textContent = "Sending…"; msg("");
+      try { const a = load(), id = $("#fb-spot").value, ev = evFor(id), dv = $("#fb-date").value, tv = $("#fb-time").value, st = g.__agState;
+        const sd = dv ? new Date(`${dv}T${tv || "12:00"}`) : null, shot = sd && !isNaN(sd) ? isoOff(sd) : null;
+        a.push({ id: (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + "-" + Math.random().toString(36).slice(2)), up: false, ver: g.AG_BUILD || "", day: st ? st.day : null,
+          pred: ev ? { score: ev.score, raw: ev.scoreRaw != null ? ev.scoreRaw : ev.score, tSet: ev.tSet, sky: ev.sky ? { total: ev.sky.total, low: ev.sky.low, mid: ev.sky.mid, high: ev.sky.high } : null } : null,
+          at: new Date().toISOString(), shot, shotSrc: dtUser ? "user" : dtExif ? "exif" : "default", mode: g.AG_MODE, spot: id, viewT: g.__agPvT || null, actual: +$("#fb-score").value, acc: $("#fb-acc").value, note: $("#fb-note").value, photo: img });
+        let stored = true; try { localStorage.setItem(FK, JSON.stringify(a)); } catch (e) { a[a.length - 1].photo = null; try { localStorage.setItem(FK, JSON.stringify(a)); } catch (e2) { stored = false; } }
+        const n = stored ? await UP.flush() : { fail: 1, err: "phone storage full" };
+        if (!n.fail) { msg("Sent ✓ thanks!"); img = null; $("#fb-photo").value = ""; $("#fb-prev").hidden = true; $("#fb-note").value = ""; dtUser = dtExif = false; dflt(); }
+        else if (!stored) msg("Couldn't save — phone storage is full. Tap 'Download my feedback backup', then try again.");
+        else msg(navigator.onLine === false ? "Saved on phone — will send when you're online." : `Saved on phone, will send automatically. (${!n.err || /fetch|Load failed|NetworkError|network/i.test(n.err) ? "no connection right now" : "Send failed: " + n.err})`);
+      } catch (x) { msg("Something went wrong: " + (x.message || x)); console.warn(x); }
+      btn.disabled = false; btn.textContent = "Send feedback"; };
+    $("#fb-dl").onclick = ev => { ev.preventDefault(); const b = new Blob([JSON.stringify(load(), null, 1)], { type: "application/json" }), u = URL.createObjectURL(b), l = document.createElement("a"); l.href = u; l.download = "afterglow-feedback.json"; document.body.appendChild(l); l.click(); l.remove(); setTimeout(() => URL.revokeObjectURL(u), 4000); };
     el.classList.add("open");
   }
   addEventListener("DOMContentLoaded", () => { const b = document.createElement("button"); b.id = "fb-tab"; b.textContent = "📷 Feedback"; b.onclick = panel; document.body.appendChild(b); });
