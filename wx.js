@@ -121,6 +121,7 @@
     if (C.dune) dune(x, W, H, now);
     if (C.sea) sea(x, W, H, hz, C, now);
     if (C.carrier) { carrier(x, W, H, hz, C, now); heli(x, W, H, hz, C, now); }
+    if (C.chinook) chinook(x, W, H, hz, C, now);
     if (C.ghost) ghostTree(x, W, H, hz, C, now);
     if (C.torn) tornado(x, W, H, hz, now);
     if (C.jets) jets(x, W, H, hz, C, now);
@@ -262,6 +263,29 @@
     if (e < 0) { const tw = clamp(-e / 5), on = (now % 1200) < 120;
       if (on) { x.fillStyle = `rgba(255,60,50,${tw.toFixed(2)})`; x.fillRect(-3, -17, 2.2, 2.2); x.fillRect(-1, 3, 2, 2); }   // anti-collision beacons
       x.fillStyle = `rgba(90,255,130,${(0.8 * tw).toFixed(2)})`; x.fillRect(4, 1, 1.6, 1.6); x.fillStyle = `rgba(255,255,240,${(0.8 * tw).toFixed(2)})`; x.fillRect(-51, -25, 1.6, 1.6); }
+    x.restore(); }
+  // d26e: Mattaponi Meditation — a CH-47 Chinook flying LOW over the river, just above the treeline (real-time pass every 15 s, like the
+  // Fort Monroe CH-53K). Long boxy fuselage, tandem 3-blade rotors (front low on the cockpit, rear on the tall aft pylon) as blurred discs,
+  // fixed gear, rear ramp; a faint rotor-wash ripple on the water beneath it.
+  function chinook(x, W, H, hz, C, now) { const P = 15000, D = 13000, ph = (now + 6000) % P; if (ph > D) return; const f = ph / D, e = C.elev != null ? C.elev : 5;
+    const u = Math.max(0.55, W / 760), cx = W + 70 * u - f * (W + 140 * u), cy = hz - H * 0.075 - 10 * u + Math.sin(now / 650) * 0.8;   // right → left, low
+    const lt = clamp((e + 2) / 12), col = `rgba(${Math.round(36 + 58 * lt)},${Math.round(40 + 60 * lt)},${Math.round(38 + 56 * lt)},${(0.85 - 0.12 * lt).toFixed(2)})`;
+    { const wy = hz + H * 0.035, t = now / 1000; x.save(); for (let i = 0; i < 3; i++) { const q = (t * 0.9 + i / 3) % 1, r = (18 + 34 * q) * u;   // rotor wash on the water
+        x.strokeStyle = `rgba(225,230,232,${((1 - q) * 0.22).toFixed(3)})`; x.lineWidth = 1; x.beginPath(); x.ellipse(cx, wy, r, r * 0.12, 0, 0, 6.283); x.stroke(); }
+      const g = x.createRadialGradient(cx, wy, 0, cx, wy, 30 * u); g.addColorStop(0, "rgba(230,234,236,.14)"); g.addColorStop(1, "rgba(230,234,236,0)"); x.fillStyle = g; x.beginPath(); x.ellipse(cx, wy, 30 * u, 4 * u, 0, 0, 6.283); x.fill(); x.restore(); }
+    x.save(); x.translate(cx, cy); x.scale(-u, u); x.fillStyle = col; x.strokeStyle = col;   // drawn nose-right, mirrored to fly left
+    x.beginPath(); x.moveTo(-34, -12); x.lineTo(22, -12); x.quadraticCurveTo(31, -11, 33, -4); x.quadraticCurveTo(32, 1, 26, 2); x.lineTo(-30, 2); x.lineTo(-38, -3); x.closePath(); x.fill();   // boxy fuselage + nose
+    x.beginPath(); x.moveTo(-30, -12); x.lineTo(-40, -22); x.lineTo(-28, -22); x.lineTo(-20, -12); x.closePath(); x.fill();   // tall aft pylon
+    x.fillRect(-26, -14, 16, 3);   // engine pods
+    x.beginPath(); x.moveTo(-30, 2); x.lineTo(-40, 5); x.lineTo(-38, 2.5); x.closePath(); x.fill();   // rear ramp, slightly open
+    for (const gx of [-22, 16]) { x.fillRect(gx, 2, 1.3, 4); x.beginPath(); x.arc(gx + 0.6, 6.5, 1.6, 0, 6.283); x.fill(); }   // fixed gear
+    const spin = now / 45;
+    for (const [rx, ry, sgn] of [[22, -14, 1], [-34, -24, -1]]) { x.save(); x.globalAlpha = 0.27; x.beginPath(); x.ellipse(rx, ry, 30, 2, 0, 0, 6.283); x.fill(); x.restore();
+      x.fillRect(rx - 1, ry, 2, 2.5); x.lineWidth = 0.7; x.globalAlpha = 0.55; for (let k = 0; k < 3; k++) { const a = sgn * spin + k * 2.094, c = Math.cos(a); if (Math.abs(c) < 0.3) continue; x.beginPath(); x.moveTo(rx, ry); x.lineTo(rx + 30 * c, ry + 1.6 * Math.sin(a)); x.stroke(); } x.globalAlpha = 1; }
+    const rim = e > -3 && e < 12 && !C.turned ? clamp(1 - Math.abs(e - 2) / 10) : 0;
+    if (rim > 0.05) { x.fillStyle = `rgba(255,190,100,${(0.5 * rim).toFixed(2)})`; x.fillRect(-30, -12.6, 52, 0.9); }
+    if (e < 0) { const tw = clamp(-e / 5), on = (now % 1100) < 110; if (on) { x.fillStyle = `rgba(255,60,50,${tw.toFixed(2)})`; x.fillRect(-32, -23, 2.2, 2.2); x.fillRect(0, 2, 2, 2); }
+      x.fillStyle = `rgba(255,255,240,${(0.8 * tw).toFixed(2)})`; x.fillRect(-38, -3, 1.6, 1.6); }
     x.restore(); }
   // d25v: Grandview's weathered dead tree standing in the surf (Sean's photo), drawn procedurally: forked silver-gray trunk,
   // twisting bare limbs, a small dark sign hanging by a wire, foam washing round the base. Right side of the frame, clear of the sun
