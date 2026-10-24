@@ -168,13 +168,15 @@
   // observed cloud → model inputs (hourly copies; only the hours either side of the event are touched)
   function withCanvas(args, ev, C) {
     const [sp, S, Wl] = args, tAt = ev.tSet;
-    const bump = (H, frac) => { if (!H || !H.time || frac < 0.08) return H; const h = Object.assign({}, H), i = Math.max(0, Math.floor((tAt - H.time[0]) / 3600));
+    const bump = (H, frac, lowSh = 0) => { if (!H || !H.time || frac < 0.04) return H; const h = Object.assign({}, H), i = Math.max(0, Math.floor((tAt - H.time[0]) / 3600));
+      if (lowSh > 0 && h.cloud_cover_low) { h.cloud_cover_low = h.cloud_cover_low.slice(); for (const j of [i, i + 1]) if (j < h.cloud_cover_low.length) h.cloud_cover_low[j] = Math.max(h.cloud_cover_low[j] || 0, 100 * Math.min(0.9, frac * lowSh * 1.1)); }   // d24x: satellite-seen LOW cloud (IR-warm tops: cumulus) → low layer, drawn as cumulus puffs
+      frac *= 1 - lowSh;
       for (const k of ["cloud_cover_mid", "cloud_cover"]) if (h[k]) { h[k] = h[k].slice(); for (const j of [i, i + 1]) if (j < h[k].length) { const lo = (H.cloud_cover_low || [])[j] || 0, mdl = (H.cloud_cover_mid || [])[j] || 0;
         const want = 100 * Math.min(0.95, frac * 1.1); if (k === "cloud_cover_mid" && Math.max(lo, mdl) < want) h[k][j] = Math.max(mdl, want - 0.5 * lo); if (k === "cloud_cover") h[k][j] = Math.max(h[k][j] || 0, want); } }
       return h; };
     const pick = km => { const i = C.km.indexOf(km); return i >= 0 ? C.cv[i] : 0; };
-    const sw = O.satW(C), S2 = Object.assign({}, S, { hourly: bump(S.hourly, sw * Math.min(0.75, 1.5 * Math.max(C.here, 0.9 * C.west))) });   // the sky you see toward the sun (0–120 km) is the canvas, not just the zenith
-    const W2 = Wl.map((w, k) => w && Object.assign({}, w, { hourly: bump(w.hourly, sw * [0.5 * pick(40) + 0.5 * pick(80), pick(120), 0.5 * pick(200) + 0.5 * pick(300)][k] || 0) }));
+    const sw = O.satW(C), lowSh = C.irLow && C.irCv ? Math.max(0, Math.min(1, C.irLow.slice(0, 4).reduce((a, v) => a + v, 0) / Math.max(0.01, C.irCv.slice(0, 4).reduce((a, v) => a + v, 0)))) : 0.5, S2 = Object.assign({}, S, { hourly: bump(S.hourly, sw * Math.min(0.75, 1.5 * Math.max(C.here, 0.9 * C.west)), lowSh) });   // the sky you see toward the sun (0–120 km) is the canvas, not just the zenith
+    const W2 = Wl.map((w, k) => w && Object.assign({}, w, { hourly: bump(w.hourly, sw * [0.5 * pick(40) + 0.5 * pick(80), pick(120), 0.5 * pick(200) + 0.5 * pick(300)][k] || 0, lowSh) }));
     const a = Array.from(args); a[1] = S2; a[2] = W2; return a;
   }
   // Wrap Model.evaluate so EVERY caller (pins, list, day strip, detail, render) gets the observed override.
@@ -182,7 +184,7 @@
   g.Model.evaluate = function (sp) {
     let ev = base.apply(this, arguments);
     try { const C = !/[?&](obs|sat)=0/.test(location.search) && ev && O.cv[sp.id];
-      if (C && Math.abs(C.tSet - ev.tSet) < 3600 && Math.max(...C.cv.slice(0, 5)) >= 0.15) { const e2 = base.apply(this, withCanvas(arguments, ev, C));
+      if (C && Math.abs(C.tSet - ev.tSet) < 3600 && Math.max(...C.cv.slice(0, 5)) >= 0.05) {   // d24x: was 0.15 — scattered small cumulus (5–15 %) were ignored const e2 = base.apply(this, withCanvas(arguments, ev, C));
         if (e2) { e2.satCanvas = C; e2.scoreNoSat = ev.score; (e2.reasons || (e2.reasons = [])).unshift(`Satellite (GOES ${C.src === "goes-ir4km-only" ? "infrared" : "visible+IR"}): broken cloud along the ${g.AG_MODE === "sunrise" ? "sunrise" : "sunset"} path — ${C.cv.slice(0, 5).map((v, i) => `${C.km[i]} km ${Math.round(v * 100)}%`).join(", ")}; ${C.far < 0.3 ? "open horizon beyond" : "cloud on the horizon too"}. The model had little mid cloud here; using the observed cloud${O.satNote(C)}.`); ev = e2;
           // broken cloud (not a solid deck) across the visible western sky + an open horizon = the lit-cloud sunset: 85–95
           let q;

@@ -81,6 +81,11 @@ float fbm(vec2 p, float fp, int oct){
   }
   return s / w;
 }
+// d24x: discrete fair-weather cumulus — a share of cells (≈ cover) each holds one puff, so 5–25 % cover draws separate small clouds
+float cuPuffs(vec2 p, float cov){ vec2 i = floor(p), f = fract(p); float best = 0.;
+  for (int y=-1;y<=1;y++) for (int x=-1;x<=1;x++){ vec2 g = vec2(x,y), c = i + g, h = h22(c + 7.31);
+    if (h.x < cov * 1.35){ vec2 r = g + .25 + .5*h22(c) - f; float rad = .2 + .22*h.y; best = max(best, 1. - smoothstep(rad*.4, rad, length(r*vec2(1., 1.6) + vec2(0., .12)))); } }
+  return best; }
 float worley(vec2 p){ vec2 i = floor(p), f = fract(p); float d = 9.;
   for (int y=-1;y<=1;y++) for (int x=-1;x<=1;x++){ vec2 g = vec2(x,y); vec2 r = g + .15 + .7*h22(i+g) - f; d = min(d, dot(r,r)); }
   return sqrt(d); }
@@ -194,6 +199,9 @@ float dens(int L, vec2 p, float fp, float dist){
     float er = fbm(q*2.2 + 9., fp*2.2, 5);
     float lo = clamp(d * 1.1 - (1. - er) * .55 * (1. - d*.6), 0., 1.);
     float sheetW = smoothstep(.6, .95, cov);   // overcast stratus / stratocumulus
+    float cu = cuPuffs(q*.45 + vec2(n, b)*.5, cov) * smoothstep(.0, .04, cov) * (1. - smoothstep(.45, .75, cov));
+    cu = clamp(cu * (.75 + .5*er) - (1. - er) * .35 * (1. - cu), 0., 1.);
+    lo = max(lo, cu);
     float shv = mix(.25 + .45*b, .12 + .8*smoothstep(.3, .78, v*.6 + b*.4), .8*uGray);   // d22: overcast deck keeps stratocumulus cells (texture/depth), not a flat sheet
     return clamp(max(lo, shv * (.7 + .3*er) * sheetW), 0., 1.);
   }
