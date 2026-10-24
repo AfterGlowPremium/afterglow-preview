@@ -842,3 +842,14 @@ html.show-home .home-card{margin:auto auto 0;background:rgba(14,10,34,.38);borde
 @keyframes homeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 .home-btn{box-shadow:0 0 16px rgba(255,79,163,.3)}.home-btn b{font-size:22px}
 @media (prefers-reduced-motion:reduce){.home-card h1,.home-card .home-sub,.home-card .home-q,.home-btns{animation:none}}
+/* d26q: welcome fits one screen (in-app browser bars included) — no scrolling */
+html.show-home .home{height:100dvh;height:100svh;overflow:hidden}
+html.show-home .home-card{padding:clamp(12px,2.6svh,22px) 16px clamp(10px,2svh,16px)}
+.home-card .home-logo{margin:0 auto clamp(4px,1.4svh,14px);transform:scale(clamp(.7,0.12svh,1))}
+.home-card h1{font-size:clamp(24px,min(7vw,5.2svh),42px);margin:0 0 clamp(4px,1svh,8px)}
+.home-card .home-sub{margin:0 0 clamp(8px,2svh,22px);font-size:clamp(12px,1.9svh,14px)}
+.home-card .home-q{margin:0 0 clamp(6px,1.4svh,14px)}
+.home-btn{padding:clamp(10px,2.2svh,18px) 10px}.home-btn .hb-ic{font-size:clamp(22px,3.8svh,30px)}
+.home-card .site-copy{margin-top:clamp(8px,1.6svh,18px)}
+@media (max-width:380px){.home-btns{grid-template-columns:1fr 1fr}}
+@media (max-height:600px){.home-card .home-logo{display:none}.home-btn small{display:none}}

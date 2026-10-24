@@ -28,7 +28,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="styles.css?v=d26p">
+<link rel="stylesheet" href="styles.css?v=d26q">
 <style>/* inside the shell iframe: use the insets the shell measured */
 .top{padding-top:calc(18px + max(env(safe-area-inset-top,0px), var(--ag-sat,0px)))}
 @media (max-width:900px){
@@ -41,9 +41,9 @@
 </head>
 <body>
 <script>if (window.parent === window) location.replace("./" + location.search + location.hash);</script>
-<script>window.AG_BUILD = "d26p"; window.AG_SHELL = window.parent !== window;</script>
+<script>window.AG_BUILD = "d26q"; window.AG_SHELL = window.parent !== window;</script>
 <script>window.AG = { realistic: true };</script>
-<script src="config.js?v=d26p"></script>
+<script src="config.js?v=d26q"></script>
 <script>
   // No ?mode= → show the welcome homepage first (app.js stays idle until a choice is made)
   (function () { var m = new URLSearchParams(location.search).get("mode"); if (m !== "sunrise" && m !== "sunset") document.documentElement.classList.add("show-home"); })();
@@ -62,7 +62,7 @@
     <p class="site-copy">© Sean Tuttle 2026</p>
   </div>
 </section>
-<script>/* d26p: welcome animation — dawn→dusk sky cycle, sun over water with reflection, drifting clouds. Canvas 2D, no data needed. */
+<script>/* d26q: welcome animation — dawn→dusk sky cycle, sun over water with reflection, drifting clouds. Canvas 2D, no data needed. */
 (function(){if(!document.documentElement.classList.contains("show-home"))return;var cv=document.getElementById("home-cv");if(!cv)return;var x=cv.getContext("2d"),W=0,H=0,D=1,RM=matchMedia("(prefers-reduced-motion: reduce)").matches;
 var K=[[0,"#07061a","#1a1440","#2b1d55"],[.18,"#1c1a4a","#7a4b9a","#ff8fa3"],[.3,"#3c5fb8","#f7a8b8","#ffd08a"],[.5,"#3f7fd0","#8fc0ea","#e9f2ff"],[.7,"#3a3c8f","#ff5f9e","#ffb347"],[.82,"#1b1446","#9b3d8a","#ff6a3d"],[1,"#07061a","#1a1440","#2b1d55"]];
 function hx(h){return[parseInt(h.substr(1,2),16),parseInt(h.substr(3,2),16),parseInt(h.substr(5,2),16)]}function mix(a,b,f){a=hx(a);b=hx(b);return"rgb("+Math.round(a[0]+(b[0]-a[0])*f)+","+Math.round(a[1]+(b[1]-a[1])*f)+","+Math.round(a[2]+(b[2]-a[2])*f)+")"}
@@ -159,14 +159,14 @@ if(!RM&&document.documentElement.classList.contains("show-home"))requestAnimatio
 <div id="loading" class="loading"><div class="ld-sun"></div><p>Reading the sky…</p></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="spots.js?v=d26p"></script>
-<script src="search.js?v=d26p"></script>
-<script src="model.js?v=d26p"></script>
-<script src="preview.js?v=d26p"></script>
-<script src="photoreal.js?v=d26p"></script>
-<script src="ground.js?v=d26p"></script>
-<script src="photostage.js?v=d26p"></script>
-<script src="satellite.js?v=d26p"></script>
+<script src="spots.js?v=d26q"></script>
+<script src="search.js?v=d26q"></script>
+<script src="model.js?v=d26q"></script>
+<script src="preview.js?v=d26q"></script>
+<script src="photoreal.js?v=d26q"></script>
+<script src="ground.js?v=d26q"></script>
+<script src="photostage.js?v=d26q"></script>
+<script src="satellite.js?v=d26q"></script>
 <script>
   (function () {
     var m = new URLSearchParams(location.search).get("mode"); if (m !== "sunrise" && m !== "sunset") return;
@@ -182,12 +182,12 @@ if(!RM&&document.documentElement.classList.contains("show-home"))requestAnimatio
     }
   })();
 </script>
-<script src="obs.js?v=d26p"></script>
-<script src="wx.js?v=d26p"></script>
-<script src="agx.js?v=d26p"></script>
-<script src="looks.js?v=d26p"></script>
-<script src="app.js?v=d26p"></script>
-<script src="scene.js?v=d26p"></script>
-<script>/* d26p */(function(){function f(){var h=document.querySelector(".top"),c=h&&h.querySelector(".top-ctl");if(c)document.documentElement.style.setProperty("--brandH",Math.max(0,c.offsetTop-6)+"px");}addEventListener("load",f);addEventListener("resize",f);setTimeout(f,1500);})();</script>
+<script src="obs.js?v=d26q"></script>
+<script src="wx.js?v=d26q"></script>
+<script src="agx.js?v=d26q"></script>
+<script src="looks.js?v=d26q"></script>
+<script src="app.js?v=d26q"></script>
+<script src="scene.js?v=d26q"></script>
+<script>/* d26q */(function(){function f(){var h=document.querySelector(".top"),c=h&&h.querySelector(".top-ctl");if(c)document.documentElement.style.setProperty("--brandH",Math.max(0,c.offsetTop-6)+"px");}addEventListener("load",f);addEventListener("resize",f);setTimeout(f,1500);})();</script>
 </body>
 </html>
