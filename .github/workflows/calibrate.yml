@@ -16,7 +16,8 @@ jobs:
         env:
           SUPABASE_URL: https://ikybluinrluwreagkuce.supabase.co
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      - run: node tools/marinehist.js || true
       - run: |
           git config user.name afterglow-bot; git config user.email actions@users.noreply.github.com
-          git add data/calib.json data/calib-log.md data/feedback-history.json
+          git add data/calib.json data/calib-log.md data/feedback-history.json data/marine-history.json data/marine
           git diff --cached --quiet || (git commit -m "calibration $(date -u +%F)" && (git push || (git pull --rebase && git push)))

@@ -14,11 +14,18 @@
   // marine values at time t from live or archived hours (nearest hour within 2 h); null = no data for that time (caller hides wave/swell)
   // d25r: past hours use MEASURED data only — NDBC buoy (data/buoys.json, written by the satcv Action) for waves, IEM ASOS for wind.
   // No model hindcast is ever shown as a past reading; with no representative measurement the line is hidden.
-  let BU = null, BUp = null; const PW = {}, PWp = {};
-  const isPast = t => t < Date.now() / 1000 - 3600;
-  function buoyAt(id, t) { const s = BU && BU.spots[id], A = s && BU.obs[s.id]; if (!A) return null; let r = null, b = 5400; for (const x of A) { const d = Math.abs(x[0] - t); if (d <= b) { b = d; r = x; } }
+  let BU = null, BUp = null, MH = null; const PW = {}, PWp = {}, BS = {}, MZ = {}, DATA = "https://afterglowpremium.github.io/afterglow-preview/data/";
+  const isPast = t => t < Date.now() / 1000 - 3600, hz = () => "?h=" + Math.floor(Date.now() / 9e5);
+  const lazy = (C, k, url) => { if (!(k in C)) { C[k] = null; fetch(url + hz()).then(r => r.ok ? r.json() : 0).then(j => { C[k] = j || 0; window.__agQueue && window.__agQueue(); }).catch(() => { C[k] = 0; }); } return C[k]; };
+  function nearest(A, t, max) { let r = null, b = max; for (const x of A) { const d = Math.abs(x[0] - t); if (d <= b) { b = d; r = x; } } return r; }
+  // priority for a past hour: measured buoy (±90 min) > NWS archived marine forecast in force then (issued ≤ t, ≤ 12 h old) > nothing (hidden)
+  function buoyAt(id, t) { const s = BU && BU.spots[id]; if (!s) return null; const A = lazy(BS, s.id, DATA + "buoys/" + s.id + ".json"); if (!A) return null; const r = nearest(A, t, 5400);
     return r && r[1] != null ? { now: r[1], sw: r[1], swPer: r[2], per: r[2], swDir: r[3], dir: r[3], wd: r[3], src: s, measured: true, bt: r[0], bmph: r[4], bwdir: r[5] } : null; }
-  function mAt(id, t) { if (isPast(t)) { if (!BU && X.loadBuoys) X.loadBuoys().then(() => window.__agQueue && window.__agQueue()); return buoyAt(id, t); }
+  function nwsAt(id, t) { const z = MH && MH.zones[id]; if (!z || !MH.have.includes(z.id)) return null; const A = lazy(MZ, z.id, DATA + "marine/" + z.id + ".json"); if (!A) return null;
+    let r = null; for (const x of A) if (x[0] <= t && t - x[0] <= 12 * 3600) r = x; if (!r) return null; const mid = (r[1] + r[2]) / 2;
+    return { now: mid, sw: mid, lo: r[1], hi: r[2], swPer: r[3], per: r[3], swDir: r[4], dir: r[4], wd: r[4], nws: z, it: r[0] }; }
+  function pastSea(id, t) { return buoyAt(id, t) || nwsAt(id, t); }
+  function mAt(id, t) { if (isPast(t)) { if (!BU && X.loadBuoys) X.loadBuoys().then(() => window.__agQueue && window.__agQueue()); return pastSea(id, t); }
     for (const H of [M[id] && M[id].h]) { if (!H || !H.t.length) continue; let i = -1, b = 7200; for (let k = 0; k < H.t.length; k++) { const d = Math.abs(H.t[k] - t); if (d <= b) { b = d; i = k; } }
       if (i >= 0 && H.wh[i] != null) return { now: H.wh[i], dir: H.sd[i] ?? H.wd[i], per: H.wp[i], swPer: H.sp ? H.sp[i] : null, sw: H.sh[i], ww: H.ww[i], s2: H.s2[i], d2: H.d2[i], swDir: H.sd[i], wd: H.wd[i] }; } return null; }
   const SEV = /Tornado|Severe Thunderstorm|Hurricane|Tropical Storm|Storm Surge|Flash Flood|Extreme Wind|Hurricane Force Wind/;
@@ -67,8 +74,11 @@
     marine: M, alerts: AL,
     // d25o: swell at a given time (nearest marine hour; falls back to the combined wave field). null for land/lake spots without marine data.
     swellAt(id, t) { const m = mAt(id, t); if (!m) return null; const sw = m.sw != null && m.swDir != null, ft = sw ? m.sw : m.now, dir = sw ? m.swDir : m.wd, per = sw && m.swPer != null ? m.swPer : m.per;
+      if (m.nws) { const it = new Date(m.it * 1000).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" });
+        return { ft, dir: m.swDir, per: m.per, nws: true, txt: `Waves ${m.lo === m.hi ? m.hi : m.lo + "–" + m.hi} ft${m.per ? ` @ ${m.per} s` : ""}${m.swDir != null ? ` from the ${"N NNE NE ENE E ESE SE SSE S SSW SW WSW W WNW NW NNW".split(" ")[Math.round(m.swDir / 22.5) % 16]}` : ""} · NWS marine forecast ${m.nws.id} (issued ${it} ET)` }; }
       return ft == null || dir == null ? null : { ft, dir, per, kind: m.measured ? `Waves (buoy ${m.src.id}, ${m.src.km} km)` : sw ? "Swell" : "Waves" }; },
-    loadBuoys() { return BU ? Promise.resolve(BU) : BUp || (BUp = fetch("https://afterglowpremium.github.io/afterglow-preview/data/buoys.json?h=" + Math.floor(Date.now() / 9e5)).then(r => r.ok ? r.json() : null).then(j => (BU = j)).catch(() => (BUp = null))); },
+    loadBuoys() { return BU ? Promise.resolve(BU) : BUp || (BUp = Promise.all([fetch(DATA + "buoys.json" + hz()).then(r => r.ok ? r.json() : null), fetch(DATA + "marine-history.json" + hz()).then(r => r.ok ? r.json() : null).catch(() => null)]).then(([j, m]) => { MH = m; return (BU = j); }).catch(() => (BUp = null))); },
+    nwsAt, pastSea,
     buoyAt,
     // measured wind for a past hour: nearest ASOS/METAR (≤ 40 km) from the IEM archive, else the spot's buoy anemometer; null = hide
     pastWind(sp, t) { const k = sp.id + "|" + Math.round(t / 3600); if (k in PW) return PW[k]; const b = buoyAt(sp.id, t);

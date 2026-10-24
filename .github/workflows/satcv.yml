@@ -17,9 +17,9 @@ jobs:
       - run: node tools/buoys.js || true
       - name: Commit if changed
         run: |
-          git diff --quiet data/satcv-sunset.json data/buoys.json && exit 0
+          git add -A data/buoys; git diff --quiet HEAD -- data/satcv-sunset.json data/buoys.json data/buoys && exit 0
           git config user.name "github-actions[bot]"
           git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
-          git add data/satcv-sunset.json data/buoys.json
+          git add data/satcv-sunset.json data/buoys.json data/buoys
           git commit -m "satcv auto-refresh $(TZ=America/New_York date +%H:%M)"
           git pull --rebase origin main && git push origin HEAD:main
