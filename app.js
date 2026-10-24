@@ -783,7 +783,7 @@
     { let d0 = null; const nearThumb = e => { const r = sl.getBoundingClientRect(), f = (+sl.value - +sl.min) / ((+sl.max - +sl.min) || 1), cx = r.left + 17 + f * (r.width - 34); return Math.abs(e.clientX - cx) <= 26; };
       sl.addEventListener("pointerdown", e => { d0 = nearThumb(e) ? { x: e.clientX, y: e.clientY, t: performance.now(), v: sl.value, was: !!playing } : null; });
       sl.addEventListener("pointerup", e => { const d = d0; d0 = null; if (!d) return; if (performance.now() - d.t < 350 && Math.hypot(e.clientX - d.x, e.clientY - d.y) < 8) { sl.value = d.v; if (d.was) stop(); else $("#pv-play").click(); posG(); } });
-      sl.addEventListener("pointercancel", () => { d0 = null; }); new ResizeObserver(() => posG()).observe(sl); }
+      sl.addEventListener("pointercancel", () => { d0 = null; }); if (window.ResizeObserver) new ResizeObserver(() => posG()).observe(sl); }
     sl.addEventListener("input", () => { stop(); dragging = true; clearTimeout(hqT); hqT = 0; queue(); });
     document.querySelectorAll(".scrub .mk").forEach(b => b.addEventListener("click", () => { stop(); sl.value = b.dataset.t; queue(); }));
     const stop = () => { if (playing) { cancelAnimationFrame(playing); playing = 0; $("#pv-play").textContent = PLAY; } window.__agPosG && window.__agPosG(); };

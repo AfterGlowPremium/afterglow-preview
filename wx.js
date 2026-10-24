@@ -120,8 +120,8 @@
     if (C.trees) snags(x, W, H, hz);
     if (C.dune) dune(x, W, H, now);
     if (C.sea) sea(x, W, H, hz, C, now);
-    if (C.carrier) { carrier(x, W, H, hz, C, now); heli(x, W, H, hz, C, now); }
-    if (C.chinook) chinook(x, W, H, hz, C, now);
+    { const hzS = (C.hz != null ? C.hz : 0.6) * H;   // d26f: on the SCENE's horizon (was the fixed 0.6·H guess — the carrier sat in the water below the real horizon)
+      if (C.carrier) { carrier(x, W, H, hzS, C, now); heli(x, W, H, hzS, C, now); } if (C.chinook) chinook(x, W, H, hzS, C, now); }
     if (C.ghost) ghostTree(x, W, H, hz, C, now);
     if (C.torn) tornado(x, W, H, hz, now);
     if (C.jets) jets(x, W, H, hz, C, now);
@@ -224,8 +224,8 @@
   // d26a: Fort Monroe — a distant US Navy carrier (Nimitz/Ford profile) hull-down on the horizon, left of the sun column.
   // Flat flight deck with the angled-deck overhang, island right of centre with mast + radar; hazy silhouette, gold rim at low sun,
   // a few tiny deck/nav lights in twilight, faint wake.
-  function carrier(x, W, H, hz, C, now) { const e = C.elev != null ? C.elev : 5, L = Math.max(36, W * 0.075), u = L / 100, cx = W * 0.26, y = hz;
-    const lt = clamp((e + 2) / 12), haze = 0.55 + 0.25 * lt, col = `rgba(${Math.round(52 + 70 * lt)},${Math.round(56 + 72 * lt)},${Math.round(66 + 74 * lt)},${haze.toFixed(2)})`;
+  function carrier(x, W, H, hz, C, now) { const e = C.elev != null ? C.elev : 5, L = Math.max(60, W * 0.13), u = L / 100, cx = W * 0.26, y = hz;
+    const lt = clamp((e + 2) / 12), haze = 0.92 - 0.12 * lt, col = `rgba(${Math.round(30 + 46 * lt)},${Math.round(33 + 48 * lt)},${Math.round(40 + 52 * lt)},${haze.toFixed(2)})`;   // d26f: darker, less haze — readable on a phone
     x.save(); x.translate(cx - L / 2, y); x.fillStyle = col; x.beginPath();
     x.moveTo(0, -3.2 * u); x.lineTo(4 * u, -1 * u); x.lineTo(92 * u, -0.6 * u); x.lineTo(100 * u, -3 * u);   // hull (bow right), waterline at 0
     x.lineTo(100 * u, -4.2 * u); x.lineTo(70 * u, -4.4 * u); x.lineTo(58 * u, -5.4 * u); x.lineTo(14 * u, -5.4 * u); x.lineTo(2 * u, -4.6 * u); x.closePath(); x.fill();   // deck + angled-deck overhang (port side, aft)
