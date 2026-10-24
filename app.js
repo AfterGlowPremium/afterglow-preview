@@ -378,7 +378,7 @@
   // ---------- Compute ----------
   function compute() {
     const { S, W, E, AQ } = state.data;
-    state.results = SPOTS.map((spot, i) => ({ spot, i, tz: S[i].timezone, ev: evaluate(spot, S[i], [W[i * 3], W[i * 3 + 1], W[i * 3 + 2]], E[i], state.day, AQ && AQ[i]) }));
+    state.results = SPOTS.map((spot, i) => ({ spot, i, tz: S[i].timezone, ev: evaluate(spot, S[i], [W[i * 3], W[i * 3 + 1], W[i * 3 + 2]], E[i], state.day, AQ && AQ[i]) })); window.__agState = state;
   }
 
   // ---------- Render ----------

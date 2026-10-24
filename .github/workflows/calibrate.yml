@@ -1,0 +1,22 @@
+name: feedback-calibration
+on:
+  schedule: [{ cron: "0 7 * * *" }]   # 07:00 UTC = 3 AM EDT (2 AM EST)
+  workflow_dispatch: {}
+permissions: { contents: write }
+concurrency: { group: data-commit, cancel-in-progress: false }
+jobs:
+  calibrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm i --no-save jpeg-js@0.4.4
+      - run: node tools/calibrate-feedback.js
+        env:
+          SUPABASE_URL: https://ikybluinrluwreagkuce.supabase.co
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      - run: |
+          git config user.name afterglow-bot; git config user.email actions@users.noreply.github.com
+          git add data/calib.json data/calib-log.md data/feedback-history.json
+          git diff --cached --quiet || (git commit -m "calibration $(date -u +%F)" && (git push || (git pull --rebase && git push)))

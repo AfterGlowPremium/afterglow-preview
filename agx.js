@@ -55,6 +55,25 @@
   // ---- photo upload + feedback side panel ----
   const FK = "afterglow-feedback";
   const load = () => { try { return JSON.parse(localStorage.getItem(FK)) || [] } catch (e) { return [] } };
+  // d25a: Supabase upload + offline retry queue. Entries stay in localStorage with up:false until both the photo and the row are accepted;
+  // retried on Save, on app open and when the phone comes back online. Uploaded photos are dropped locally to free space.
+  const UP = {
+    cfg: () => g.AG_CONFIG || {}, on: () => !!(UP.cfg().SUPABASE_URL && UP.cfg().SUPABASE_ANON_KEY), busy: null,
+    async one(e) { const C = UP.cfg(), base = C.SUPABASE_URL.replace(/\/$/, ""), H = { apikey: C.SUPABASE_ANON_KEY }; if (!/^sb_/.test(C.SUPABASE_ANON_KEY)) H.Authorization = "Bearer " + C.SUPABASE_ANON_KEY;   // new sb_publishable keys go in apikey only
+      let path = null;
+      if (e.photo) { path = `${(e.at || "").slice(0, 10)}/${e.spot}-${e.id}.jpg`; const blob = await (await fetch(e.photo)).blob();
+        const r = await fetch(`${base}/storage/v1/object/feedback/${path}`, { method: "POST", headers: Object.assign({ "Content-Type": "image/jpeg", "x-upsert": "false" }, H), body: blob });
+        if (!r.ok && r.status !== 409 && !/Duplicate|already exists/i.test(await r.text().catch(() => ""))) throw new Error("photo " + r.status); }
+      const row = { id: e.id, spot: e.spot, mode: e.mode || "sunset", saved_at: e.at, shot_at: e.shot, view_t: e.viewT ? new Date(e.viewT * 1000).toISOString() : null, day: e.day,
+        rating: e.actual, accuracy: e.acc, notes: (e.note || "").slice(0, 2000), photo_path: path, app_version: e.ver, pred: e.pred };
+      const r2 = await fetch(`${base}/rest/v1/feedback`, { method: "POST", headers: Object.assign({ "Content-Type": "application/json", Prefer: "return=minimal" }, H), body: JSON.stringify(row) });
+      if (!r2.ok && r2.status !== 409) throw new Error("row " + r2.status); },
+    flush() { if (!UP.on()) return Promise.resolve({ fail: 0 }); if (UP.busy) return UP.busy;
+      return UP.busy = (async () => { const a = load(); let fail = 0;
+        for (const e of a) { if (e.up || !e.id) continue; try { await UP.one(e); e.up = true; e.photo = null; } catch (x) { fail++; } }
+        try { localStorage.setItem(FK, JSON.stringify(a)); } catch (x) {} UP.busy = null; return { fail }; })(); }
+  };
+  g.addEventListener("online", () => UP.flush()); setTimeout(() => UP.flush(), 4000);
   function panel() {
     const sp = (g.__agSpots || []).find(s => s.id === g.__agSpot), items = load();
     let el = document.getElementById("fb-panel"); if (!el) { el = document.createElement("aside"); el.id = "fb-panel"; document.body.appendChild(el); }
@@ -79,10 +98,12 @@
       im.onerror = () => { URL.revokeObjectURL(u); msg("Couldn't read this photo here (HEIC on a computer?). Try a JPEG, or pick it on the iPhone."); };
       im.src = u; };
     $("#fb-save").onclick = () => { const btn = $("#fb-save"); if (btn.disabled) return; btn.disabled = true; const a = load();
-      a.push({ at: new Date().toISOString(), shot, mode: g.AG_MODE, spot: $("#fb-spot").value, viewT: g.__agPvT || null, actual: +$("#fb-score").value, acc: $("#fb-acc").value, note: $("#fb-note").value, photo: img });
-      let ok = "Saved ✓ on this phone — use Export to send it";
+      const st = g.__agState, r = st && st.results && st.results.find(x => x.spot.id === $("#fb-spot").value), ev = r && r.ev;
+      a.push({ id: (crypto.randomUUID ? crypto.randomUUID() : Date.now() + "-" + Math.random().toString(36).slice(2)), up: false, ver: g.AG_BUILD || "", day: st ? st.day : null,
+        pred: ev ? { score: ev.score, raw: ev.scoreRaw != null ? ev.scoreRaw : ev.score, tSet: ev.tSet, sky: ev.sky ? { total: ev.sky.total, low: ev.sky.low, mid: ev.sky.mid, high: ev.sky.high } : null } : null, at: new Date().toISOString(), shot, mode: g.AG_MODE, spot: $("#fb-spot").value, viewT: g.__agPvT || null, actual: +$("#fb-score").value, acc: $("#fb-acc").value, note: $("#fb-note").value, photo: img });
+      let ok = UP.on() ? "Saved ✓ — uploading…" : "Saved ✓ on this phone — use Export to send it";
       try { localStorage.setItem(FK, JSON.stringify(a)); } catch (e) { a[a.length - 1].photo = null; try { localStorage.setItem(FK, JSON.stringify(a)); ok = "Saved without the photo (phone storage full) — Export, then clear"; } catch (e2) { ok = "Not saved: phone storage is full. Export, then clear."; } }
-      msg(ok); $("#fb-exp").textContent = `Export all (${load().length})`; img = null; shot = null; $("#fb-photo").value = ""; $("#fb-prev").hidden = true; $("#fb-note").value = ""; setTimeout(() => btn.disabled = false, 800); };
+      msg(ok); $("#fb-exp").textContent = `Export all (${load().length})`; img = null; shot = null; $("#fb-photo").value = ""; $("#fb-prev").hidden = true; $("#fb-note").value = ""; setTimeout(() => btn.disabled = false, 800); if (UP.on()) UP.flush().then(n => msg(n.fail ? `Saved on this phone; upload will retry (${n.fail} waiting)` : `Saved ✓ and sent — thank you`)); };
     $("#fb-exp").onclick = () => { const b = new Blob([JSON.stringify(load(), null, 1)], { type: "application/json" }), u = URL.createObjectURL(b), l = document.createElement("a"); l.href = u; l.download = "afterglow-feedback.json"; l.click(); };
     el.classList.add("open");
   }
