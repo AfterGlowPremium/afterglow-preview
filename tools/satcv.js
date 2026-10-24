@@ -10,7 +10,7 @@ const ctx = vm.createContext(win); for (const f of ["spots.js", "model.js"]) vm.
 const { sunPos, offset } = win.Model;
 const day = process.argv[2] || new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date());
 const out = process.argv[3] || path.join(root, "data/satcv-sunset.json");
-const KM = [0, 20, 40, 80, 120, 200, 300];
+const KM = [0, 20, 40, 80, 120, 200, 300], AKM = [20, 50, 100, 200];   // d24j: AKM = anti-sun (east at sunset) + ±45° side bearings
 const sunsetOf = (lat, lng) => { const [y, m, d] = day.split("-").map(Number); let t = Date.UTC(y, m - 1, d, 16) / 1000;   // scan 16Z..04Z
   for (; t < Date.UTC(y, m - 1, d + 1, 4) / 1000; t += 60) if (sunPos(t, lat, lng).elev < -0.833 && sunPos(t - 60, lat, lng).elev >= -0.833) return t; return null; };
 const elevTime = (lat, lng, tSet, e) => { for (let t = tSet; t > tSet - 4 * 3600; t -= 60) if (sunPos(t, lat, lng).elev >= e) return t; return tSet - 1800; };
@@ -56,8 +56,14 @@ function irAt(F, lat, lng) {
     const v = r.map(x => x ? x.cv : 0), th = r.map(x => x ? x.thick : 0), f2 = x => +x.toFixed(2);
     const FI = await frame(F.t, "ir"), ir = KM.map(d => { if (!FI || FI.t !== F.t) return null; const p = d ? offset(sp.lat, sp.lng, az, d) : { lat: sp.lat, lng: sp.lng }; return irAt(FI, p.lat, p.lng); });
     const irx = ir.filter(Boolean).length >= 5 ? { irCv: ir.map(x => f2(x ? x.cv : 0)), irMid: ir.map(x => f2(x ? x.mid : 0)), irLow: ir.map(x => f2(x ? x.low : 0)) } : {};
+    // d24j: the OPPOSITE sky + overhead — clouds east over the ocean / overhead that catch the last light after sunset (1st St VB)
+    const at = (Fv, Fi, b, d) => { const p = offset(sp.lat, sp.lng, b, d); return [canvasAt(Fv, p.lat, p.lng), Fi && Fi.t === Fv.t ? irAt(Fi, p.lat, p.lng) : null]; };
+    const anti = (az + 180) % 360, ax = {}, row = b => { const r2 = AKM.map(d => at(F, FI, b, d)); return { cv: r2.map(x => f2(x[0] ? x[0].cv : 0)), irCv: r2.map(x => f2(x[1] ? x[1].cv : 0)), irMid: r2.map(x => f2(x[1] ? x[1].mid : 0)), irLow: r2.map(x => f2(x[1] ? x[1].low : 0)) }; };
+    { const A = row(anti), L = row((anti + 315) % 360), R = row((anti + 45) % 360), o0 = canvasAt(F, sp.lat, sp.lng), i0 = FI && FI.t === F.t ? irAt(FI, sp.lat, sp.lng) : null;
+      Object.assign(ax, { antiKm: AKM, antiCv: A.cv, antiIrCv: A.irCv, antiIrMid: A.irMid, antiIrLow: A.irLow, sideCv: AKM.map((_, i) => f2((L.cv[i] + R.cv[i]) / 2)), sideIrMid: AKM.map((_, i) => f2((L.irMid[i] + R.irMid[i]) / 2)), sideIrLow: AKM.map((_, i) => f2((L.irLow[i] + R.irLow[i]) / 2)),
+        overCv: f2(o0 ? o0.cv : 0), overIrCv: f2(i0 ? i0.cv : 0), overIrMid: f2(i0 ? i0.mid : 0), overIrLow: f2(i0 ? i0.low : 0) }); }
     res[sp.id] = { tSet, at: F.t, km: KM, cv: v.map(f2), thick: th.map(f2), here: f2(0.3 * v[0] + 0.25 * v[1] + 0.25 * v[2] + 0.2 * v[3]), west: f2((v[0] + v[1] + v[2] + v[3] + v[4]) / 5),
-      far: f2(0.5 * v[5] + 0.5 * v[6]), farThick: f2(Math.max(th[5], th[6])), ...irx, src: irx.irCv ? "goes-vis+ir4km-archive" : "goes-vis4km-archive" };
+      far: f2(0.5 * v[5] + 0.5 * v[6]), farThick: f2(Math.max(th[5], th[6])), ...irx, ...ax, src: irx.irCv ? "goes-vis+ir4km-archive" : "goes-vis4km-archive" };
   }
   fs.writeFileSync(out, JSON.stringify({ v: 1, day, gen: new Date().toISOString(), spots: res }));
   console.log("satcv", day, Object.keys(res).length, "spots ->", out);
