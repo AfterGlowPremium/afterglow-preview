@@ -819,4 +819,5 @@ html.ag-desk .stage .ev-toggle a{font-size:13px;padding:8px 14px}
 .thumb-glyph{position:absolute;transform:translate(-50%,-50%);pointer-events:none;font:800 12px/1 Inter,sans-serif;color:#1b1333;letter-spacing:-1px;text-shadow:0 1px 0 rgba(255,246,221,.6);z-index:2}
 .thumb-glyph:not(.on){padding-left:2px}
 /* d26k: phones — the search / Sunrise-Sunset / Near me row stays pinned at the top while the page scrolls (header slides up only by the brand's height) */
+.leaflet-container{isolation:isolate}
 @media (max-width:560px){.top{position:sticky;top:calc(-1 * var(--brandH,0px));z-index:950;background:var(--bg);box-shadow:0 6px 14px -8px #000c}}
