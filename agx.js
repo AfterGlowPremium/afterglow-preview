@@ -82,7 +82,7 @@
     buoyAt,
     // measured wind for a past hour: nearest ASOS/METAR (≤ 40 km) from the IEM archive, else the spot's buoy anemometer; null = hide
     pastWind(sp, t) { const k = sp.id + "|" + Math.round(t / 3600); if (k in PW) return PW[k]; const b = buoyAt(sp.id, t);
-      if (!PWp[k]) PWp[k] = (async () => { try { const L = window.AGObs && AGObs.stations ? await AGObs.stations(sp) : null; const st = L && L[0]; if (st) {
+      if (!PWp[k]) PWp[k] = (async () => { try { const L = window.AGObs && AGObs.stations ? await AGObs.stations(sp) : null; for (const st of (L || []).slice(0, 3)) {
         const a = new Date((t - 5400) * 1000), z = new Date((t + 5400) * 1000), q = new URLSearchParams({ station: st.id.replace(/^K/, ""), tz: "Etc/UTC", format: "onlycomma", latlon: "no", missing: "M", year1: a.getUTCFullYear(), month1: a.getUTCMonth() + 1, day1: a.getUTCDate(), hour1: a.getUTCHours(), minute1: a.getUTCMinutes(), year2: z.getUTCFullYear(), month2: z.getUTCMonth() + 1, day2: z.getUTCDate(), hour2: z.getUTCHours(), minute2: z.getUTCMinutes() });
         const tx = await (await fetch("https://mesonet.agron.iastate.edu/cgi-bin/request/asos.py?" + q + "&data=drct&data=sknt&data=gust")).text();
         const R = tx.trim().split("\n").slice(1).map(l => l.split(",")).map(f => ({ t: Date.parse(f[1].replace(" ", "T") + "Z") / 1000, d: +f[2], k: +f[3], g: +f[4] })).filter(o => isFinite(o.k)).sort((x, y) => Math.abs(x.t - t) - Math.abs(y.t - t));
