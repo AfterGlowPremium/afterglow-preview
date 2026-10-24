@@ -31,6 +31,7 @@ function metrics(buf) {   // sky photo → brightness, saturation, warm-colour s
     const rec = { id: e.id, at: e.created_at, spot: e.spot, mode: e.mode, rating: e.rating, raw, sky, photo: m, ver: e.app_version };
     if (raw != null && typeof e.rating === "number") rec.resid = Math.round(m ? .7 * (e.rating - raw) + .3 * (m.colorScore - raw) : e.rating - raw);
     if (m && sky && typeof sky.total === "number") rec.cloudErr = Math.round(100 * m.cloud - sky.total);
+    if (e.spot === "test") rec.test = true;
     if (!seen.has(e.id)) { hist.push(rec); seen.add(e.id); }
     log.push(`- ${e.spot} ${e.mode}: rating ${e.rating}, app ${raw}, photo colour ${m ? m.colorScore : "–"}, cloud photo/forecast ${m ? Math.round(100 * m.cloud) : "–"}/${sky ? sky.total : "–"} → resid ${rec.resid ?? "–"}`);
     await fetch(`${URL0}/rest/v1/feedback?id=eq.${encodeURIComponent(e.id)}`, { method: "PATCH", headers: Object.assign({ "Content-Type": "application/json", Prefer: "return=minimal" }, H), body: JSON.stringify({ processed_at: new Date().toISOString() }) });
@@ -38,11 +39,11 @@ function metrics(buf) {   // sky photo → brightness, saturation, warm-colour s
   // calibration: last 120 days, median residual, |resid| > 45 dropped as outliers, shrunk toward 0 by n/(n+k), min counts, hard bounds.
   const cut = Date.now() - 120 * 864e5, cal = { updated: new Date().toISOString(), note: "score offsets from user feedback; bounded ±8 global, ±5 per spot" };
   for (const mode of ["sunset", "sunrise"]) {
-    const R = hist.filter(h => h.mode === mode && h.resid != null && Date.parse(h.at) > cut && Math.abs(h.resid) <= 45), o = { n: R.length, global: 0, spots: {} };
+    const R = hist.filter(h => h.spot !== "test" && h.mode === mode && h.resid != null && Date.parse(h.at) > cut && Math.abs(h.resid) <= 45), o = { n: R.length, global: 0, spots: {} };
     if (R.length >= 6) o.global = Math.round(clamp(med(R.map(h => h.resid)) * R.length / (R.length + 12), -8, 8));
     const by = {}; R.forEach(h => (by[h.spot] = by[h.spot] || []).push(h.resid - o.global));
     for (const [s, a] of Object.entries(by)) if (a.length >= 4) { const v = Math.round(clamp(med(a) * a.length / (a.length + 8), -5, 5)); if (v) o.spots[s] = v; }
-    const C = hist.filter(h => h.mode === mode && h.cloudErr != null && Date.parse(h.at) > cut); o.cloudBias = C.length >= 6 ? Math.round(med(C.map(h => h.cloudErr))) : 0; o.cloudN = C.length;
+    const C = hist.filter(h => h.spot !== "test" && h.mode === mode && h.cloudErr != null && Date.parse(h.at) > cut); o.cloudBias = C.length >= 6 ? Math.round(med(C.map(h => h.cloudErr))) : 0; o.cloudN = C.length;
     cal[mode] = o; log.push(`${mode}: n=${o.n} global ${o.global} spots ${JSON.stringify(o.spots)} cloudBias ${o.cloudBias} (n=${o.cloudN}, logged only)`);
   }
   fs.writeFileSync(HIST, JSON.stringify(hist, null, 1)); fs.writeFileSync(CAL, JSON.stringify(cal, null, 1));

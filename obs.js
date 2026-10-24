@@ -150,7 +150,8 @@
   }
   O.canvas = canvas;
   // d24k: satellite reads hours ahead are less predictive → weight ~0.25 at 9 h before the event, 1 within 1 h
-  O.satW = C => { const h = C && C.at ? Math.max(0, (C.tSet - C.at) / 3600) : 0; return Math.max(0.1, Math.min(1, 1 - 0.75 * (h - 1) / 8)) * (C.src === "goes-ir4km-only" ? 0.8 : 1); };   // d24l: IR-only reads miss some thin/low cloud
+  // d25b: satellite weight rises smoothly as the event nears — 0.12 at ≥8 h out (forecast dominates), 0.95 within 1 h (satellite dominates). Used for scores and the render cloud bump.
+  O.satW = C => { const h = C && C.at ? Math.max(0, (C.tSet - C.at) / 3600) : 0; const u = Math.max(0, Math.min(1, (h - 1) / 7)); return (0.12 + 0.83 * (1 - u * u * (3 - 2 * u))) * (C.src === "goes-ir4km-only" ? 0.8 : 1); };   // d24l: IR-only reads miss some thin/low cloud
   O.satNote = C => { const h = Math.max(0, (C.tSet - C.at) / 3600); return ` (satellite read ${h < 1 ? Math.round(h * 60) + ' min' : h.toFixed(1) + ' h'} before the event${C.src === "goes-ir4km-only" ? ", infrared only, visible dark" : ""}, weight ${Math.round(O.satW(C) * 100)}%)`; };
   // d24j: opposite-sky/overhead lighting. Broken MID/HIGH tops overhead or 20-200 km opposite the sun (± 45°), not a closed low deck,
   // AND an open sun-path horizon (light gets in under them). Per-spot readings only; 0..1.
