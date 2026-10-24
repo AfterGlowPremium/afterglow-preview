@@ -14,11 +14,11 @@
     const pts = spots.filter(s => s.water !== undefined);
     for (let i = 0; i < pts.length; i += 40) {
       const b = pts.slice(i, i + 40), p = new URLSearchParams({ latitude: b.map(s => s.lat).join(","), longitude: b.map(s => s.lng).join(","),
-        hourly: "wave_height,wave_direction,wave_period,swell_wave_height,swell_wave_direction,wind_wave_height,wind_wave_direction,secondary_swell_wave_height,secondary_swell_wave_direction", forecast_days: "3", timezone: "America/New_York", length_unit: "imperial", cell_selection: "sea" });
+        hourly: "wave_height,wave_direction,wave_period,swell_wave_height,swell_wave_direction,swell_wave_period,wind_wave_height,wind_wave_direction,secondary_swell_wave_height,secondary_swell_wave_direction", forecast_days: "3", timezone: "America/New_York", length_unit: "imperial", cell_selection: "sea" });
       try { const r = await fetch("https://marine-api.open-meteo.com/v1/marine?" + p); if (!r.ok) continue; let j = await r.json(); if (!Array.isArray(j)) j = [j];
         j.forEach((d, k) => { const h = d.hourly; if (!h) return; const now = Date.now(), idx = Math.max(0, h.time.findIndex(t => Date.parse(t) >= now - 3600e3));
           const hs = h.wave_height.slice(idx, idx + 48).filter(x => x != null), max = hs.length ? Math.max(...hs) : null;
-          M[b[k].id] = { max, now: h.wave_height[idx], dir: h.swell_wave_direction[idx] ?? h.wave_direction[idx], per: h.wave_period[idx], sw: h.swell_wave_height[idx], ww: h.wind_wave_height[idx], s2: h.secondary_swell_wave_height[idx], d2: h.secondary_swell_wave_direction[idx] }; });
+          M[b[k].id] = { max, now: h.wave_height[idx], dir: h.swell_wave_direction[idx] ?? h.wave_direction[idx], per: h.wave_period[idx], h: { t: h.time.map(x => Date.parse(x) / 1000), sh: h.swell_wave_height, sd: h.swell_wave_direction, sp: h.swell_wave_period, wh: h.wave_height, wd: h.wave_direction, wp: h.wave_period }, sw: h.swell_wave_height[idx], ww: h.wind_wave_height[idx], s2: h.secondary_swell_wave_height[idx], d2: h.secondary_swell_wave_direction[idx] }; });
       } catch (e) { console.warn("marine", e); }
     }
   }
@@ -32,24 +32,38 @@
   // Wind → wave look (rules from Surfline's Live Wind guide + surf-forecast primers): impact = speed × onshore/offshore component.
   // < 5 kt ≈ glassy/clean · 5–10 kt textured · onshore > 10 kt blown out (crumbly, whitewater, chop) · cross-shore = ruffled/chop
   // offshore holds faces open (steeper, clean, groomed); strong offshore (> ~15 kt) = heavy spray off the lips, hard to paddle.
-  function windLook(sp, wd, mph) {
+  function windLook(sp, wd, mph, sw) {
     const face = normal(sp), kt = (mph || 0) / 1.15;
     const on = Math.cos((wd - face) * Math.PI / 180), cross = Math.abs(Math.sin((wd - face) * Math.PI / 180));   // on > 0: wind from the sea
     const tex = Math.max(0, Math.min(1, (kt - 5) / 5));
     const chop = Math.min(1, tex * (Math.max(0, on) * 1.2 + cross * 0.8) + Math.max(0, -on) * 0.06 * Math.min(1, kt / 15));
     const off = Math.max(0, -on) * Math.min(1, kt / 13), caps = Math.max(0, on + cross * 0.5) * Math.max(0, (kt - 10) / 12);
     const look = kt < 5 ? "glassy" : on < -0.5 ? (kt > 15 ? "strong offshore — spray, hard paddle" : "offshore — clean, groomed") : on > 0.5 ? (kt > 10 ? "onshore — blown out" : "light onshore — textured") : (kt > 10 ? "cross-shore — choppy" : "cross-shore — textured");
-    return { chop, off, caps, look, kt };
+    // d25o: wind vs SWELL too — wind blowing against the swell (from where it is heading) holds faces up and grooms lines; with the swell it
+    // crumbles them. Long period = cleaner lines, bigger surf = more spray/whitecaps when onshore. Light wind (< 5 kt) is glassy regardless.
+    const perK = sw && sw.per ? Math.max(0, Math.min(1, (sw.per - 6) / 8)) : .3, ftK = sw && sw.ft ? Math.min(1, sw.ft / 6) : .3;
+    const vsSw = sw && sw.dir != null ? Math.cos((wd - sw.dir) * Math.PI / 180) : 0, against = Math.max(0, -vsSw), withSw = Math.max(0, vsSw);
+    const chop2 = Math.min(1, chop * (1 - .3 * perK - .2 * against * tex + .2 * withSw * tex)), off2 = Math.min(1, off * (1 + .3 * against)), caps2 = Math.min(1, caps * (1 + .4 * ftK));
+    // thresholds from /workspace/surf-conditions-research.md (Surfline/SE Surf): <5 kt glassy, 5–10 textured, >10 onshore blown out, offshore great to ~13 kt
+    const per = sw && sw.per, gs = per >= 12, wsw = per && per < 8, expo = sw && sw.dir != null ? Math.abs(((sw.dir - face + 540) % 360) - 180) : 0;
+    let q = kt < 5 ? "glassy" : on < -0.5 ? (kt > 13 ? "strong offshore, spray off the lips, hard to take off" : gs ? "clean, groomed lines" : "clean") : on > 0.5 ? (kt > 10 ? "choppy, blown out" : "textured, crumbly") : (kt > 10 ? "bumpy, side-chop" : "textured");
+    if (gs) q += " · groundswell"; else if (wsw) q += " · windswell"; if (expo > 70) q += " · sheltered, small";
+    const rel = kt < 5 ? "Light" : on < -0.5 ? "Offshore" : on > 0.5 ? "Onshore" : "Cross-shore";
+    return { chop: chop2, off: off2, caps: caps2, look, kt, q, rel, vsSw: +vsSw.toFixed(2) };
   }
   const X = g.AGX = {
     marine: M, alerts: AL,
+    // d25o: swell at a given time (nearest marine hour; falls back to the combined wave field). null for land/lake spots without marine data.
+    swellAt(id, t) { const m = M[id], H = m && m.h; if (!H || !H.t.length) return null; let i = 0, b = 1e18; H.t.forEach((x, k) => { const d = Math.abs(x - t); if (d < b) { b = d; i = k; } }); if (b > 3 * 3600) return null;
+      const sw = H.sh && H.sh[i] != null && H.sd && H.sd[i] != null, ft = sw ? H.sh[i] : H.wh[i], dir = sw ? H.sd[i] : H.wd[i], per = sw && H.sp && H.sp[i] != null ? H.sp[i] : H.wp[i];
+      return ft == null || dir == null ? null : { ft, dir, per, kind: sw ? "Swell" : "Waves" }; },
     normal, startTurned: (id, rise) => !rise && FACE_EAST.has(id), faceEast: id => FACE_EAST.has(id),
     badges: sp => { let h = ""; const m = M[sp.id], a = AL[sp.id]; if (m && m.max >= 3) h += `<em class="pb wave" title="Waves to ${m.max.toFixed(1)} ft">🌊</em>`; if (a) h += `<em class="pb sev" title="${a.events.join(", ")}"></em>`; return h; },
     tip: sp => { const m = M[sp.id], a = AL[sp.id]; return (m && m.max != null ? `<br>🌊 Waves ${m.now != null ? m.now.toFixed(1) : "?"} ft now · up to ${m.max.toFixed(1)} ft / 48 h${m.per ? ` · ${Math.round(m.per)} s` : ""}` : "") + (a ? `<br><b style="color:#ff5a4a">▲ ${a.events.join(", ")}</b>` : ""); },
     sea: (sp, wind) => { const dq = new URLSearchParams(location.search).get("demo") || ""; const qp = new URLSearchParams(location.search);
       if (/surf/.test(dq)) { const ft = +qp.get("wave") || 5, mph = qp.get("wind") != null ? +qp.get("wind") : null, wd = qp.get("dir") != null ? +qp.get("dir") : null;
         const wl = wd != null ? windLook(sp, wd, mph || 0) : null; return { demo: true, ft, per: +qp.get("period") || 11, dir: qp.get("swelldir") != null ? +qp.get("swelldir") : 80, combo: /combo/.test(dq), off: wl ? wl.off > 0.2 : !/onshore/.test(dq), wl, surf: true, mph, wdir: wd }; } const m = M[sp.id] || {}; const wd = wind && wind.dir != null ? wind.dir : null;
-      return { ft: m.now || 0, per: m.per || 8, dir: m.dir, combo: !!(m.s2 && m.s2 > 1 && m.d2 != null && m.dir != null && Math.abs(((m.d2 - m.dir + 540) % 360) - 180) > 25), off: wd != null && offshore(sp, wd), wl: wd != null ? windLook(sp, wd, wind.mph || 0) : null, surf: FACE_EAST.has(sp.id) || sp.type === "Beach" || sp.type === "Pier" }; },
+      return { ft: m.now || 0, per: m.per || 8, dir: m.dir, combo: !!(m.s2 && m.s2 > 1 && m.d2 != null && m.dir != null && Math.abs(((m.d2 - m.dir + 540) % 360) - 180) > 25), off: wd != null && offshore(sp, wd), wl: wd != null ? windLook(sp, wd, wind.mph || 0, m.dir != null ? { dir: m.sw != null ? m.dir : m.dir, per: m.per, ft: m.sw ?? m.now } : null) : null, surf: FACE_EAST.has(sp.id) || sp.type === "Beach" || sp.type === "Pier" }; },
     async refresh(spots) { g.__agSpots = spots; await Promise.all([marine(spots), alerts(spots)]); g.__agRender && g.__agRender(); },
   };
   // ---- photo upload + feedback side panel ----
