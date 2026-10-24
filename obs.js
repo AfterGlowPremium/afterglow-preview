@@ -149,6 +149,9 @@
     return o;
   }
   O.canvas = canvas;
+  // d24k: satellite reads hours ahead are less predictive → weight ~0.25 at 9 h before the event, 1 within 1 h
+  O.satW = C => { const h = C && C.at ? Math.max(0, (C.tSet - C.at) / 3600) : 0; return Math.max(0.1, Math.min(1, 1 - 0.75 * (h - 1) / 8)); };
+  O.satNote = C => { const h = Math.max(0, (C.tSet - C.at) / 3600); return ` (satellite read ${h < 1 ? Math.round(h * 60) + ' min' : h.toFixed(1) + ' h'} before the event, weight ${Math.round(O.satW(C) * 100)}%)`; };
   // d24j: opposite-sky/overhead lighting. Broken MID/HIGH tops overhead or 20-200 km opposite the sun (± 45°), not a closed low deck,
   // AND an open sun-path horizon (light gets in under them). Per-spot readings only; 0..1.
   O.oppGlow = C => { if (!C || !C.antiIrMid || !C.irCv) return 0; const cl = x => Math.max(0, Math.min(1, x));
@@ -170,8 +173,8 @@
         const want = 100 * Math.min(0.95, frac * 1.1); if (k === "cloud_cover_mid" && Math.max(lo, mdl) < want) h[k][j] = Math.max(mdl, want - 0.5 * lo); if (k === "cloud_cover") h[k][j] = Math.max(h[k][j] || 0, want); } }
       return h; };
     const pick = km => { const i = C.km.indexOf(km); return i >= 0 ? C.cv[i] : 0; };
-    const S2 = Object.assign({}, S, { hourly: bump(S.hourly, Math.min(0.75, 1.5 * Math.max(C.here, 0.9 * C.west))) });   // the sky you see toward the sun (0–120 km) is the canvas, not just the zenith
-    const W2 = Wl.map((w, k) => w && Object.assign({}, w, { hourly: bump(w.hourly, [0.5 * pick(40) + 0.5 * pick(80), pick(120), 0.5 * pick(200) + 0.5 * pick(300)][k] || 0) }));
+    const sw = O.satW(C), S2 = Object.assign({}, S, { hourly: bump(S.hourly, sw * Math.min(0.75, 1.5 * Math.max(C.here, 0.9 * C.west))) });   // the sky you see toward the sun (0–120 km) is the canvas, not just the zenith
+    const W2 = Wl.map((w, k) => w && Object.assign({}, w, { hourly: bump(w.hourly, sw * [0.5 * pick(40) + 0.5 * pick(80), pick(120), 0.5 * pick(200) + 0.5 * pick(300)][k] || 0) }));
     const a = Array.from(args); a[1] = S2; a[2] = W2; return a;
   }
   // Wrap Model.evaluate so EVERY caller (pins, list, day strip, detail, render) gets the observed override.
@@ -180,7 +183,7 @@
     let ev = base.apply(this, arguments);
     try { const C = !/[?&](obs|sat)=0/.test(location.search) && ev && O.cv[sp.id];
       if (C && Math.abs(C.tSet - ev.tSet) < 3600 && Math.max(...C.cv.slice(0, 5)) >= 0.15) { const e2 = base.apply(this, withCanvas(arguments, ev, C));
-        if (e2) { e2.satCanvas = C; e2.scoreNoSat = ev.score; (e2.reasons || (e2.reasons = [])).unshift(`Satellite (GOES visible): broken cloud along the ${g.AG_MODE === "sunrise" ? "sunrise" : "sunset"} path — ${C.cv.slice(0, 5).map((v, i) => `${C.km[i]} km ${Math.round(v * 100)}%`).join(", ")}; ${C.far < 0.3 ? "open horizon beyond" : "cloud on the horizon too"}. The model had little mid cloud here; using the observed cloud.`); ev = e2;
+        if (e2) { e2.satCanvas = C; e2.scoreNoSat = ev.score; (e2.reasons || (e2.reasons = [])).unshift(`Satellite (GOES visible): broken cloud along the ${g.AG_MODE === "sunrise" ? "sunrise" : "sunset"} path — ${C.cv.slice(0, 5).map((v, i) => `${C.km[i]} km ${Math.round(v * 100)}%`).join(", ")}; ${C.far < 0.3 ? "open horizon beyond" : "cloud on the horizon too"}. The model had little mid cloud here; using the observed cloud${O.satNote(C)}.`); ev = e2;
           // broken cloud (not a solid deck) across the visible western sky + an open horizon = the lit-cloud sunset: 85–95
           let q;
           if (C.irMid) {   // d24b: visible + infrared. Light-catchers = broken MID/HIGH tops 20-120 km west; blockers = closed low deck or solid overhead.
@@ -192,10 +195,11 @@
             const brk = clamp(1 - Math.abs(C.west - 0.5) / 0.4), farOpen = clamp(1 - (C.far - 0.2) / 0.5) * (1 - clamp((C.farThick - 0.15) / 0.3)), solid = clamp((Math.max(...C.thick.slice(0, 4)) - 0.5) / 0.3);
             q = brk * farOpen * (1 - solid) * 0.8;
           }
-          { const oq = O.oppGlow(C); if (oq > 0.05) { ev.oppGlow = +oq.toFixed(2); if (oq > q) { const sc = Math.round(ev.score + (88 - ev.score) * oq * 0.8); if (sc > ev.score) { ev.scoreSatModel = ev.scoreSatModel || ev.score; ev.score = sc; ev.oppBoost = ev.oppGlow; (ev.reasons || (ev.reasons = [])).unshift(`Satellite (GOES visible+IR): broken mid/high cloud overhead and ${g.AG_MODE === "sunrise" ? "west" : "east"} (opposite the sun) with the horizon toward the sun open — those clouds should light pink-red ${g.AG_MODE === "sunrise" ? "before sunrise" : "after sunset"}.`); } } } }
-          if (C.west >= 0.15 && q > 0.2) { const sc = Math.round(ev.score + (90 - ev.score) * q); if (sc > ev.score) { ev.scoreSatModel = ev.score; ev.score = sc; ev.satBoost = +q.toFixed(2); } } } } } catch (e) { console.warn("sat canvas", e); }
+          { const oq = O.oppGlow(C) * O.satW(C); if (oq > 0.05) { ev.oppGlow = +oq.toFixed(2); if (oq > q) { const sc = Math.round(ev.score + (88 - ev.score) * oq * 0.8); if (sc > ev.score) { ev.scoreSatModel = ev.scoreSatModel || ev.score; ev.score = sc; ev.oppBoost = ev.oppGlow; (ev.reasons || (ev.reasons = [])).unshift(`Satellite (GOES visible+IR): broken mid/high cloud overhead and ${g.AG_MODE === "sunrise" ? "west" : "east"} (opposite the sun) with the horizon toward the sun open — those clouds should light pink-red ${g.AG_MODE === "sunrise" ? "before sunrise" : "after sunset"}${O.satNote(C)}.`); } } } }
+          q *= O.satW(C);
+          if (C.west >= 0.15 && q > 0.2 * O.satW(C)) { const sc = Math.round(ev.score + (90 - ev.score) * q); if (sc > ev.score) { ev.scoreSatModel = ev.score; ev.score = sc; ev.satBoost = +q.toFixed(2); } } } } } catch (e) { console.warn("sat canvas", e); }
     try { const C = !/[?&](obs|sat)=0/.test(location.search) && ev && ev.oppGlow == null && O.cv[sp.id];   // d24j: clear sun path but lit clouds opposite/overhead still counts
-      if (C && Math.abs(C.tSet - ev.tSet) < 3600) { const oq = O.oppGlow(C); if (oq > 0.05) { ev.oppGlow = +oq.toFixed(2); const sc = Math.round(ev.score + (85 - ev.score) * oq * 0.7); if (sc > ev.score) { ev.scoreSatModel = ev.score; ev.score = sc; ev.oppBoost = ev.oppGlow; (ev.reasons || (ev.reasons = [])).unshift(`Satellite (GOES visible+IR): broken mid/high cloud overhead / opposite the sun with an open horizon toward the sun — those clouds should light pink-red.`); } } } } catch (e) {}
+      if (C && Math.abs(C.tSet - ev.tSet) < 3600) { const oq = O.oppGlow(C) * O.satW(C); if (oq > 0.05) { ev.oppGlow = +oq.toFixed(2); const sc = Math.round(ev.score + (85 - ev.score) * oq * 0.7); if (sc > ev.score) { ev.scoreSatModel = ev.score; ev.score = sc; ev.oppBoost = ev.oppGlow; (ev.reasons || (ev.reasons = [])).unshift(`Satellite (GOES visible+IR): broken mid/high cloud overhead / opposite the sun with an open horizon toward the sun — those clouds should light pink-red${O.satNote(C)}.`); } } } } catch (e) {}
     try { Object.defineProperty(ev, "_h", { value: arguments[1] && arguments[1].hourly, enumerable: false }); Object.defineProperty(ev, "_sp", { value: sp, enumerable: false }); } catch (e) {}   // d16: hourly clouds for grayAt(t)
     try {
       if (/[?&]obs=0/.test(location.search) || !ev) return ev;

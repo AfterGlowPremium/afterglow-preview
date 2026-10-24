@@ -48,8 +48,8 @@ function irAt(F, lat, lng) {
   const res = {}, now = Date.now() / 1000;
   for (const sp of win.SPOTS) {
     const tSet = sunsetOf(sp.lat, sp.lng); if (!tSet) continue;
-    const want = elevTime(sp.lat, sp.lng, tSet, 4); if (want > now + 600 && prev[sp.id]) { res[sp.id] = prev[sp.id]; continue; }
-    if (tSet - now > 3 * 3600) continue;   // too early for a meaningful read
+    const want = elevTime(sp.lat, sp.lng, tSet, 4);   // d24k: read all day with the newest frame (night-dark frames fail canvasAt → keep prev); obs.js weights early reads down
+    if (now - tSet > 1800 && prev[sp.id]) { res[sp.id] = prev[sp.id]; continue; }
     const F = await frame(Math.min(want, now)); if (!F) { if (prev[sp.id]) res[sp.id] = prev[sp.id]; continue; }
     const az = sunPos(tSet, sp.lat, sp.lng).az, r = KM.map(d => { const p = d ? offset(sp.lat, sp.lng, az, d) : { lat: sp.lat, lng: sp.lng }; return canvasAt(F, p.lat, p.lng); });
     if (r.filter(Boolean).length < 5) { if (prev[sp.id]) res[sp.id] = prev[sp.id]; continue; }
@@ -63,7 +63,7 @@ function irAt(F, lat, lng) {
       Object.assign(ax, { antiKm: AKM, antiCv: A.cv, antiIrCv: A.irCv, antiIrMid: A.irMid, antiIrLow: A.irLow, sideCv: AKM.map((_, i) => f2((L.cv[i] + R.cv[i]) / 2)), sideIrMid: AKM.map((_, i) => f2((L.irMid[i] + R.irMid[i]) / 2)), sideIrLow: AKM.map((_, i) => f2((L.irLow[i] + R.irLow[i]) / 2)),
         overCv: f2(o0 ? o0.cv : 0), overIrCv: f2(i0 ? i0.cv : 0), overIrMid: f2(i0 ? i0.mid : 0), overIrLow: f2(i0 ? i0.low : 0) }); }
     res[sp.id] = { tSet, at: F.t, km: KM, cv: v.map(f2), thick: th.map(f2), here: f2(0.3 * v[0] + 0.25 * v[1] + 0.25 * v[2] + 0.2 * v[3]), west: f2((v[0] + v[1] + v[2] + v[3] + v[4]) / 5),
-      far: f2(0.5 * v[5] + 0.5 * v[6]), farThick: f2(Math.max(th[5], th[6])), ...irx, ...ax, src: irx.irCv ? "goes-vis+ir4km-archive" : "goes-vis4km-archive" };
+      far: f2(0.5 * v[5] + 0.5 * v[6]), farThick: f2(Math.max(th[5], th[6])), ...irx, ...ax, hrsToEvent: +((tSet - F.t) / 3600).toFixed(2), src: irx.irCv ? "goes-vis+ir4km-archive" : "goes-vis4km-archive" };
   }
   fs.writeFileSync(out, JSON.stringify({ v: 1, day, gen: new Date().toISOString(), spots: res }));
   console.log("satcv", day, Object.keys(res).length, "spots ->", out);
