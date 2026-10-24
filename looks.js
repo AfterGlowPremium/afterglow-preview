@@ -14,8 +14,8 @@
       storm:    { light: [0.70, 0.72, 0.80], intensity: 0.30, backlight: 0.1, reflect: 0.40, fog: 0.30, cov: [0.70, 0.90, 0.90], rain: 0.85, bolt: 0.9 },
     },
     wind: {   // roughness 0..1, whitecaps 0..1, spindrift 0..1, offshore grooming 0..1 — all scale with speed
-      calm:     kt => ({ rough: 0.04, caps: 0, spindrift: 0, off: 0.3, look: "glassy" }),
-      offshore: kt => ({ rough: Math.min(0.25, 0.04 + kt / 80), caps: 0, spindrift: Math.min(1, (kt - 4) / 14), off: Math.min(1, kt / 13), look: kt > 15 ? "strong offshore — spray" : "offshore — clean, groomed" }),
+      calm:     kt => ({ rough: Math.max(0.04, 0.55 * Math.pow(Math.max(0, Math.min(1, (kt * 1.15 - 3.5) / 14.5)), 0.8)), caps: 0, spindrift: 0, off: 0.3, look: "glassy" }),
+      offshore: kt => ({ rough: Math.max(Math.min(0.25, 0.04 + kt / 80), 0.55 * Math.pow(Math.max(0, Math.min(1, (kt * 1.15 - 3.5) / 14.5)), 0.8)), caps: 0, spindrift: Math.min(1, (kt - 4) / 14), off: Math.min(1, kt / 13), look: kt > 15 ? "strong offshore — spray" : "offshore — clean, groomed" }),
       onshore:  kt => ({ rough: Math.min(1, (kt - 4) / 12), caps: Math.max(0, (kt - 10) / 12), spindrift: 0, off: 0, look: kt > 10 ? "onshore — blown out" : "light onshore — textured" }),
       cross:    kt => ({ rough: Math.min(1, (kt - 4) / 15), caps: Math.max(0, (kt - 12) / 14), spindrift: 0, off: 0.1, look: kt > 10 ? "cross-shore — choppy" : "cross-shore — textured" }),
     },
