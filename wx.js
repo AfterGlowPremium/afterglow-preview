@@ -14,9 +14,75 @@
     const bow = ev.bonus && ev.bonus.bow, bwin = bow && bow.win;
     const bowOn = !!(bow && bow.p >= 10 && bwin && t >= bwin.start && t <= bwin.end && elev > -0.3 && elev < 42);
     const bowA = bowOn ? clamp(Math.min(t - bwin.start, bwin.end - t) / 420) * clamp(0.35 + bow.p / 60) : 0;
-    return { bolt, boltP: bp, rain, rainName: rainIt && rainIt.name, snow, snowName: snowIt && snowIt.name, fog, bow: bowA, bowP: bow ? bow.p : 0, red: bow && bow.red, wind: WX.wind && WX.wind.mph || 0 };
+    // d24t: convective towers. Cumulonimbus when the forecast has thunder (lightning odds >= 25% or code >= 95); towering cumulus when CAPE > 800
+    // with low cloud but no storm. Placement from where the model puts the storm: at the spot → near & big; ~12 km opposite → only behind you; else distant on the horizon.
+    const S0 = ev.s || {}, wh = (WX.bolt && WX.bolt.where) || "", cbOn = bp >= 25 || (S0.code >= 95);
+    const cb = cbOn ? { near: /at the spot/.test(wh) || S0.code >= 95, behind: /km/.test(wh), p: bp } : null;
+    const tcu = !cbOn && (S0.cape || 0) > 800 && (S0.low || 0) > 15 ? clamp(((S0.cape || 0) - 800) / 1500, 0.3, 1) : 0;
+    return { cb, tcu, bolt, boltP: bp, rain, rainName: rainIt && rainIt.name, snow, snowName: snowIt && snowIt.name, fog, bow: bowA, bowP: bow ? bow.p : 0, red: bow && bow.red, wind: WX.wind && WX.wind.mph || 0 };
   }
   let drops = null, flakes = null;
+  // d24t: cumulonimbus thunderhead / towering cumulus — static body pre-rendered to an offscreen canvas (re-made only when size or light
+  // bucket changes), so per frame it is one drawImage + a lightning glow. Tops catch the low sun (gold → orange → pink), base stays dark.
+  const towerCache = {};
+  function towerBody(kind, h, lit, seed) {
+    const key = kind + "|" + Math.round(h) + "|" + lit.toFixed(1); if (towerCache[key]) return towerCache[key];
+    const w = Math.round(h * (kind === "cb" ? 1.9 : 0.9)), c = document.createElement("canvas"); c.width = w; c.height = Math.round(h * 1.15); const x = c.getContext("2d");
+    let r = (Math.abs(Math.round(seed)) % 2147483646) + 1; const rnd = () => (r = (r * 16807) % 2147483647) / 2147483647;
+    const cx = w * (kind === "cb" ? 0.42 : 0.5), base = h * 1.02;
+    const warm = lit > 0.6 ? [255, 220, 160] : lit > 0.3 ? [255, 168, 108] : lit > 0.08 ? [240, 122, 138] : [120, 116, 132];
+    const shade = [62, 64, 78], mid = [150, 140, 150];
+    const mix = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
+    const puff = (px, py, pr, sy) => { const u = Math.max(0, Math.min(1, (base - py) / h)), top = mix(shade, warm, Math.min(1, Math.pow(u, 1.1) * 1.15)), sh = mix(shade, mid, u * 0.5);
+      x.save(); x.translate(px, py); x.scale(1, sy || 1); const g = x.createRadialGradient(-pr * 0.2, -pr * 0.3, pr * 0.2, 0, 0, pr);
+      g.addColorStop(0, `rgba(${top},.95)`); g.addColorStop(0.55, `rgba(${mix(top, sh, 0.3)},.8)`); g.addColorStop(1, `rgba(${mix(top, sh, 0.5)},0)`); x.fillStyle = g; x.beginPath(); x.arc(0, 0, pr, 0, 6.283); x.fill(); x.restore(); };
+    if (kind === "cb") {
+      const topY = base - h * 0.97, anvY = base - h * 0.80;
+      // rain shafts under the base (soft, streaky)
+      for (let i = 0; i < 14; i++) { const sx = cx - h * 0.25 + rnd() * h * 0.55, g = x.createLinearGradient(0, base - h * 0.04, 0, c.height); g.addColorStop(0, "rgba(54,56,68,.45)"); g.addColorStop(1, "rgba(54,56,68,0)"); x.fillStyle = g; x.fillRect(sx, base - h * 0.04, h * (0.015 + rnd() * 0.04), c.height); }
+      // anvil: one smooth shape — flat top at the tropopause, thin tapered underside, long overhang downwind
+      x.beginPath(); x.moveTo(cx - h * 0.32, anvY); x.quadraticCurveTo(cx - h * 0.36, topY + h * 0.02, cx - h * 0.2, topY); x.lineTo(cx + h * 0.95, topY + h * 0.015);
+      x.quadraticCurveTo(cx + h * 1.12, topY + h * 0.04, cx + h * 0.98, topY + h * 0.07); x.quadraticCurveTo(cx + h * 0.4, anvY + h * 0.01, cx + h * 0.12, anvY + h * 0.03); x.closePath();
+      let g = x.createLinearGradient(0, topY, 0, anvY + h * 0.03); g.addColorStop(0, `rgba(${warm},1)`); g.addColorStop(0.5, `rgba(${mix(warm, mid, 0.5)},1)`); g.addColorStop(1, `rgba(${mix(mid, shade, 0.5)},1)`); x.fillStyle = g; x.fill();
+      x.save(); x.clip(); for (let i = 0; i < 90; i++) { const ax = cx - h * 0.3 + rnd() * h * 1.35, ay = topY + rnd() * (anvY - topY); x.fillStyle = `rgba(${rnd() < 0.5 ? warm : shade},${0.06 + rnd() * 0.08})`; x.beginPath(); x.ellipse(ax, ay, h * (0.05 + rnd() * 0.1), h * 0.02, 0, 0, 6.283); x.fill(); } x.restore();
+      // column: many small overlapping cauliflower puffs, widening into the anvil
+      for (let i = 0; i < 220; i++) { const u = Math.pow(rnd(), 0.9), y = base - u * (base - anvY - h * 0.02), wd = h * (0.17 + 0.1 * u); puff(cx + (rnd() - 0.5) * wd * 1.6 + u * h * 0.04, y, h * (0.035 + rnd() * 0.06) * (1.2 - 0.4 * u)); }
+      // dark, flat base
+      g = x.createLinearGradient(0, base - h * 0.28, 0, base + 2); g.addColorStop(0, "rgba(36,38,48,0)"); g.addColorStop(1, "rgba(36,38,48,.92)"); x.globalCompositeOperation = "source-atop"; x.fillStyle = g; x.fillRect(0, base - h * 0.28, w, h * 0.3); x.globalCompositeOperation = "source-over";
+      const c2 = document.createElement("canvas"); c2.width = w; c2.height = c.height; const x2 = c2.getContext("2d"); x2.filter = `blur(${Math.max(0.6, h * 0.004).toFixed(1)}px)`; x2.drawImage(c, 0, 0); return (towerCache[key] = c2);
+    } else {
+      for (let k = 0; k < 3; k++) { const tx = w * (0.25 + 0.25 * k), th = h * (0.55 + 0.45 * rnd()); for (let i = 0; i < 26; i++) { const u = i / 26; puff(tx + (rnd() - 0.5) * h * 0.18, base - u * th, h * (0.1 + 0.08 * (1 - u)) * (0.7 + rnd() * 0.5)); } }
+      const g = x.createLinearGradient(0, base - h * 0.15, 0, base); g.addColorStop(0, "rgba(70,72,86,0)"); g.addColorStop(1, "rgba(70,72,86,.7)"); x.globalCompositeOperation = "source-atop"; x.fillStyle = g; x.fillRect(0, base - h * 0.15, w, h * 0.15); x.globalCompositeOperation = "source-over";
+    }
+    return (towerCache[key] = c);
+  }
+  // d24t: RADAR-placed towers. Each cell = [bearing offset from the view centre (deg), distance km, peak dBZ, IR cloud-top km].
+  // Screen x from bearing (horizontal FOV from the WebGL camera: vfov 62/50/40° by aspect); height = atan(top / d) minus the earth-curvature
+  // drop d²/2R, so a 45,000 ft (13.7 km) top 48 km away stands ~16° above the horizon. >= 45 dBZ or tops >= 8 km → cumulonimbus with anvil.
+  function radarTowers(x, W, H, hz, C, now) {
+    const vf = (W / H < 1 ? 62 : W / H < 1.5 ? 50 : 40), hf = 2 * Math.atan(Math.tan(vf * Math.PI / 360) * W / H) * 180 / Math.PI, ppd = H / vf;
+    const e = C.elev != null ? C.elev : 3, lit = clamp((e + 4) / 12), cells = C.storms.cells.slice().sort((a, b) => b[1] - a[1]);   // far first
+    let flash = null;
+    for (const c of cells) { const [db, d, z, tk0] = c; if (Math.abs(db) > hf / 2 + 8) continue;
+      const tk = tk0 != null && tk0 > 2 ? tk0 : z >= 50 ? 11 : 8, ang = Math.atan(tk / d) * 180 / Math.PI - (d * d / 12742) / d * 180 / Math.PI, h = Math.max(6, ang * ppd);
+      const cb = z >= 45 || tk >= 8, B = towerBody(cb ? "cb" : "tcu", Math.round(h / 4) * 4, lit, 7 + Math.round(db)), cx = W / 2 + db / hf * W;
+      x.save(); x.globalAlpha = clamp(0.98 - d / 400, 0.45, 0.97); x.drawImage(B, cx - B.width * (cb ? 0.42 : 0.5), hz - B.height / 1.15 * 1.02); x.restore();
+      if (cb && z >= 50 && (!flash || d < flash.d)) flash = { cx, cy: hz - h * 0.45, h, d, db }; }
+    if (flash) { const ph = (now + flash.db * 137) % 2700; if (ph < 140) { const a = ph < 60 ? 0.55 : ph < 90 ? 0.12 : 0.4, g = x.createRadialGradient(flash.cx, flash.cy, 2, flash.cx, flash.cy, flash.h * 0.4);
+      g.addColorStop(0, `rgba(235,235,255,${a})`); g.addColorStop(1, "rgba(235,235,255,0)"); x.save(); x.globalCompositeOperation = "lighter"; x.fillStyle = g; x.fillRect(flash.cx - flash.h * 0.4, flash.cy - flash.h * 0.4, flash.h * 0.8, flash.h * 0.8); x.restore(); } }
+  }
+  function towers(x, W, H, hz, C, now) {
+    if (C.storms && C.storms.cells && C.storms.cells.length) return radarTowers(x, W, H, hz, C, now);
+    const e = C.elev != null ? C.elev : 3, lit = clamp((e + 4) / 12), side = C.cbSide != null ? C.cbSide : 0.2;   // sun sits near the frame centre → towers off to one side
+    if (C.cb && (!C.cb.behind || C.turned)) {
+      const h = H * (C.cb.near ? 0.5 : 0.3), B = towerBody("cb", h, lit, 7), bx = W * side - B.width * 0.42, by = hz - h * 1.02 + (C.cb.near ? H * 0.02 : 0);
+      x.save(); x.globalAlpha = C.cb.near ? 0.97 : 0.88; x.drawImage(B, bx, by); x.restore();
+      const ph = now % 3100; if (ph < 140) { const a = ph < 60 ? 0.6 : ph < 90 ? 0.15 : 0.45, cx = bx + B.width * (0.35 + 0.1 * Math.sin(Math.floor(now / 3100))), cy = by + h * 0.55;   // in-cloud flicker
+        const g = x.createRadialGradient(cx, cy, 2, cx, cy, h * 0.35); g.addColorStop(0, `rgba(235,235,255,${a})`); g.addColorStop(1, "rgba(235,235,255,0)"); x.save(); x.globalCompositeOperation = "lighter"; x.fillStyle = g; x.fillRect(cx - h * 0.4, cy - h * 0.4, h * 0.8, h * 0.8); x.restore(); }
+    }
+    if (C.tcu) { const h = H * 0.16 * (0.7 + 0.3 * C.tcu), B = towerBody("tcu", h, lit, 3); x.save(); x.globalAlpha = 0.9; x.drawImage(B, W * (1 - side) - B.width / 2, hz - h * 1.02); x.restore(); }
+  }
+
   // d24n: snow — soft gray-white veil (hides the sun disk when heavy), haze thickening toward the horizon, three depth layers of flakes
   // (far: tiny/slow/dim, near: big/soft/fast) drifting with the wind and fluttering, and a whitened ground/foreground band.
   function snowfall(x, W, H, hz, C, slant, now) {
@@ -46,6 +112,7 @@
     if (C.sea) sea(x, W, H, hz, C, now);
     if (C.torn) tornado(x, W, H, hz, now);
     if (C.jets) jets(x, W, H, hz, C, now);
+    if (C.cb || C.tcu || C.storms) towers(x, W, H, hz, C, now);
     if (C.fog) { const gr = x.createLinearGradient(0, hz - H * 0.3, 0, H); gr.addColorStop(0, "rgba(200,205,215,0)"); gr.addColorStop(0.5, `rgba(200,205,215,${0.45 * C.fog})`); gr.addColorStop(1, `rgba(190,195,205,${0.3 * C.fog})`); x.fillStyle = gr; x.fillRect(0, 0, W, H); }
     if (C.bolt) {   // storm cell + flicker; deterministic per minute of forecast time, plus a live flicker while it sits still
       const k = Math.floor(t / 60) + Math.floor(now / 2400), ph = now % 2400, a = (ph < 70 ? 1 : ph < 120 ? 0.25 : ph < 190 ? 0.75 : 0) * C.bolt;
