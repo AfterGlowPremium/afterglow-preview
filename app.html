@@ -28,7 +28,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="styles.css?v=d26s">
+<link rel="stylesheet" href="styles.css?v=d26t">
 <style>/* inside the shell iframe: use the insets the shell measured */
 .top{padding-top:calc(18px + max(env(safe-area-inset-top,0px), var(--ag-sat,0px)))}
 @media (max-width:900px){
@@ -41,9 +41,9 @@
 </head>
 <body>
 <script>if (window.parent === window) location.replace("./" + location.search + location.hash);</script>
-<script>window.AG_BUILD = "d26s"; window.AG_SHELL = window.parent !== window;</script>
+<script>window.AG_BUILD = "d26t"; window.AG_SHELL = window.parent !== window;</script>
 <script>window.AG = { realistic: true };</script>
-<script src="config.js?v=d26s"></script>
+<script src="config.js?v=d26t"></script>
 <script>
   // No ?mode= → show the welcome homepage first (app.js stays idle until a choice is made)
   (function () { var m = new URLSearchParams(location.search).get("mode"); if (m !== "sunrise" && m !== "sunset") document.documentElement.classList.add("show-home"); })();
@@ -51,7 +51,7 @@
 <section id="home" class="home" aria-label="Welcome to Afterglow Premium">
   <canvas id="home-cv" class="home-cv" aria-hidden="true"></canvas>
   <div class="hi-intro" aria-hidden="true"><div class="hi-t">Afterglow <em>Premium</em></div><div class="hi-tag">East Coast sunrise &amp; sunset forecasts</div></div>
-  <div class="hi-pill hi-rb" aria-hidden="true"><i></i>Rainbow</div><div class="hi-pill hi-lt" aria-hidden="true"><i></i>Lightning</div>
+  
   
   <div class="home-card">
     <div class="logo home-logo"><span class="sun"></span></div>
@@ -65,7 +65,7 @@
     <p class="site-copy">© Sean Tuttle 2026</p>
   </div>
 </section>
-<script>/* d26s: welcome intro (after Sean's reference): sunset seascape full-screen, rainbow left, lightning right, intro title + pills,
+<script>/* d26t: welcome intro (after Sean's reference): sunset seascape full-screen, rainbow left, lightning right, intro title + pills,
    push-in, then the glass chooser slides up. One-way; scene keeps gently moving. Tap skips. Reduce-motion → final state at once. */
 (function(){var R=document.documentElement;if(!R.classList.contains("show-home"))return;var cv=document.getElementById("home-cv"),hm=document.getElementById("home");if(!cv)return;
 var x=cv.getContext("2d"),W=0,H=0,D=1,RM=matchMedia("(prefers-reduced-motion: reduce)").matches,bolt=0,nextB=performance.now()+1200;
@@ -174,14 +174,14 @@ if(RM)fin();else{T.push(setTimeout(function(){st("hi-push")},1000));T.push(setTi
 <div id="loading" class="loading"><div class="ld-sun"></div><p>Reading the sky…</p></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="spots.js?v=d26s"></script>
-<script src="search.js?v=d26s"></script>
-<script src="model.js?v=d26s"></script>
-<script src="preview.js?v=d26s"></script>
-<script src="photoreal.js?v=d26s"></script>
-<script src="ground.js?v=d26s"></script>
-<script src="photostage.js?v=d26s"></script>
-<script src="satellite.js?v=d26s"></script>
+<script src="spots.js?v=d26t"></script>
+<script src="search.js?v=d26t"></script>
+<script src="model.js?v=d26t"></script>
+<script src="preview.js?v=d26t"></script>
+<script src="photoreal.js?v=d26t"></script>
+<script src="ground.js?v=d26t"></script>
+<script src="photostage.js?v=d26t"></script>
+<script src="satellite.js?v=d26t"></script>
 <script>
   (function () {
     var m = new URLSearchParams(location.search).get("mode"); if (m !== "sunrise" && m !== "sunset") return;
@@ -197,12 +197,12 @@ if(RM)fin();else{T.push(setTimeout(function(){st("hi-push")},1000));T.push(setTi
     }
   })();
 </script>
-<script src="obs.js?v=d26s"></script>
-<script src="wx.js?v=d26s"></script>
-<script src="agx.js?v=d26s"></script>
-<script src="looks.js?v=d26s"></script>
-<script src="app.js?v=d26s"></script>
-<script src="scene.js?v=d26s"></script>
-<script>/* d26s */(function(){function f(){var h=document.querySelector(".top"),c=h&&h.querySelector(".top-ctl");if(c)document.documentElement.style.setProperty("--brandH",Math.max(0,c.offsetTop-6)+"px");}addEventListener("load",f);addEventListener("resize",f);setTimeout(f,1500);})();</script>
+<script src="obs.js?v=d26t"></script>
+<script src="wx.js?v=d26t"></script>
+<script src="agx.js?v=d26t"></script>
+<script src="looks.js?v=d26t"></script>
+<script src="app.js?v=d26t"></script>
+<script src="scene.js?v=d26t"></script>
+<script>/* d26t */(function(){function f(){var h=document.querySelector(".top"),c=h&&h.querySelector(".top-ctl");if(c)document.documentElement.style.setProperty("--brandH",Math.max(0,c.offsetTop-6)+"px");}addEventListener("load",f);addEventListener("resize",f);setTimeout(f,1500);})();</script>
 </body>
 </html>
