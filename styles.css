@@ -833,3 +833,12 @@ html.ag-desk .stage .ev-toggle a{font-size:13px;padding:8px 14px}
 @keyframes hmSpin{to{--hmA:360deg}}
 @keyframes hmGlow{from{box-shadow:0 0 12px rgba(255,79,163,.6),0 0 28px rgba(255,79,163,.3),inset 0 0 10px rgba(255,79,163,.2)}to{box-shadow:0 0 16px rgba(155,92,255,.65),0 0 40px rgba(155,92,255,.4),inset 0 0 14px rgba(155,92,255,.25)}}
 @media (prefers-reduced-motion:reduce){.hero-movie{animation:none}}
+/* d26p: animated welcome — full-screen canvas sky, compact glass card at the bottom, title fades in; safe-area aware */
+.home-cv{position:fixed;inset:0;width:100%;height:100%;display:block}
+html.show-home .home{align-items:flex-end;padding:calc(18px + env(safe-area-inset-top,0px)) 16px calc(18px + env(safe-area-inset-bottom,0px))}
+html.show-home .home-card{margin:auto auto 0;background:rgba(14,10,34,.38);border:1px solid rgba(255,122,196,.35);box-shadow:0 0 18px rgba(255,79,163,.25),0 0 40px rgba(155,92,255,.2);padding:22px 18px 16px}
+.home-card h1{animation:homeIn 1.6s ease-out both;text-shadow:0 0 18px rgba(255,79,163,.55),0 0 36px rgba(155,92,255,.35)}
+.home-card .home-sub{animation:homeIn 1.6s .4s ease-out both}.home-card .home-q,.home-btns{animation:homeIn 1.2s .8s ease-out both}
+@keyframes homeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.home-btn{box-shadow:0 0 16px rgba(255,79,163,.3)}.home-btn b{font-size:22px}
+@media (prefers-reduced-motion:reduce){.home-card h1,.home-card .home-sub,.home-card .home-q,.home-btns{animation:none}}
