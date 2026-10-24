@@ -1,0 +1,27 @@
+[
+ {
+  "id": "test-1792845876",
+  "at": "2026-10-24T12:44:36.967096+00:00",
+  "spot": "test",
+  "mode": "sunset",
+  "rating": 50,
+  "raw": 50,
+  "sky": {
+   "total": 40
+  },
+  "photo": {
+   "w": 64,
+   "h": 48,
+   "bright": 0.567,
+   "sat": 0.774,
+   "warm": 1,
+   "vivid": 1,
+   "cloud": 0,
+   "colorScore": 100
+  },
+  "ver": "d25b",
+  "resid": 15,
+  "cloudErr": -40,
+  "test": true
+ }
+]
