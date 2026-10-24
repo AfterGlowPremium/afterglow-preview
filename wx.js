@@ -107,6 +107,39 @@
       if (z > 0.75) { const g2 = x.createRadialGradient(xx, y, 0, xx, y, r * 1.6); g2.addColorStop(0, `rgba(255,255,255,${a})`); g2.addColorStop(1, "rgba(255,255,255,0)"); x.fillStyle = g2; x.beginPath(); x.arc(xx, y, r * 1.6, 0, 6.283); x.fill(); }
       else { x.fillStyle = `rgba(250,251,255,${a})`; x.beginPath(); x.arc(xx, y, r, 0, 6.283); x.fill(); } }
   }
+
+  // d26i: the real moon (SunCalc-style low-precision ephemeris). Position for the spot + slider time, lit fraction and bright-limb angle,
+  // placed on the camera horizon like the other props (view centred on C.faceAz, ~H/base px per degree at zoom 1), dimmed by daylight and cloud.
+  const RAD = Math.PI / 180, J2000 = 2451545;
+  function moonCalc(t, lat, lng) { const d = t / 86400 + 2440587.5 - J2000, e = RAD * 23.4397;
+    const L = RAD * (218.316 + 13.176396 * d), M = RAD * (134.963 + 13.064993 * d), F = RAD * (93.272 + 13.22935 * d);
+    const l = L + RAD * 6.289 * Math.sin(M), b = RAD * 5.128 * Math.sin(F), dist = 385001 - 20905 * Math.cos(M);
+    const ra = Math.atan2(Math.sin(l) * Math.cos(e) - Math.tan(b) * Math.sin(e), Math.cos(l)), dec = Math.asin(Math.sin(b) * Math.cos(e) + Math.cos(b) * Math.sin(e) * Math.sin(l));
+    const lw = RAD * -lng, ph = RAD * lat, H = RAD * (280.16 + 360.9856235 * d) - lw - ra;
+    let alt = Math.asin(Math.sin(ph) * Math.sin(dec) + Math.cos(ph) * Math.cos(dec) * Math.cos(H)); const az = Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(ph) - Math.tan(dec) * Math.cos(ph));
+    alt += RAD * 0.017 / Math.tan(alt + RAD * 10.26 / (alt / RAD + 5.10)) * (alt > -0.03 ? 1 : 0);   // refraction near the horizon
+    // sun
+    const Ms = RAD * (357.5291 + 0.98560028 * d), C0 = RAD * (1.9148 * Math.sin(Ms) + 0.02 * Math.sin(2 * Ms) + 0.0003 * Math.sin(3 * Ms)), ls = Ms + C0 + RAD * 102.9372 + Math.PI;
+    const sdec = Math.asin(Math.sin(0) * Math.cos(e) + Math.cos(0) * Math.sin(e) * Math.sin(ls)), sra = Math.atan2(Math.sin(ls) * Math.cos(e), Math.cos(ls));
+    const phi = Math.acos(Math.sin(sdec) * Math.sin(dec) + Math.cos(sdec) * Math.cos(dec) * Math.cos(sra - ra)), inc = Math.atan2(149598000 * Math.sin(phi), dist - 149598000 * Math.cos(phi));
+    const ang = Math.atan2(Math.cos(sdec) * Math.sin(sra - ra), Math.sin(sdec) * Math.cos(dec) - Math.cos(sdec) * Math.sin(dec) * Math.cos(sra - ra));
+    const pa = Math.atan2(Math.sin(H), Math.tan(ph) * Math.cos(dec) - Math.sin(dec) * Math.cos(H));   // parallactic angle
+    const frac = (1 + Math.cos(inc)) / 2, phase = 0.5 + 0.5 * inc * (ang < 0 ? -1 : 1) / Math.PI;
+    return { alt: alt / RAD, az: (az / RAD + 180 + 360) % 360, frac, phase, limb: ang - pa }; }
+  function phaseName(p) { return p < 0.03 || p > 0.97 ? "New moon" : p < 0.22 ? "Waxing crescent" : p < 0.28 ? "First quarter" : p < 0.47 ? "Waxing gibbous" : p < 0.53 ? "Full moon" : p < 0.72 ? "Waning gibbous" : p < 0.78 ? "Last quarter" : "Waning crescent"; }
+  function moon(x, W, H, hz0, C) { const m = C.moonPos; if (!m || m.alt < -0.6 || m.frac < 0.02) return;
+    const base = W / H < 1 ? 62 : W / H < 1.5 ? 50 : 40, ppd = H / base, dAz = ((m.az - C.faceAz + 540) % 360) - 180;
+    const cx = W / 2 + dAz * ppd, cy = hz0 - m.alt * ppd, r = Math.max(2.2, 0.26 * ppd);   // true angular size 0.52°
+    if (cx < -3 * r || cx > W + 3 * r || cy < -3 * r) return;
+    const se = C.sunElev != null ? C.sunElev : -10, day = clamp((se + 4) / 10), cl = clamp(((C.cloud || 0) - 35) / 60);
+    const a = clamp(1 - 0.6 * day) * (1 - 0.85 * cl) * clamp((m.alt + 0.6) / 2.5); if (a <= 0.02) return;
+    x.save(); x.beginPath(); x.rect(0, 0, W, hz0); x.clip();   // never below the horizon
+    if (day < 0.8) { const gw = x.createRadialGradient(cx, cy, r, cx, cy, r * 6); gw.addColorStop(0, `rgba(235,232,215,${0.28 * a * (1 - day) * (0.4 + 0.6 * m.frac)})`); gw.addColorStop(1, "rgba(235,232,215,0)"); x.fillStyle = gw; x.beginPath(); x.arc(cx, cy, r * 6, 0, 6.283); x.fill(); }
+    const lowTint = clamp(1 - m.alt / 8), col = `rgba(${245},${Math.round(240 - 50 * lowTint)},${Math.round(220 - 110 * lowTint)},`;
+    x.translate(cx, cy); x.rotate(-m.limb + Math.PI / 2);   // bright limb toward the sun; limb angle measured from north (screen up), eastward = screen left
+    x.fillStyle = `rgba(40,44,60,${0.18 * a * (1 - day)})`; x.beginPath(); x.arc(0, 0, r, 0, 6.283); x.fill();   // earthshine on the dark part
+    const k = 1 - 2 * m.frac; x.fillStyle = col + a + ")"; x.beginPath(); x.arc(0, 0, r, -Math.PI / 2, Math.PI / 2, false); x.ellipse(0, 0, Math.abs(k) * r, r, 0, Math.PI / 2, -Math.PI / 2, k > 0); x.fill();
+    x.restore(); }
   function draw(cv, C, t, now) {
     const W = cv.clientWidth, H = cv.clientHeight, dpr = Math.min(2, g.devicePixelRatio || 1);
     if (!W || !H) return;
@@ -125,6 +158,7 @@
     // centre — the horizon lands exactly on the scene's current horizon (C.hz) and position/size track the sky and sun.
     { const hzF = C.hz != null ? C.hz : 0.6, a = W / H, base = a < 1 ? 62 : a < 1.5 ? 50 : 40, k = C.vfov && C.vfov !== 20 ? Math.tan(base * Math.PI / 360) / Math.tan(C.vfov * Math.PI / 360) : 1;
       const hz0 = (0.5 + (hzF - 0.5) / k) * H; g.__agPropK = k;
+      if (C.moonPos && C.faceAz != null) { x.save(); x.translate(W / 2, H / 2); x.scale(k, k); x.translate(-W / 2, -H / 2); moon(x, W, H, hz0, C); x.restore(); }
       if (C.carrier || C.chinook || C.ghost) { x.save(); x.translate(W / 2, H / 2); x.scale(k, k); x.translate(-W / 2, -H / 2);
         if (C.carrier) { carrier(x, W, H, hz0, C, now); heli(x, W, H, hz0, C, now); } if (C.chinook) chinook(x, W, H, hz0, C, now); if (C.ghost) ghostTree(x, W, H, hz, C, now); x.restore(); } }
     if (C.torn) tornado(x, W, H, hz, now);
@@ -400,5 +434,5 @@
     if (C.bolt) t.push(`⚡ Lightning ${C.boltP}%`); if (C.torn) t.push("🌪 NWS Tornado Warning"); if (C.wind > 40 && C.rain) t.push(`💨 ${Math.round(C.wind)} mph — sideways rain`); { const Sx = C.sea || C.seaLbl; if (Sx && Sx.ft >= 1) t.push(`🌊 ${Sx.ft.toFixed(1)} ft · ${Math.round(Sx.per || 0)} s${Sx.wl ? `\n💨 ${Math.round(Sx.mph != null ? Sx.mph : Sx.wl.kt * 1.15)} mph ${Sx.wl.look}` : Sx.off ? " · offshore, clean" : ""}${Sx.combo ? " · combo swell, peaky" : ""}`); } if (C.bow > 0.01) t.push(`🌈 Rainbow ${C.bowP}%`);
     return t.join("\n");
   }
-  g.Wx = { conditions, draw, label };
+  g.Wx = { conditions, draw, label, moonCalc, phaseName };
 })(window);
