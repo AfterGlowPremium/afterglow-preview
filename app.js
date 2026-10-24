@@ -332,7 +332,7 @@
     const o = b.dataset.overlay; state.overlay = o;
     Object.values(overlays).forEach(l => map.removeLayer(l)); if (state.est) { map.removeLayer(state.est); state.est = null; }
     // Draft: Low/Mid/High tabs, and Visible/IR/Radar on future days, are ESTIMATED from the forecast at event time.
-    const estK = { low: "cloud_cover_low", mid: "cloud_cover_mid", high: "cloud_cover_high" }[o] || (state.day > 0 && { vis: "cloud_cover", cirrus: "cloud_cover_high", ir: "cloud_cover_high", radar: "precipitation" }[o]);
+    const estK = { low: "cloud_cover_low", mid: "cloud_cover_mid", high: "cloud_cover_high" }[o] || ((state.day > 0 || state.arch) && { vis: "cloud_cover", cirrus: "cloud_cover_high", ir: "cloud_cover_high", radar: "precipitation" }[o]);   // d25p: past days never show live satellite/radar tiles
     if (estK && state.data) { const col = { cloud_cover_low: "#c9ccd4", cloud_cover_mid: "#e8e2d4", cloud_cover_high: "#ffffff", cloud_cover: "#ffffff", precipitation: "#3fd06a" }[estK];
       // d24w: ESTIMATED forecast field — inverse-distance blend of every spot's already-fetched hourly value at its event time (no extra fetches),
       // faded out ~220 km from any spot, drawn as one semi-transparent image above the dark base; cached per day/mode/layer.
@@ -363,7 +363,7 @@
       const pScore = hotDemo && hotDemo.has(r.spot.id) ? Math.max(96, r.ev.score) : r.ev.score, hot = pScore >= 95;
       const lb = label(pScore);
       const B = r.ev.bonus, T = r.ev.tri, ic = pinIcons(r);
-      const bx = (B.dog.p >= BONUS_MIN ? `<em class="pb dog" title="Sun dogs ${B.dog.p}%">◉</em>` : "") + ((window.AGX && AGX.badges(r.spot)) || "");
+      const bx = (B.dog.p >= BONUS_MIN ? `<em class="pb dog" title="Sun dogs ${B.dog.p}%">◉</em>` : "") + ((!state.arch && window.AGX && AGX.badges(r.spot)) || "");
       const html = `<div class="pin${T.on ? " tri" : ""}${hot ? " hot" : ""}" style="--c:${lb.c}"${hot ? ` title="${pScore} — top-tier sky"` : ""}><span>${pScore}</span>${bx}${T.on ? `<em class="ptri" title="Trifecta">✦</em>` : ""}${ic.length ? `<div class="pwx">${ic.map(x => `<i class="${x.c}" title="${x.t}">${x.i}</i>`).join("")}</div>` : ""}</div>`;
       const icon = L.divIcon({ className: "pin-wrap", html, iconSize: [32, 32], iconAnchor: [16, 16] });
       if (markers[r.spot.id]) { if (markers[r.spot.id]._agHtml !== html) markers[r.spot.id].setIcon(icon); }   // d14: skip unchanged pins (was rebuilding all ~70 pin DOM nodes on every refresh)
@@ -371,7 +371,7 @@
         .on("click", () => openDetail(r.spot.id))
         .bindTooltip("", { direction: "top", offset: [0, -13], className: "tip" });
       markers[r.spot.id]._agHtml = html;
-      markers[r.spot.id].setTooltipContent(`<b>${r.spot.name}</b>${r.spot.vantage ? `<br><small>☀ from ${r.spot.vantage.name}</small>` : ""}<br>${lb.t} · ${fmtTime(r.ev.tSet, r.tz)}${r.ev.bonus.bow.p >= BONUS_MIN ? `<br>🌈 ${r.ev.bonus.bow.name} ${r.ev.bonus.bow.p}%` : ""}${r.ev.bonus.dog.p >= BONUS_MIN ? `<br>◉ Sun dogs ${r.ev.bonus.dog.p}% — 22° either side of the sun, needs thin cirrus/cirrostratus with the sun under ~${RISE?"20":"20"}° up` : ""}${(window.AGX && AGX.tip(r.spot)) || ""}${r.ev.wx.items.map(w => `<br>${w.icon} ${w.name}${w.p ? " " + w.p + "%" : ""}`).join("")}${r.ev.tri.on ? `<br><b class="tt-tri">✦ TRIFECTA</b>` : ""}`);
+      markers[r.spot.id].setTooltipContent(`<b>${r.spot.name}</b>${r.spot.vantage ? `<br><small>☀ from ${r.spot.vantage.name}</small>` : ""}<br>${lb.t} · ${fmtTime(r.ev.tSet, r.tz)}${r.ev.bonus.bow.p >= BONUS_MIN ? `<br>🌈 ${r.ev.bonus.bow.name} ${r.ev.bonus.bow.p}%` : ""}${r.ev.bonus.dog.p >= BONUS_MIN ? `<br>◉ Sun dogs ${r.ev.bonus.dog.p}% — 22° either side of the sun, needs thin cirrus/cirrostratus with the sun under ~${RISE?"20":"20"}° up` : ""}${(!state.arch && window.AGX && AGX.tip(r.spot)) || ""}${r.ev.wx.items.map(w => `<br>${w.icon} ${w.name}${w.p ? " " + w.p + "%" : ""}`).join("")}${r.ev.tri.on ? `<br><b class="tt-tri">✦ TRIFECTA</b>` : ""}`);
       if (markers[r.spot.id].setZIndexOffset) markers[r.spot.id].setZIndexOffset(r.ev.tri.on ? 1000 : hot ? 900 : ic.length ? 200 : 0);
     });
   }
@@ -636,7 +636,7 @@
       // Draft: when the view behind you is open water, render it with the same photoreal sky+water shader (sun behind camera)
       const wNow = Object.assign({}, Model.windAt(ev, t) || {});
       { const Nw = window.AGObs && AGObs.now[sp.id], mo = Nw && Nw.metar; if (mo && mo.mph != null && Math.abs(t - Date.now() / 1000) < 7200) { wNow.wind = Math.max(wNow.wind || 0, mo.mph); if (mo.gust != null) wNow.gust = Math.max(wNow.gust || 0, mo.gust); if (mo.wdir != null) wNow.wdir = mo.wdir; } }   // d16: observed wind (gales) near now   // d13: wind speed, gust and direction for the slider time (was: sunset/sunrise instant for direction)
-      const wOpt = () => { const m = window.AGX ? AGX.sea(sp, { dir: wNow.wdir, mph: wNow.wind }) : null; const zf = { fovMul: 1 / (state.zoom || 1) }; if (/[?&]sky=clear/.test(location.search)) Object.assign(zf, { high: 0.12, mid: 0, low: 0, block: 0, gap: 1, midKm: 4.5 }); if (/[?&]sky=overcast/.test(location.search)) Object.assign(zf, { high: 0.4, mid: 0.95, low: 0.85, block: 1, gap: 0 });
+      const wOpt = () => { window.__agSeaT = t; const m = window.AGX ? AGX.sea(sp, { dir: wNow.wdir, mph: wNow.wind }) : null; const zf = { fovMul: 1 / (state.zoom || 1) }; if (/[?&]sky=clear/.test(location.search)) Object.assign(zf, { high: 0.12, mid: 0, low: 0, block: 0, gap: 1, midKm: 4.5 }); if (/[?&]sky=overcast/.test(location.search)) Object.assign(zf, { high: 0.4, mid: 0.95, low: 0.85, block: 1, gap: 0 });
       { const wxq = new URLSearchParams(location.search).get("wx");
         if (wxq === "haze") Object.assign(zf, { high: 0.25, mid: 0.15, low: 0.1, aod: 0.55, rh: 0.88, block: 0.3, gap: 0.6 });
         if (wxq === "partly") Object.assign(zf, { high: 0.35, mid: 0.3, low: 0.2, block: 0.15, gap: 0.8 });
@@ -649,7 +649,7 @@
         // architecture: forecast → classes → look dials (looks.js); the renderer reads only the dials
         if (window.Looks) { const s0 = ev.s || {}, qp = new URLSearchParams(location.search), wxq = qp.get("wx"), skq = qp.get("sky");
           const cls = Looks.classify(sp, { low: s0.low != null ? s0.low / 100 : null, mid: s0.mid != null ? s0.mid / 100 : null, high: s0.high != null ? s0.high / 100 : null, precip: s0.precip, pp: s0.pprob, code: s0.code, cape: s0.cape, vis: s0.vis,
-            windMph: m.demo && m.mph != null ? m.mph : wNow.wind, windDir: m.demo && m.wdir != null ? m.wdir : wNow.wdir, alerts: (window.AGX && AGX.alerts[sp.id] || {}).events || [] });
+            windMph: m.demo && m.mph != null ? m.mph : wNow.wind, windDir: m.demo && m.wdir != null ? m.wdir : wNow.wdir, alerts: (!state.arch && window.AGX && AGX.alerts[sp.id] || {}).events || [] });
           if (wxq && Looks.LOOKS.sky[wxq]) cls.sky = wxq; if (skq === "clear" || skq === "overcast") cls.sky = skq; if (wxq === "haze") cls.sky = "partly";
           if (skq === "clear") cls.sunGap = 1; if (cls.sky === "overcast" || cls.sky === "fog" || cls.sky === "rain") cls.sunGap = 0;
           const D = Looks.dials(cls, m); window.__agDials = D;
@@ -699,21 +699,21 @@
         if (R && R !== "pending") { if (R.rain >= 0.04) { wxC.rain = Math.max(wxC.rain || 0, Math.min(1, 0.35 + 1.2 * R.rain)); wxC.rainName = wxC.rainName || "Rain (radar)"; } else { wxC.rain = 0; wxC.rainName = null; } wxC.rainSrc = "radar"; }
         else if (R === "pending") { wxC.rain = 0; wxC.rainName = null; }   // brief: hold off until the radar frame answers
         else { const O = window.AGObs || {}, Nw = O.now && O.now[sp.id], nowS = Date.now() / 1000;
-          const mo = Math.abs(t - ev.tSet) <= 3600 && O.metar && O.metar[sp.id] ? O.metar[sp.id] : Nw && Math.abs(t - nowS) < 7200 ? Nw.metar : null;
+          const mo = !state.arch && Math.abs(t - ev.tSet) <= 3600 && O.metar && O.metar[sp.id] ? O.metar[sp.id] : Nw && Math.abs(t - nowS) < 7200 ? Nw.metar : null;
           if (mo && mo.shower) { wxC.rain = Math.max(wxC.rain || 0, 0.5); wxC.rainSrc = "station"; }
           else if (wxC.rain && (ev.obsDry || (mo && mo.dry))) { wxC.rain = 0; wxC.rainName = null; wxC.rainSrc = "station"; } } }
       window.__agWxC = wxC;
       if (wxC) { if (o.mode !== "live") { wxC.rain = wxC.snow = wxC.fog = wxC.bolt = wxC.bow = 0; }   // canvas fallback draws its own weather
         const fw = turned ? (sp.behind && sp.behind.water) : sp.water, s0 = ev.s || {};
         wxC.wdir = wNow.wdir; wxC.wind = wNow.wind != null ? wNow.wind : wxC.wind; { const dm = window.AGX && AGX.sea(sp, {}); if (dm && dm.demo && dm.mph != null) { wxC.wind = dm.mph; wxC.wdir = dm.wdir; } } wxC.faceAz = turned ? (ev.sunsetAz + 180) % 360 : ev.sunsetAz; wxC.turned = turned && o.mode === "live"; wxC.elev = o.elev; { const L = window.PhotoStage && PhotoStage.last; wxC.ref = o.mode === "live" && L && L.hero && L.surf > 0.2 && /[?&]ref=1/.test(location.search) ? { camH: (L.heroCam || 0.0015) * 1000, d: L.heroD || 18, fovMul: L.fovMul || 1, faceM: L.surf * (L.faceK || 1.15) } : null; }
-        wxC.sea = fw && window.AGX && o.mode !== "live" ? AGX.sea(sp, { dir: wNow.wdir, mph: wNow.wind }) : null; wxC.trees = fw && sp.id === "grandview"; wxC.jets = sp.id === "windmillpt" && !turned; { const Cv = window.AGObs && AGObs.cv && AGObs.cv[sp.id], R0 = Cv && Math.abs((Cv.tSet || 0) - ev.tSet) < 3600 && Math.abs(t - ((Cv.storms || {}).t || 0)) < 5400 ? (turned ? Cv.stormsAnti : Cv.storms) : null; wxC.storms = R0 && R0.cells && R0.cells.length ? R0 : null; /* d24t: radar-placed thunderheads, slider time within 90 min of the radar scan */ } { const L = window.PhotoStage && PhotoStage.last; if (o.mode === "live" && L && L.hz) { wxC.hz = L.hz; wxC.vfov = L.vfov; } else { wxC.hz = 0.66; wxC.vfov = 20; } /* d24u: the scene's own horizon + field of view (WebGL camera, or the canvas preview's 0.66 / 0.05 H per degree) */ } wxC.shore = fw && sp.id === "saltponds" && !!/[?&]hero=0/.test(location.search); wxC.dune = sp.id === "jennettes" && o.mode === "live"; { const wxq = new URLSearchParams(location.search).get("wx"); if (wxq === "rain" || wxq === "storm") { wxC.rain = 0.75; wxC.rainName = "Rain"; } if (wxq === "storm") { wxC.bolt = 0.9; wxC.boltP = 60; } if (wxq === "fog") wxC.fog = 0.7; if ((wxq && wxq !== "rain" && wxq !== "storm") || /[?&]sky=(clear|overcast)/.test(location.search)) { wxC.rain = wxC.snow = wxC.bolt = 0; } } wxC.seaLbl = fw && window.AGX ? AGX.sea(sp, { dir: wNow.wdir, mph: wNow.wind }) : null; wxC.torn = !!(window.AGX && AGX.alerts[sp.id] && AGX.alerts[sp.id].tornado) || /[?&]demo=tornado/.test(location.search); }   // canvas fallback already draws its own weather
+        wxC.sea = fw && window.AGX && o.mode !== "live" ? AGX.sea(sp, { dir: wNow.wdir, mph: wNow.wind }) : null; wxC.trees = fw && sp.id === "grandview"; wxC.jets = sp.id === "windmillpt" && !turned; { const Cv = window.AGObs && AGObs.cv && AGObs.cv[sp.id], R0 = Cv && Math.abs((Cv.tSet || 0) - ev.tSet) < 3600 && Math.abs(t - ((Cv.storms || {}).t || 0)) < 5400 ? (turned ? Cv.stormsAnti : Cv.storms) : null; wxC.storms = R0 && R0.cells && R0.cells.length ? R0 : null; /* d24t: radar-placed thunderheads, slider time within 90 min of the radar scan */ } { const L = window.PhotoStage && PhotoStage.last; if (o.mode === "live" && L && L.hz) { wxC.hz = L.hz; wxC.vfov = L.vfov; } else { wxC.hz = 0.66; wxC.vfov = 20; } /* d24u: the scene's own horizon + field of view (WebGL camera, or the canvas preview's 0.66 / 0.05 H per degree) */ } wxC.shore = fw && sp.id === "saltponds" && !!/[?&]hero=0/.test(location.search); wxC.dune = sp.id === "jennettes" && o.mode === "live"; { const wxq = new URLSearchParams(location.search).get("wx"); if (wxq === "rain" || wxq === "storm") { wxC.rain = 0.75; wxC.rainName = "Rain"; } if (wxq === "storm") { wxC.bolt = 0.9; wxC.boltP = 60; } if (wxq === "fog") wxC.fog = 0.7; if ((wxq && wxq !== "rain" && wxq !== "storm") || /[?&]sky=(clear|overcast)/.test(location.search)) { wxC.rain = wxC.snow = wxC.bolt = 0; } } wxC.seaLbl = fw && window.AGX ? AGX.sea(sp, { dir: wNow.wdir, mph: wNow.wind }) : null; wxC.torn = !!(!state.arch && window.AGX && AGX.alerts[sp.id] && AGX.alerts[sp.id].tornado) || /[?&]demo=tornado/.test(location.search); }   // canvas fallback already draws its own weather
       { const wl = $("#pv-wxl"), tx = wxC ? Wx.label(wxC) : ""; if (wl) { wl.hidden = !tx; if (wl.dataset.tx !== tx || wl.dataset.o !== String(!!state.wxOpen)) { wl.dataset.tx = tx; wl.dataset.o = String(!!state.wxOpen);
         const ic = /🌪/.test(tx) ? "🌪 Weather alert" : /🌊/.test(tx) ? "🌊 Wave info" : "☁ Weather info";
         wl.innerHTML = state.wxOpen ? `<div class="wxp"><button class="wxx" aria-label="Close">✕</button>${tx.split("\n").map(l => `<div>${l}</div>`).join("")}</div>` : `<button class="wxc">${ic}</button>`;
         wl.querySelector("button").onclick = e => { e.stopPropagation(); state.wxOpen = !state.wxOpen; wl.dataset.o = ""; wl.dataset.tx = ""; render(); }; } } }
       if (!wxRaf) wxRaf = requestAnimationFrame(wxLoop);
       $("#pv-time").textContent = fmtTime(t, r.tz);
-      { const se = $("#pv-sea"), W2 = (ev.sea && Model.seaAt(ev, t)) || (se && { name: "Wind", wind: wNow.wind || 0, gust: wNow.gust || wNow.wind || 0, ft: window.AGX && AGX.marine[sp.id] ? AGX.marine[sp.id].now : null, txt: "" }); if (se && W2) { const dm = window.AGX && AGX.sea(sp, {}), demo = !!(dm && dm.demo && dm.mph != null), mph = demo ? dm.mph : wNow.wind != null ? wNow.wind : W2.wind, wd = demo ? dm.wdir : wNow.wdir, gu = wNow.gust != null ? wNow.gust : W2.gust;
+      { const se = $("#pv-sea"), W2 = (ev.sea && Model.seaAt(ev, t)) || (se && { name: "Wind", wind: wNow.wind || 0, gust: wNow.gust || wNow.wind || 0, ft: (() => { window.__agSeaT = t; const mm = window.AGX && AGX.mAt && AGX.mAt(sp.id, t); return mm ? mm.now : state.arch ? null : window.AGX && AGX.marine[sp.id] ? AGX.marine[sp.id].now : null; })(), txt: "" }); if (se && W2) { const dm = window.AGX && AGX.sea(sp, {}), demo = !!(dm && dm.demo && dm.mph != null), mph = demo ? dm.mph : wNow.wind != null ? wNow.wind : W2.wind, wd = demo ? dm.wdir : wNow.wdir, gu = wNow.gust != null ? wNow.gust : W2.gust;
           // d13: classification computed here from the same wind shown (was read from the renderer's dials, so it vanished whenever the WebGL surf path didn't run)
           const D = window.Looks && wd != null ? Looks.classify(sp, { windMph: mph, windDir: wd }) : null;
           const rel = D && D.wind ? D.wind : null, relTx = { offshore: "offshore", onshore: "onshore", cross: "cross-shore", calm: "light" }[rel] || "", relC = { offshore: "off", onshore: "on", cross: "cross", calm: "calm" }[rel] || "";
@@ -781,7 +781,7 @@
       playing = requestAnimationFrame(step);
     };
     render();
-    if (window.AGObs && AGObs.ensureNow) AGObs.ensureNow(sp, ev, () => { if (state.spot === sp.id) queue(); });   // d16: current METAR/GOES for the shown spot
+    if (!state.arch && window.AGObs && AGObs.ensureNow) AGObs.ensureNow(sp, ev, () => { if (state.spot === sp.id) queue(); });   // d16: current METAR/GOES for the shown spot
     if (!window._pvVis) { window._pvVis = true; document.addEventListener("visibilitychange", () => { if (!document.hidden && state.spot && window.__agQueue) window.__agQueue(); }); }   // d14: resume after tab comes back
     if (!window._pvResize) { window._pvResize = true; window.addEventListener("resize", () => { const s2 = $("#scrub"); if (s2 && state.spot) s2.dispatchEvent(new Event("input")); }); }
   }
@@ -1013,7 +1013,9 @@
         .concat([fetchBatch(SPOTS.map(s => s.path[1]), WEST_VARS, null, API, "gfs_seamless", 1, ex)])), 25000).then(R => {
       const S = R.slice(0, 3).flat(), Wm = R[3], D = { at: Date.now(), S, W: SPOTS.flatMap((_, i) => [Wm[i], Wm[i], Wm[i]]), E: S, AQ: null, fcModel: "noaa", prov: {}, past: true };
       const S0 = S[0], pb = pbLoad(); S0.daily.time.forEach((t, i) => { const k = ymd(t + 43200, S0.timezone); if (ks.includes(k)) try { pb[k] = bestOf(D, i); } catch (e) {} }); pbSave(pb);
-      CH[c] = { data: D }; return D; });
+      CH[c] = { data: D };
+      if (window.AGX && AGX.pastMarine) AGX.pastMarine(SPOTS, d0, ks[ks.length - 1]).then(() => { if (state.arch && window.__agQueue) window.__agQueue(); if (state.arch) update(); }).catch(() => {});   // d25p: that chunk's own archived waves/swell (background)
+      return D; });
     CH[c].busy = pastQ = pastQ.catch(() => {}).then(run).catch(e => { CH[c] = { err: e }; console.warn("past chunk " + c, e); throw e; }).finally(() => { if ($("#days") && state.data) renderDays(); });
     return CH[c].busy;
   }
