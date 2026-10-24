@@ -397,7 +397,9 @@
       return card(`past${state.arch && state.arch.key === k ? " on" : ""}`, `data-past="${k}"${PS || pastErr ? "" : ' aria-busy="true"'}`, yest ? "Yesterday" : new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" }).format(new Date(t * 1000)), fmtDate(t, "UTC"), sc); }).join("");
     const live = S0.daily.time.map((t, i) => card(`${!state.arch && i === state.day ? "on" : ""}${i === 0 ? " today" : ""}`, `data-day="${i}"`, (() => { const a = state.arch; state.arch = null; const v = fmtDay(t + 43200, S0.timezone, i); state.arch = a; return v; })(), fmtDate(t + 43200, S0.timezone), bestOf(L, i))).join("");
     const box = $("#days"), keep = box.scrollLeft, first = !box.dataset.ready; box.innerHTML = past + live;
-    const td = box.querySelector(".day.today"); if (first && td) { box.scrollLeft = td.offsetLeft - box.offsetLeft - 4; box.dataset.ready = 1; } else box.scrollLeft = keep;
+    // initial scroll: Tonight first. iOS may not have laid out the row yet (loading screen up) → retry on the next frames until it sticks.
+    const td = box.querySelector(".day.today"), toToday = () => { const x = td.offsetLeft - box.firstElementChild.offsetLeft; if (x > 0) { box.scrollLeft = x; if (box.scrollLeft > 0) box.dataset.ready = 1; } };
+    if (first && td) { toToday(); if (!box.dataset.ready) { let n = 0; const tick = () => { if (box.dataset.ready || n++ > 40) return; toToday(); requestAnimationFrame(tick); }; requestAnimationFrame(tick); } } else box.scrollLeft = keep;
     box.querySelectorAll(".day[data-day]").forEach(b => b.addEventListener("click", () => { if (state.arch) exitArchive(true); state.day = +b.dataset.day; state.autoDay = false; update(); { const ob = state.overlay && state.overlay !== "none" && document.querySelector(`[data-overlay="${state.overlay}"]`); if (ob) ob.click(); } }));   // d24w: re-draw the active layer for the new day
     box.querySelectorAll(".day[data-past]").forEach(b => b.addEventListener("click", () => enterArchive(b.dataset.past, b)));
   }
