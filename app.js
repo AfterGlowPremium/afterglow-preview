@@ -659,7 +659,7 @@
       // Draft: when the view behind you is open water, render it with the same photoreal sky+water shader (sun behind camera)
       const wNow = Object.assign({}, Model.windAt(ev, t) || {});
       if (window.AGX && AGX.pastWind && t < Date.now() / 1000 - 3600) { const pw = AGX.pastWind(sp, t); wNow.wind = pw ? pw.wind : null; wNow.gust = pw ? pw.gust : null; wNow.wdir = pw ? pw.wdir : null; wNow.src = pw ? pw.src : null; }   // d25r: past = measured wind only (ASOS/buoy) or hidden
-      if (window.AGWind) AGWind.set(Math.max(wNow.wind || 0, wNow.gust || 0), true);   // d26g: wind sound above 20 mph (gust if known)
+      { const AW = window.AGWind || (window.parent !== window && (() => { try { return window.parent.AGWind; } catch (e) { return null; } })()); if (AW) AW.set(Math.max(wNow.wind || 0, wNow.gust || 0), true); }   // d26g: wind sound above 20 mph (gust if known)
       { const Nw = window.AGObs && AGObs.now[sp.id], mo = Nw && Nw.metar; if (mo && mo.mph != null && Math.abs(t - Date.now() / 1000) < 7200) { wNow.wind = Math.max(wNow.wind || 0, mo.mph); if (mo.gust != null) wNow.gust = Math.max(wNow.gust || 0, mo.gust); if (mo.wdir != null) wNow.wdir = mo.wdir; } }   // d16: observed wind (gales) near now   // d13: wind speed, gust and direction for the slider time (was: sunset/sunrise instant for direction)
       const wOpt = () => { window.__agSeaT = t; const m = window.AGX ? AGX.sea(sp, { dir: wNow.wdir, mph: wNow.wind }) : null; const zf = { fovMul: 1 / (state.zoom || 1) }; if (/[?&]sky=clear/.test(location.search)) Object.assign(zf, { high: 0.12, mid: 0, low: 0, block: 0, gap: 1, midKm: 4.5 }); if (/[?&]sky=overcast/.test(location.search)) Object.assign(zf, { high: 0.4, mid: 0.95, low: 0.85, block: 1, gap: 0 });
       { const wxq = new URLSearchParams(location.search).get("wx");
@@ -929,7 +929,7 @@
     const box = $("#satread"); if (!box) return;
     box.innerHTML = res.error ? `<p>${res.error}</p>` : `<ul>${res.text.map(t => `<li>${t}</li>`).join("")}</ul><div class="fine">Sampled from GOES-19 (GOES-East) ABI band 2 (visible, 0.64 µm), band 4 (cirrus, 1.37 µm) and band 13 (clean IR, 10.3 µm) at ${new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZoneName: "short" }).format(res.when)}. Pixel-color heuristics, not calibrated retrievals.</div>`;
   }
-  function closeDetail() { if (window.AGWind) AGWind.set(0, false); if (window.__agAnim && window.__agAnim.id) { cancelAnimationFrame(window.__agAnim.id); window.__agAnim.id = 0; } state.spot = null; $("#detail").classList.remove("open"); document.body.classList.remove("detail-open"); Object.keys(markers).forEach(k => { const ic = markers[k]._icon; if (ic) ic.classList.remove("sel"); }); if (isDesk()) setTimeout(() => map.invalidateSize({ pan: false }), 480); }
+  function closeDetail() { { let AW = window.AGWind; try { AW = AW || (window.parent !== window && window.parent.AGWind); } catch (e) {} if (AW) AW.set(0, false); } if (window.__agAnim && window.__agAnim.id) { cancelAnimationFrame(window.__agAnim.id); window.__agAnim.id = 0; } state.spot = null; $("#detail").classList.remove("open"); document.body.classList.remove("detail-open"); Object.keys(markers).forEach(k => { const ic = markers[k]._icon; if (ic) ic.classList.remove("sel"); }); if (isDesk()) setTimeout(() => map.invalidateSize({ pan: false }), 480); }
   $("#detail-close").addEventListener("click", closeDetail);
   $("#scrim").addEventListener("click", closeDetail);
   document.addEventListener("keydown", e => { if (e.key !== "Escape") return; 
