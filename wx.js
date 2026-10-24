@@ -45,6 +45,7 @@
     if (C.dune) dune(x, W, H, now);
     if (C.sea) sea(x, W, H, hz, C, now);
     if (C.torn) tornado(x, W, H, hz, now);
+    if (C.jets) jets(x, W, H, hz, C, now);
     if (C.fog) { const gr = x.createLinearGradient(0, hz - H * 0.3, 0, H); gr.addColorStop(0, "rgba(200,205,215,0)"); gr.addColorStop(0.5, `rgba(200,205,215,${0.45 * C.fog})`); gr.addColorStop(1, `rgba(190,195,205,${0.3 * C.fog})`); x.fillStyle = gr; x.fillRect(0, 0, W, H); }
     if (C.bolt) {   // storm cell + flicker; deterministic per minute of forecast time, plus a live flicker while it sits still
       const k = Math.floor(t / 60) + Math.floor(now / 2400), ph = now % 2400, a = (ph < 70 ? 1 : ph < 120 ? 0.25 : ph < 190 ? 0.75 : 0) * C.bolt;
@@ -181,6 +182,21 @@
       }
     }
     x.restore();
+  }
+  // d24p: Windmill Point (Langley AFB next door) — three F-22 Raptors in tight echelon, a banking turn across the upper sky every ~25 s
+  // (pass ~6 s). Top-down planform: angular nose + chines, diamond wing with clipped tips, notched trailing edge, stabs, twin canted tails.
+  const F22 = [[1,0],[.62,.07],[.3,.12],[.12,.2],[-.06,.5],[-.2,.5],[-.36,.2],[-.44,.2],[-.6,.38],[-.78,.38],[-.72,.14],[-.86,.1],[-.86,-.1],[-.72,-.14],[-.78,-.38],[-.6,-.38],[-.44,-.2],[-.36,-.2],[-.2,-.5],[-.06,-.5],[.12,-.2],[.3,-.12],[.62,-.07]];
+  function jets(x, W, H, hz, C, now) {
+    const P = 25000, D = 6000, ph = (now % P); if (ph > D) return; const u = ph / D;
+    const p = t => ({ x: W * (-0.1 + 1.2 * t), y: H * (0.3 - 0.16 * Math.sin(t * Math.PI)) }), a = p(u), b = p(Math.min(1, u + 0.01)), hd = Math.atan2(b.y - a.y, b.x - a.x);
+    const bank = 0.25 + 0.65 * Math.sin(u * Math.PI), L = W * 0.032, e = C.elev != null ? C.elev : 5, lt = clamp((e + 2) / 10);
+    const col = `rgb(${Math.round(28 + 80 * lt)},${Math.round(30 + 84 * lt)},${Math.round(36 + 92 * lt)})`;
+    for (const [dx, dy] of [[0, 0], [-1.25, 1.05], [-2.5, 2.1]]) {
+      x.save(); x.translate(a.x + (dx * Math.cos(hd) - dy * Math.sin(hd)) * L * 0.9, a.y + (dx * Math.sin(hd) + dy * Math.cos(hd)) * L * 0.9 * Math.cos(bank)); x.rotate(hd); x.scale(L, L * Math.cos(bank));
+      x.fillStyle = col; x.beginPath(); F22.forEach(([px, py], i) => i ? x.lineTo(px, py) : x.moveTo(px, py)); x.closePath(); x.fill();
+      x.strokeStyle = col; x.lineWidth = 0.05; x.beginPath(); for (const s2 of [1, -1]) { x.moveTo(-0.5, 0.15 * s2); x.lineTo(-0.78, (0.15 + 0.28 * Math.sin(bank) * 0.6 + 0.06) * s2); } x.stroke();   // canted tails show as the jets roll
+      if (lt > 0.3) { x.fillStyle = `rgba(255,255,255,${0.12 * lt})`; x.beginPath(); x.moveTo(1, 0); x.lineTo(-0.2, 0.5); x.lineTo(-0.06, 0.02); x.closePath(); x.fill(); }
+      x.restore(); }
   }
   function tornado(x, W, H, hz, now) {   // NWS Tornado Warning only: soft translucent condensation funnel under a dark wall cloud, rain-wrapped
     const cx = W * 0.7 + Math.sin(now * 0.0004) * W * 0.02, top = hz - H * 0.4;
