@@ -241,9 +241,9 @@
     const wk = (now / 4000) % 1; x.strokeStyle = `rgba(235,238,240,${(0.18 + 0.1 * lt).toFixed(2)})`; x.lineWidth = 0.8;   // faint wake astern + bow wave
     x.beginPath(); x.moveTo(0, 0.4); x.lineTo(-18 * u - wk * 4 * u, 0.9); x.stroke(); x.beginPath(); x.moveTo(99 * u, 0.2); x.lineTo(104 * u, 0.6); x.stroke();
     x.restore(); }
-  // d26b: Fort Monroe — a CH-53K King Stallion passing by (real time, independent of the slider: one ~32 s pass every 50 s).
+  // d26b: Fort Monroe — a CH-53K King Stallion passing by (real time, independent of the slider: one ~13 s pass every 15 s).
   // Heavy-lift body, nose refuelling probe, side sponsons, tall tail pylon with a canted tail rotor, 7-blade main rotor as a blurred disc.
-  function heli(x, W, H, hz, C, now) { const P = 50000, D = 32000, ph = now % P; if (ph > D) return; const f = ph / D, e = C.elev != null ? C.elev : 5;
+  function heli(x, W, H, hz, C, now) { const P = 15000, D = 13000, ph = now % P; if (ph > D) return; const f = ph / D, e = C.elev != null ? C.elev : 5;
     const u = Math.max(0.28, W / 1400), cx = -60 * u + f * (W + 120 * u), cy = hz - H * (0.3 + 0.03 * Math.sin(f * 3.1)) + Math.sin(now / 700) * 0.6;
     const lt = clamp((e + 2) / 12), col = `rgba(${Math.round(34 + 60 * lt)},${Math.round(38 + 62 * lt)},${Math.round(44 + 64 * lt)},${(0.8 - 0.15 * lt).toFixed(2)})`;
     x.save(); x.translate(cx, cy); x.scale(u, u); x.fillStyle = col; x.strokeStyle = col;
