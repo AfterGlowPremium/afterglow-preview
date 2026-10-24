@@ -125,7 +125,7 @@
   "ver": "d24a",
   "resid": 14,
   "group": "lb-20261024-1254",
-  "retag": "cadillac\u2192lionsbridge, prediction recomputed (Open-Meteo gfs_seamless, model.js)",
+  "retag": "cadillac→lionsbridge, prediction recomputed (Open-Meteo gfs_seamless, model.js)",
   "cloudErr": 12
  },
  {
@@ -147,7 +147,7 @@
   "ver": "d24a",
   "resid": 7,
   "group": "lb-20261024-1254",
-  "retag": "cadillac\u2192lionsbridge, prediction recomputed (Open-Meteo gfs_seamless, model.js)"
+  "retag": "cadillac→lionsbridge, prediction recomputed (Open-Meteo gfs_seamless, model.js)"
  },
  {
   "id": "e8c11837-8635-4280-b951-1ae89aa98540",
@@ -168,7 +168,7 @@
   "ver": "d24a",
   "resid": 28,
   "group": "lb-20261024-1254",
-  "retag": "cadillac\u2192lionsbridge, prediction recomputed (Open-Meteo gfs_seamless, model.js)"
+  "retag": "cadillac→lionsbridge, prediction recomputed (Open-Meteo gfs_seamless, model.js)"
  },
  {
   "id": "8d7b5c26-83aa-4c09-9c44-8db6ec263b5a",
@@ -198,7 +198,123 @@
   "ver": "d24a",
   "resid": 25,
   "group": "8d7b5c26-83aa-4c09-9c44-8db6ec263b5a",
-  "retag": "cadillac\u2192lionsbridge, prediction recomputed (Open-Meteo gfs_seamless, model.js)",
+  "retag": "cadillac→lionsbridge, prediction recomputed (Open-Meteo gfs_seamless, model.js)",
   "cloudErr": 5
+ },
+ {
+  "group": "5e2b895c-80bf-4bfa-9258-ba8790df5f16",
+  "id": "5e2b895c-80bf-4bfa-9258-ba8790df5f16",
+  "at": "2026-10-24T07:20:00",
+  "shot": "2026-10-24T07:20:00",
+  "saved": "2026-10-24T12:58:15.637564+00:00",
+  "spot": "test",
+  "mode": "sunrise",
+  "rating": 55,
+  "raw": null,
+  "sky": null,
+  "photo": {
+   "w": 64,
+   "h": 48,
+   "bright": 0.502,
+   "sat": 0.551,
+   "warm": 1,
+   "vivid": 1,
+   "cloud": 0,
+   "colorScore": 100
+  },
+  "ver": "d25c",
+  "test": true
+ },
+ {
+  "group": "b7d909bc-3d28-4728-be44-b1edd6099a8f",
+  "id": "b7d909bc-3d28-4728-be44-b1edd6099a8f",
+  "at": "2026-10-24T18:05:00",
+  "shot": "2026-10-24T18:05:00",
+  "saved": "2026-10-24T12:58:15.697964+00:00",
+  "spot": "test",
+  "mode": "sunset",
+  "rating": 60,
+  "raw": 42,
+  "sky": {
+   "t": 1792879500,
+   "low": 30,
+   "mid": 20,
+   "high": 10,
+   "total": 60,
+   "precip": 0
+  },
+  "photo": null,
+  "ver": "d25c",
+  "resid": 18,
+  "test": true
+ },
+ {
+  "group": "g1",
+  "id": "d1c6794a-5b3e-4b8d-8011-c60fa59dac85",
+  "at": "2026-10-24T07:20:00",
+  "shot": "2026-10-24T07:20:00",
+  "saved": "2026-10-24T12:59:51.692442+00:00",
+  "spot": "test",
+  "mode": "sunrise",
+  "rating": 55,
+  "raw": null,
+  "photo": {
+   "w": 64,
+   "h": 48,
+   "bright": 0.502,
+   "sat": 0.551,
+   "warm": 1,
+   "vivid": 1,
+   "cloud": 0,
+   "colorScore": 100
+  },
+  "ver": "d25c",
+  "test": true
+ },
+ {
+  "group": "g1",
+  "id": "3856c069-fa2f-464a-96e4-c9429131153a",
+  "at": "2026-10-24T07:20:00",
+  "shot": "2026-10-24T07:20:00",
+  "saved": "2026-10-24T12:59:51.888283+00:00",
+  "spot": "test",
+  "mode": "sunrise",
+  "rating": 55,
+  "raw": null,
+  "photo": {
+   "w": 64,
+   "h": 48,
+   "bright": 0.502,
+   "sat": 0.551,
+   "warm": 1,
+   "vivid": 1,
+   "cloud": 0,
+   "colorScore": 100
+  },
+  "ver": "d25c",
+  "test": true
+ },
+ {
+  "group": "adf03c47-1dc5-4e0e-986c-177d7e74ce2d",
+  "id": "cc28f22c-682d-462a-aebd-f60cd6e28766",
+  "at": "2026-10-24T18:05:00",
+  "shot": "2026-10-24T18:05:00",
+  "saved": "2026-10-24T12:59:51.941151+00:00",
+  "spot": "test",
+  "mode": "sunset",
+  "rating": 60,
+  "raw": 42,
+  "sky": {
+   "t": 1792879500,
+   "low": 30,
+   "mid": 20,
+   "high": 10,
+   "total": 60,
+   "precip": 0
+  },
+  "photo": null,
+  "ver": "d25c",
+  "resid": 18,
+  "test": true
  }
 ]

@@ -1,3 +1,13 @@
+## 2026-10-24T13:07:18.821Z
+new rows: 5
+- test sunrise: rating 55, app null, photo colour 100, cloud photo/forecast 0/– → resid –
+- test sunset: rating 60, app 42, photo colour –, cloud photo/forecast –/60 → resid 18
+- test sunrise: rating 55, app null, photo colour 100, cloud photo/forecast 0/– → resid –
+- test sunrise: rating 55, app null, photo colour 100, cloud photo/forecast 0/– → resid –
+- test sunset: rating 60, app 42, photo colour –, cloud photo/forecast –/60 → resid 18
+sunset: n=2 global 0 spots {} cloudBias 0 (n=2, logged only)
+sunrise: n=0 global 0 spots {} cloudBias 0 (n=0, logged only)
+
 ## 2026-10-24T12:56:21.482Z
 new rows: 7
 - test sunset: rating 60, app 40, photo colour 100, cloud photo/forecast 0/30 → resid 32
