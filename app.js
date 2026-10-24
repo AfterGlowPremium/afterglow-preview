@@ -438,12 +438,33 @@
     const b = list[0]; if (!b) return;
     const lb = label(b.ev.score), conf = confidence(state.day);
     $("#hero").innerHTML = `
+      <div class="hero-movie" title="Tap to open ${b.spot.name}"><canvas id="hero-cv"></canvas><div class="hm-cap"><b>${b.spot.name}</b><span>${b.ev.score} · ${lb.t}</span></div><div class="hm-t" id="hero-t"></div></div>
       <div class="hero-k">Best ${dayIs(0) ? (RISE ? "this morning" : "tonight") : "on " + fmtDay(b.ev.tSet, b.tz, state.day)} · ${REGIONS[state.region].name}</div>
       <div class="hero-row"><div><div class="hero-name">${b.spot.name}</div><div class="hero-sub">${b.spot.state} · ${EV} ${fmtTime(b.ev.tSet, b.tz)}</div></div>
       <div class="ring" style="--p:${b.ev.score};--c:${lb.c}"><b>${b.ev.score}</b><i>${lb.t}</i></div></div>
       <div class="hero-why">${b.ev.reasons[0]} Best minute ~${fmtTime(b.ev.timing.peak, b.tz)}.</div><div class="conf ${conf.c}">${conf.t}</div>`;
     $("#hero").onclick = () => openDetail(b.spot.id);
+    heroMovie(b);
   }
+  // d26n: hero "movie" — the top spot's forecast scene playing golden hour → afterglow (sunrise: blue hour → golden), looped, ~12 fps,
+  // low resolution; starts after the forecast is ready, pauses off-screen, in a hidden tab or while a spot is open.
+  let HM = { raf: 0, io: null, vis: true, b: null };
+  function heroMovie(b) {
+    HM.b = b; const cv = document.getElementById("hero-cv"); if (!cv || !window.PhotoStage) return;
+    if (HM.io) HM.io.disconnect(); if ("IntersectionObserver" in window) { HM.io = new IntersectionObserver(es => { HM.vis = es[0].isIntersecting; if (HM.vis) go(); }); HM.io.observe(cv); }
+    const T = b.ev.timing, a0 = RISE ? (T.civilEnd || T.sunset - 1800) : (T.golden || T.sunset - 2700), a1 = RISE ? (T.golden || T.sunset + 2700) : (T.civilEnd || T.glowEnd || T.sunset + 1800);
+    const t0 = Math.min(a0, a1), t1 = Math.max(a0, a1), DUR = 14000; let last = 0, start = performance.now();
+    const fr = now => { HM.raf = 0; if (HM.b !== b || !document.body.contains(cv)) return; if (!HM.vis || document.hidden || document.body.classList.contains("detail-open")) return;
+      HM.raf = requestAnimationFrame(fr); if (now - last < 80) return; last = now;
+      const f = ((now - start) % DUR) / DUR;
+      const tt = t0 + (t1 - t0) * f;
+      try { PhotoStage.draw(cv, b.spot, b.ev, tt, { scale: 0.5, dprCap: 1, fast: 1 }); } catch (e) { return; }
+      const el = document.getElementById("hero-t"); if (el) el.textContent = fmtTime(tt, b.tz); };
+    const go = () => { if (!HM.raf) HM.raf = requestAnimationFrame(fr); };
+    HM.go = go; setTimeout(go, 600);
+  }
+  document.addEventListener("visibilitychange", () => HM.go && HM.go());
+  new MutationObserver(() => HM.go && HM.go()).observe(document.body, { attributes: true, attributeFilter: ["class"] });
   function renderList(list) {
     $("#list").innerHTML = list.map((r, k) => {
       const lb = label(r.ev.score);

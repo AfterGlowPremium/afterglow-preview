@@ -821,3 +821,15 @@ html.ag-desk .stage .ev-toggle a{font-size:13px;padding:8px 14px}
 /* d26k: phones — the search / Sunrise-Sunset / Near me row stays pinned at the top while the page scrolls (header slides up only by the brand's height) */
 .leaflet-container{isolation:isolate}
 @media (max-width:560px){.top{position:sticky;top:calc(-1 * var(--brandH,0px));z-index:950;background:var(--bg);box-shadow:0 6px 14px -8px #000c}}
+/* d26n: hero movie with a pink→purple neon frame */
+@property --hmA{syntax:"<angle>";inherits:false;initial-value:0deg}
+.hero-movie{position:relative;margin:-4px 0 14px;border-radius:18px;aspect-ratio:16/10;overflow:hidden;cursor:pointer;isolation:isolate;
+  border:2px solid transparent;background:linear-gradient(#0b0716,#0b0716) padding-box,conic-gradient(from var(--hmA),#ff4fa3,#c45cff,#9b5cff,#ff7ac4,#ff4fa3) border-box;
+  box-shadow:0 0 14px rgba(255,79,163,.55),0 0 34px rgba(155,92,255,.45),inset 0 0 12px rgba(255,79,163,.25);animation:hmSpin 6s linear infinite,hmGlow 3.2s ease-in-out infinite alternate}
+.hero-movie canvas{position:absolute;inset:0;width:100%;height:100%;display:block;border-radius:16px}
+.hm-cap{position:absolute;left:10px;bottom:9px;display:flex;flex-direction:column;gap:2px;color:#fff;text-shadow:0 1px 6px #000c;font:600 15px/1.15 var(--sans);z-index:1}
+.hm-cap span{font:500 12px/1 var(--sans);color:#ffd2ea}
+.hm-t{position:absolute;right:10px;top:8px;font:500 11.5px/1 var(--sans);color:#fff;background:rgba(10,6,22,.45);border:1px solid rgba(255,122,196,.35);border-radius:999px;padding:4px 8px;z-index:1}
+@keyframes hmSpin{to{--hmA:360deg}}
+@keyframes hmGlow{from{box-shadow:0 0 12px rgba(255,79,163,.6),0 0 28px rgba(255,79,163,.3),inset 0 0 10px rgba(255,79,163,.2)}to{box-shadow:0 0 16px rgba(155,92,255,.65),0 0 40px rgba(155,92,255,.4),inset 0 0 14px rgba(155,92,255,.25)}}
+@media (prefers-reduced-motion:reduce){.hero-movie{animation:none}}
