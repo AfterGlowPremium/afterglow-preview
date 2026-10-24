@@ -13,6 +13,7 @@
   const H = { Accept: "application/geo+json" }, NOW = () => Date.now() / 1000;
   const COV = { SKC: 0, CLR: 0, NCD: 0, NSC: 0, FEW: 0.2, SCT: 0.45, BKN: 0.75, OVC: 1, VV: 1 };
   const O = g.AGObs = { st: {}, metar: {}, sat: {}, radar: {}, ready: false, errors: [] };
+  O.stations = sp => stations(sp);   // d25r: used by AGX.pastWind (measured past-day wind)
   const lsGet = k => { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch (e) { return null; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
   const km = (a, b, c, d) => { const R = 6371, r = Math.PI / 180, x = (d - b) * r * Math.cos((a + c) / 2 * r), y = (c - a) * r; return R * Math.hypot(x, y); };

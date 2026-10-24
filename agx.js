@@ -12,7 +12,14 @@
   const MV = "wave_height,wave_direction,wave_period,swell_wave_height,swell_wave_direction,swell_wave_period,wind_wave_height,wind_wave_direction,secondary_swell_wave_height,secondary_swell_wave_direction";
   const hrs = h => ({ t: h.time.map(x => Date.parse(x) / 1000), wh: h.wave_height, wd: h.wave_direction, wp: h.wave_period, sh: h.swell_wave_height, sd: h.swell_wave_direction, sp: h.swell_wave_period, ww: h.wind_wave_height, s2: h.secondary_swell_wave_height, d2: h.secondary_swell_wave_direction });
   // marine values at time t from live or archived hours (nearest hour within 2 h); null = no data for that time (caller hides wave/swell)
-  function mAt(id, t) { for (const H of [M[id] && M[id].h, PM[id]]) { if (!H || !H.t.length) continue; let i = -1, b = 7200; for (let k = 0; k < H.t.length; k++) { const d = Math.abs(H.t[k] - t); if (d <= b) { b = d; i = k; } }
+  // d25r: past hours use MEASURED data only — NDBC buoy (data/buoys.json, written by the satcv Action) for waves, IEM ASOS for wind.
+  // No model hindcast is ever shown as a past reading; with no representative measurement the line is hidden.
+  let BU = null, BUp = null; const PW = {}, PWp = {};
+  const isPast = t => t < Date.now() / 1000 - 3600;
+  function buoyAt(id, t) { const s = BU && BU.spots[id], A = s && BU.obs[s.id]; if (!A) return null; let r = null, b = 5400; for (const x of A) { const d = Math.abs(x[0] - t); if (d <= b) { b = d; r = x; } }
+    return r && r[1] != null ? { now: r[1], sw: r[1], swPer: r[2], per: r[2], swDir: r[3], dir: r[3], wd: r[3], src: s, measured: true, bt: r[0], bmph: r[4], bwdir: r[5] } : null; }
+  function mAt(id, t) { if (isPast(t)) { if (!BU && X.loadBuoys) X.loadBuoys().then(() => window.__agQueue && window.__agQueue()); return buoyAt(id, t); }
+    for (const H of [M[id] && M[id].h]) { if (!H || !H.t.length) continue; let i = -1, b = 7200; for (let k = 0; k < H.t.length; k++) { const d = Math.abs(H.t[k] - t); if (d <= b) { b = d; i = k; } }
       if (i >= 0 && H.wh[i] != null) return { now: H.wh[i], dir: H.sd[i] ?? H.wd[i], per: H.wp[i], swPer: H.sp ? H.sp[i] : null, sw: H.sh[i], ww: H.ww[i], s2: H.s2[i], d2: H.d2[i], swDir: H.sd[i], wd: H.wd[i] }; } return null; }
   const SEV = /Tornado|Severe Thunderstorm|Hurricane|Tropical Storm|Storm Surge|Flash Flood|Extreme Wind|Hurricane Force Wind/;
   async function marine(spots) {
@@ -60,7 +67,18 @@
     marine: M, alerts: AL,
     // d25o: swell at a given time (nearest marine hour; falls back to the combined wave field). null for land/lake spots without marine data.
     swellAt(id, t) { const m = mAt(id, t); if (!m) return null; const sw = m.sw != null && m.swDir != null, ft = sw ? m.sw : m.now, dir = sw ? m.swDir : m.wd, per = sw && m.swPer != null ? m.swPer : m.per;
-      return ft == null || dir == null ? null : { ft, dir, per, kind: sw ? "Swell" : "Waves" }; },
+      return ft == null || dir == null ? null : { ft, dir, per, kind: m.measured ? `Waves (buoy ${m.src.id}, ${m.src.km} km)` : sw ? "Swell" : "Waves" }; },
+    loadBuoys() { return BU ? Promise.resolve(BU) : BUp || (BUp = fetch("https://afterglowpremium.github.io/afterglow-preview/data/buoys.json?h=" + Math.floor(Date.now() / 9e5)).then(r => r.ok ? r.json() : null).then(j => (BU = j)).catch(() => (BUp = null))); },
+    buoyAt,
+    // measured wind for a past hour: nearest ASOS/METAR (≤ 40 km) from the IEM archive, else the spot's buoy anemometer; null = hide
+    pastWind(sp, t) { const k = sp.id + "|" + Math.round(t / 3600); if (k in PW) return PW[k]; const b = buoyAt(sp.id, t);
+      if (!PWp[k]) PWp[k] = (async () => { try { const L = window.AGObs && AGObs.stations ? await AGObs.stations(sp) : null; const st = L && L[0]; if (st) {
+        const a = new Date((t - 5400) * 1000), z = new Date((t + 5400) * 1000), q = new URLSearchParams({ station: st.id.replace(/^K/, ""), tz: "Etc/UTC", format: "onlycomma", latlon: "no", missing: "M", year1: a.getUTCFullYear(), month1: a.getUTCMonth() + 1, day1: a.getUTCDate(), hour1: a.getUTCHours(), minute1: a.getUTCMinutes(), year2: z.getUTCFullYear(), month2: z.getUTCMonth() + 1, day2: z.getUTCDate(), hour2: z.getUTCHours(), minute2: z.getUTCMinutes() });
+        const tx = await (await fetch("https://mesonet.agron.iastate.edu/cgi-bin/request/asos.py?" + q + "&data=drct&data=sknt&data=gust")).text();
+        const R = tx.trim().split("\n").slice(1).map(l => l.split(",")).map(f => ({ t: Date.parse(f[1].replace(" ", "T") + "Z") / 1000, d: +f[2], k: +f[3], g: +f[4] })).filter(o => isFinite(o.k)).sort((x, y) => Math.abs(x.t - t) - Math.abs(y.t - t));
+        if (R.length) { const o = R[0]; PW[k] = { wind: Math.round(o.k * 1.151), gust: isFinite(o.g) ? Math.round(o.g * 1.151) : null, wdir: isFinite(o.d) && o.k > 0 ? o.d : null, src: `${st.id} ASOS`, measured: true }; return; } } } catch (e) {}
+        PW[k] = b && b.bmph != null ? { wind: b.bmph, gust: null, wdir: b.bwdir, src: `buoy ${b.src.id}`, measured: true } : null; })().then(() => window.__agQueue && window.__agQueue());
+      return undefined; },
     mAt,
     // archived marine for a past date range (one request per 40 spots, 20 s cap, merged into PM; used by mAt/swellAt/sea for past days)
     async pastMarine(spots, start, end) { const pts = spots.filter(s => s.water !== undefined);
