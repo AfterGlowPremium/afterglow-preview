@@ -137,21 +137,23 @@
   O.cv = lsGet("ag-obs-cv") || {};
   const CVK = [0, 20, 40, 80, 120, 200, 300];
   async function canvas(sp, ev) {
-    const n = NOW(); if (!g.Sat || !g.Sat.canvasPt || n - ev.tSet > 1800 || ev.tSet - n > 3 * 3600) return O.cv[sp.id] || null;
+    const n = NOW(); if (!g.Sat || !g.Sat.canvasPt || n - ev.tSet > 1800 || ev.tSet - n > 14 * 3600) return O.cv[sp.id] || null;   // d24c: present day — re-read the latest visible all day, every refresh
     if (g.Model.sunPos(n, sp.lat, sp.lng).elev < 2.5) return O.cv[sp.id] || null;   // low sun: the visible image is too dim to trust → keep the last good-light read (or the snapshot's)
     const az = ev.sunsetAz, r = await Promise.all(CVK.map(d => { const p = d ? g.Model.offset(sp.lat, sp.lng, az, d) : { lat: sp.lat, lng: sp.lng }; return g.Sat.canvasPt(p.lat, p.lng, 18); }));
     if (r.filter(Boolean).length < 5) return O.cv[sp.id] || null;
     const v = r.map(x => x ? x.cv : 0), th = r.map(x => x ? x.thick : 0);
     const o = { tSet: ev.tSet, at: n, km: CVK, cv: v.map(x => +x.toFixed(2)), thick: th.map(x => +x.toFixed(2)),
       here: 0.3 * v[0] + 0.25 * v[1] + 0.25 * v[2] + 0.2 * v[3], west: (v[0] + v[1] + v[2] + v[3] + v[4]) / 5, far: 0.5 * v[5] + 0.5 * v[6], farThick: Math.max(th[5], th[6]) };
+    const P = O.cv[sp.id]; if (P && P.irMid && P.tSet === o.tSet && n - P.at < 2400) Object.assign(o, { irCv: P.irCv, irMid: P.irMid, irLow: P.irLow });   // keep the 15-min snapshot's IR heights
     O.cv[sp.id] = o; const keep = {}; for (const k in O.cv) if (n - O.cv[k].tSet < 86400) keep[k] = O.cv[k]; lsSet("ag-obs-cv", keep);
     return o;
   }
   O.canvas = canvas;
   // snapshot (GitHub Actions, tools/satcv.js, ~every 15 min while sunsets are near): reads taken with the sun ~4° up, for first loads
   // and for opening the app after the in-browser read is no longer possible. A fresher in-browser read wins.
-  O.cvSnap = /[?&]mode=sunrise/.test(location.search) ? Promise.resolve() : fetch(`data/satcv-sunset.json?_=${Math.floor(Date.now() / 300000)}`).then(r => r.ok ? r.json() : null).then(j => {
+  const snap = () => /[?&]mode=sunrise/.test(location.search) ? Promise.resolve() : fetch(`data/satcv-sunset.json?_=${Math.floor(Date.now() / 300000)}`).then(r => r.ok ? r.json() : null).then(j => {
     if (!j || !j.spots) return; for (const id in j.spots) { const a = j.spots[id], b = O.cv[id]; if (!b || b.tSet !== a.tSet || (b.at || 0) < a.at) O.cv[id] = a; } }).catch(() => {});
+  O.cvSnap = snap();
   // observed cloud → model inputs (hourly copies; only the hours either side of the event are touched)
   function withCanvas(args, ev, C) {
     const [sp, S, Wl] = args, tAt = ev.tSet;
@@ -266,6 +268,7 @@
     return { gray: clamp(w * ob + (1 - w) * mg), haze: w * haze2, src: m ? `METAR ${m.station} ${m.layers || "CLR"}` : "GOES", metar: m, w, broken, gapObs, gapW: gapW(ev, t), dry: m ? !!m.dry : null };
   };
   O.refresh = async (spots, results, day) => {
+    if (day === 0) await snap();   // d24c: pull the newest 15-min satellite snapshot each cycle
     if (day !== 0) return false;
     const pr = g.AGPrio || (() => 0), todo = results.filter(r => inWindow(r.ev.tSet)).sort((a, b) => pr(a) - pr(b));   // d24: open spot, then the map view, then the rest
     let q = 0;
