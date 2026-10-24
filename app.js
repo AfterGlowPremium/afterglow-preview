@@ -640,7 +640,7 @@
         const extra = { lq: dragging, turned, ground: G, hills: G.land ? 0 : undefined, shore: G.d > 0 ? 0 : undefined };
         if (G.camH) extra.camH = G.camH; if (G.lake != null && !G.land) Object.assign(extra, { swell: 0, surf: 0, hero: 0, caps: (wo.caps || 0) * G.lake, chop: (wo.chop != null ? wo.chop : 0.3) * G.lake }); if (G.land) Object.assign(extra, { surf: 0, hero: 0, chop: 0, caps: 0, swell: 0 });
         Object.keys(extra).forEach(k => extra[k] === undefined && delete extra[k]);
-        o = PhotoStage.draw(cv, fsp, ev, t, Object.assign({}, wo, extra)); }
+        o = PhotoStage.draw(cv, fsp, ev, t, Object.assign({}, wo, extra, anim ? { scale: AN.scale, dprCap: isDesk() ? 2 : 1.5, fast: (!isDesk() || AN.scale < 0.62) ? 1 : 0 } : {})); }   // d24f: geography (surf close-up) animated frames get the same adaptive quality — were full-res every frame → 0.8 s GPU stalls on phones
       if (o && o.mode !== "live") o = null;
       const aq = anim ? { scale: AN.scale, dprCap: isDesk() ? 2 : 1.5, fast: (!isDesk() || AN.scale < 0.62) ? 1 : 0 } : {};   // v21: desktop animated frames keep DPR up to 2   // d14: animated frames: capped DPR + adaptive scale; stills stay full quality
       if (!o) o = turned ? Object.assign(Preview.state(sp, ev, t), Preview.drawBehind(back, sp, ev, t), { mode: "behind" }) : PhotoStage.draw(cv, sp, ev, t, Object.assign(playing && window.__agPlayQ ? playOpt() : dragging && isDesk() ? { scale: 0.75 } : { lq: dragging }, wOpt(), aq));   // v21: desktop drags render at the 0.75 floor (phones 0.42)
