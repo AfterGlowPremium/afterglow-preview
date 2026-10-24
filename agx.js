@@ -51,13 +51,18 @@
   // Wind → wave look (rules from Surfline's Live Wind guide + surf-forecast primers): impact = speed × onshore/offshore component.
   // < 5 kt ≈ glassy/clean · 5–10 kt textured · onshore > 10 kt blown out (crumbly, whitewater, chop) · cross-shore = ruffled/chop
   // offshore holds faces open (steeper, clean, groomed); strong offshore (> ~15 kt) = heavy spray off the lips, hard to paddle.
-  function windLook(sp, wd, mph, sw) {
+  function windLook(sp, wd, mph, sw, gust) {
+    // d26i: gusts add cat's-paws — effective speed = mean + 35% of the gust excess
+    mph = (mph || 0) + (gust > mph ? 0.35 * (gust - mph) : 0);
     const face = normal(sp), kt = (mph || 0) / 1.15;
     const on = Math.cos((wd - face) * Math.PI / 180), cross = Math.abs(Math.sin((wd - face) * Math.PI / 180));   // on > 0: wind from the sea
     const tex = Math.max(0, Math.min(1, (kt - 5) / 5));
-    const chop = Math.min(1, tex * (Math.max(0, on) * 1.2 + cross * 0.8) + Math.max(0, -on) * 0.06 * Math.min(1, kt / 15));
+    let chop = Math.min(1, tex * (Math.max(0, on) * 1.2 + cross * 0.8) + Math.max(0, -on) * 0.06 * Math.min(1, kt / 15));
+    // d26i: local wind ripples on the water you look at, whatever the direction (offshore/bay wind still roughens the surface):
+    // glassy below ~3.5 mph, visible ripples from ~5 mph, cat's-paws/texture rising to ~0.55 chop by ~18 mph
+    const rip = Math.max(0, Math.min(1, (mph - 3.5) / 14.5)); chop = Math.max(chop, 0.55 * Math.pow(rip, 0.8));
     const off = Math.max(0, -on) * Math.min(1, kt / 13), caps = Math.max(0, on + cross * 0.5) * Math.max(0, (kt - 10) / 12);
-    const look = kt < 5 ? "glassy" : on < -0.5 ? (kt > 15 ? "strong offshore — spray, hard paddle" : "offshore — clean, groomed") : on > 0.5 ? (kt > 10 ? "onshore — blown out" : "light onshore — textured") : (kt > 10 ? "cross-shore — choppy" : "cross-shore — textured");
+    const look = mph < 4 ? "glassy" : kt < 5 ? "light ripples" : on < -0.5 ? (kt > 15 ? "strong offshore — spray, hard paddle" : "offshore — clean, groomed") : on > 0.5 ? (kt > 10 ? "onshore — blown out" : "light onshore — textured") : (kt > 10 ? "cross-shore — choppy" : "cross-shore — textured");
     // d25o: wind vs SWELL too — wind blowing against the swell (from where it is heading) holds faces up and grooms lines; with the swell it
     // crumbles them. Long period = cleaner lines, bigger surf = more spray/whitecaps when onshore. Light wind (< 5 kt) is glassy regardless.
     const perK = sw && sw.per ? Math.max(0, Math.min(1, (sw.per - 6) / 8)) : .3, ftK = sw && sw.ft ? Math.min(1, sw.ft / 6) : .3;
@@ -65,7 +70,7 @@
     const chop2 = Math.min(1, chop * (1 - .3 * perK - .2 * against * tex + .2 * withSw * tex)), off2 = Math.min(1, off * (1 + .3 * against)), caps2 = Math.min(1, caps * (1 + .4 * ftK));
     // thresholds from /workspace/surf-conditions-research.md (Surfline/SE Surf): <5 kt glassy, 5–10 textured, >10 onshore blown out, offshore great to ~13 kt
     const per = sw && sw.per, gs = per >= 12, wsw = per && per < 8, expo = sw && sw.dir != null ? Math.abs(((sw.dir - face + 540) % 360) - 180) : 0;
-    let q = kt < 5 ? "glassy" : on < -0.5 ? (kt > 13 ? "strong offshore, spray off the lips, hard to take off" : gs ? "clean, groomed lines" : "clean") : on > 0.5 ? (kt > 10 ? "choppy, blown out" : "textured, crumbly") : (kt > 10 ? "bumpy, side-chop" : "textured");
+    let q = mph < 4 ? "glassy" : kt < 5 ? "light ripples" : on < -0.5 ? (kt > 13 ? "strong offshore, spray off the lips, hard to take off" : gs ? "clean, groomed lines" : "clean") : on > 0.5 ? (kt > 10 ? "choppy, blown out" : "textured, crumbly") : (kt > 10 ? "bumpy, side-chop" : "textured");
     if (gs) q += " · groundswell"; else if (wsw) q += " · windswell"; if (expo > 70) q += " · sheltered, small";
     const rel = kt < 5 ? "Light" : on < -0.5 ? "Offshore" : on > 0.5 ? "Onshore" : "Cross-shore";
     return { chop: chop2, off: off2, caps: caps2, look, kt, q, rel, vsSw: +vsSw.toFixed(2) };
@@ -105,7 +110,7 @@
     sea: (sp, wind) => { const dq = new URLSearchParams(location.search).get("demo") || ""; const qp = new URLSearchParams(location.search);
       if (/surf/.test(dq)) { const ft = +qp.get("wave") || 5, mph = qp.get("wind") != null ? +qp.get("wind") : null, wd = qp.get("dir") != null ? +qp.get("dir") : null;
         const wl = wd != null ? windLook(sp, wd, mph || 0) : null; return { demo: true, ft, per: +qp.get("period") || 11, dir: qp.get("swelldir") != null ? +qp.get("swelldir") : 80, combo: /combo/.test(dq), off: wl ? wl.off > 0.2 : !/onshore/.test(dq), wl, surf: true, mph, wdir: wd }; } const tv = wind && wind.t != null ? wind.t : g.__agSeaT, past = tv && tv < Date.now() / 1000 - 3 * 3600, m = (tv && mAt(sp.id, tv)) || (past ? {} : M[sp.id] || {}); const wd = wind && wind.dir != null ? wind.dir : null;   // d25p: values at the viewed time; past day without archived data → no waves (not today's)
-      return { ft: m.now || 0, per: m.per || 8, dir: m.dir, combo: !!(m.s2 && m.s2 > 1 && m.d2 != null && m.dir != null && Math.abs(((m.d2 - m.dir + 540) % 360) - 180) > 25), off: wd != null && offshore(sp, wd), wl: wd != null ? windLook(sp, wd, wind.mph || 0, m.dir != null ? { dir: m.sw != null ? m.dir : m.dir, per: m.per, ft: m.sw ?? m.now } : null) : null, surf: FACE_EAST.has(sp.id) || sp.type === "Beach" || sp.type === "Pier" }; },
+      return { ft: m.now || 0, per: m.per || 8, dir: m.dir, combo: !!(m.s2 && m.s2 > 1 && m.d2 != null && m.dir != null && Math.abs(((m.d2 - m.dir + 540) % 360) - 180) > 25), off: wd != null && offshore(sp, wd), wl: wd != null ? windLook(sp, wd, wind.mph || 0, m.dir != null ? { dir: m.sw != null ? m.dir : m.dir, per: m.per, ft: m.sw ?? m.now } : null, wind.gust) : null, surf: FACE_EAST.has(sp.id) || sp.type === "Beach" || sp.type === "Pier" }; },
     async refresh(spots) { g.__agSpots = spots; await Promise.all([marine(spots), alerts(spots)]); g.__agRender && g.__agRender(); },
   };
   // ---- photo upload + feedback side panel ----
