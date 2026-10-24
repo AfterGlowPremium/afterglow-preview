@@ -23,5 +23,152 @@
   "resid": 15,
   "cloudErr": -40,
   "test": true
+ },
+ {
+  "id": "33193067-99cd-4eb0-aec0-f0cf75188420",
+  "at": "2026-10-24T08:40:00",
+  "shot": "2026-10-24T08:40:00",
+  "saved": "2026-10-24T12:50:18.997734+00:00",
+  "spot": "test",
+  "mode": "sunset",
+  "rating": 60,
+  "raw": 40,
+  "sky": {
+   "low": 10,
+   "mid": 5,
+   "high": 20,
+   "total": 30
+  },
+  "photo": {
+   "w": 64,
+   "h": 48,
+   "bright": 0.502,
+   "sat": 0.551,
+   "warm": 1,
+   "vivid": 1,
+   "cloud": 0,
+   "colorScore": 100
+  },
+  "ver": "d24a",
+  "resid": 32,
+  "cloudErr": -30,
+  "test": true
+ },
+ {
+  "id": "6ae95088-eb99-49fd-b302-b5d78b777b28",
+  "at": "2026-10-24T07:20:00",
+  "shot": "2026-10-24T07:20:00",
+  "saved": "2026-10-24T12:51:28.227165+00:00",
+  "spot": "test",
+  "mode": "sunrise",
+  "rating": 55,
+  "raw": null,
+  "sky": null,
+  "photo": {
+   "w": 64,
+   "h": 48,
+   "bright": 0.502,
+   "sat": 0.551,
+   "warm": 1,
+   "vivid": 1,
+   "cloud": 0,
+   "colorScore": 100
+  },
+  "ver": "d25c",
+  "test": true
+ },
+ {
+  "id": "ea677867-9933-4b53-a0aa-62c82f7a30eb",
+  "at": "2026-10-24T18:05:00",
+  "shot": "2026-10-24T18:05:00",
+  "saved": "2026-10-24T12:51:28.321292+00:00",
+  "spot": "test",
+  "mode": "sunset",
+  "rating": 60,
+  "raw": 42,
+  "sky": {
+   "low": 10,
+   "mid": 5,
+   "high": 20,
+   "total": 30
+  },
+  "photo": null,
+  "ver": "d25c",
+  "resid": 18,
+  "test": true
+ },
+ {
+  "id": "db06746b-2c91-475d-b47e-c3d76d9b5fea",
+  "at": "2026-10-24T12:54:27.723944+00:00",
+  "shot": null,
+  "saved": "2026-10-24T12:54:27.723944+00:00",
+  "spot": "cadillac",
+  "mode": "sunset",
+  "rating": 60,
+  "raw": 54,
+  "sky": {},
+  "photo": {
+   "w": 1280,
+   "h": 853,
+   "bright": 0.454,
+   "sat": 0.398,
+   "warm": 0.42,
+   "vivid": 0.186,
+   "cloud": 0.496,
+   "colorScore": 100
+  },
+  "ver": "d24a",
+  "resid": 18
+ },
+ {
+  "id": "8d7e500a-63bb-4007-a4de-06ed56cc8df2",
+  "at": "2026-10-24T12:54:27.855082+00:00",
+  "shot": null,
+  "saved": "2026-10-24T12:54:27.855082+00:00",
+  "spot": "cadillac",
+  "mode": "sunset",
+  "rating": 60,
+  "raw": 54,
+  "sky": {},
+  "photo": null,
+  "ver": "d24a",
+  "resid": 6
+ },
+ {
+  "id": "e8c11837-8635-4280-b951-1ae89aa98540",
+  "at": "2026-10-24T12:54:27.939048+00:00",
+  "shot": null,
+  "saved": "2026-10-24T12:54:27.939048+00:00",
+  "spot": "cadillac",
+  "mode": "sunset",
+  "rating": 81,
+  "raw": 54,
+  "sky": {},
+  "photo": null,
+  "ver": "d24a",
+  "resid": 27
+ },
+ {
+  "id": "8d7b5c26-83aa-4c09-9c44-8db6ec263b5a",
+  "at": "2026-10-23T18:07:00",
+  "shot": "2026-10-23T18:07:00",
+  "saved": "2026-10-24T12:55:31.462572+00:00",
+  "spot": "cadillac",
+  "mode": "sunset",
+  "rating": 78,
+  "raw": 54,
+  "sky": {},
+  "photo": {
+   "w": 1280,
+   "h": 853,
+   "bright": 0.454,
+   "sat": 0.398,
+   "warm": 0.42,
+   "vivid": 0.186,
+   "cloud": 0.496,
+   "colorScore": 100
+  },
+  "ver": "d24a",
+  "resid": 31
  }
 ]
