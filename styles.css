@@ -797,3 +797,5 @@ html.ag-desk .stage .ev-toggle a{font-size:13px;padding:8px 14px}
 .rail-ctl #pv-fb.play.fb::before{content:"";width:6px;height:6px;border-radius:50%;background:#6e8f62;box-shadow:0 0 0 2px rgba(110,143,98,.25);margin-right:2px}
 .rail-ctl #pv-fb.play.fb:hover,.rail-ctl #pv-fb.play.fb:focus-visible{border-color:#d4a054;box-shadow:inset 0 0 0 .5px rgba(243,239,228,.12),0 0 14px rgba(255,179,71,.35)}
 .rail-ctl #pv-fb.play.fb:active{background:rgba(16,24,20,.72);box-shadow:0 0 18px rgba(255,122,61,.45)}
+.rail-ctl .fb-score{align-self:center;font:500 11.5px/1 var(--sans);color:#f3efe4;background:rgba(16,24,20,.45);border:1px solid rgba(212,160,84,.3);border-radius:999px;padding:5px 8px;white-space:nowrap;letter-spacing:.02em}
+.rail-ctl .fb-score::first-letter{color:#d4a054}.rail-ctl .fb-score.none{color:rgba(243,239,228,.4);border-color:rgba(243,239,228,.12)}

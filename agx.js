@@ -138,4 +138,9 @@
     el.classList.add("open");
   }
   X.panel = panel;
+  // d25g: recent photo colour score per spot from the public metrics-only history (no Supabase reads). Fetched once, cached.
+  let HP = null; X.colorScore = id => (HP = HP || fetch("https://afterglowpremium.github.io/afterglow-preview/data/feedback-history.json?_=" + Math.floor(Date.now() / 3600000)).then(r => r.ok ? r.json() : []).catch(() => []))
+    .then(h => { const cut = Date.now() - 30 * 864e5, G = {};
+      (h || []).forEach(r => { const c = r.photo && r.photo.colorScore; if (r.spot !== id || r.test || r.spot === "test" || typeof c !== "number" || !(Date.parse(r.at || r.saved) > cut)) return; (G[r.group || r.id] = G[r.group || r.id] || []).push(c); });
+      const v = Object.values(G).map(a => a.reduce((x, y) => x + y, 0) / a.length); return v.length ? { avg: Math.round(v.reduce((x, y) => x + y, 0) / v.length), n: v.length } : null; });
 })(window);
