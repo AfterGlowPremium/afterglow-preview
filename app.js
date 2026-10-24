@@ -392,7 +392,7 @@
       const lb = typeof sc === "number" ? label(sc) : null;
       return `<button class="day ${cls}" ${attr}><span class="d1">${d1}</span><span class="d2">${d2}</span><span class="d3"${lb ? ` style="--c:${lb.c}"` : ""}>${typeof sc === "number" ? "best " + sc : sc}</span></button>`; };
     const keys = pastKeys().slice(0, PAST).reverse(), pb = pbLoad();
-    const past = keys.map(k => { const c = CH[chunkOf(k)] || {}, D = c.data; let sc = typeof pb[k] === "number" ? pb[k] : c.err ? "—" : "…";
+    const past = keys.map(k => { const c = CH[chunkOf(k)] || {}, D = c.data; let sc = typeof pb[k] === "number" ? pb[k] : c.err ? "↻ retry" : "…";
       if (D && typeof pb[k] !== "number") { const S1 = D.S[0], idx = S1.daily.time.findIndex(t => ymd(t + 43200, S1.timezone) === k); if (idx < 0) sc = "—"; else try { sc = bestOf(D, idx); } catch (e) { sc = "—"; } }
       const t = Date.parse(k + "T12:00:00Z") / 1000, yest = k === ymd(Date.now() / 1000 - 86400, "America/New_York");
       return card(`past${state.arch && state.arch.key === k ? " on" : ""}`, `data-past="${k}"${sc === "…" ? ' aria-busy="true"' : ""}`, yest ? "Yesterday" : new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" }).format(new Date(t * 1000)), fmtDate(t, "UTC"), sc); }).join("");
@@ -995,7 +995,7 @@
   // Now: 7 days, 4 parallel requests (spots in 3 slices; one 120 km sun-path point per spot reused for the 3 path slots; the spot stands in for the
   // anti-solar points), one try, 15 s cap, started in the background after the live forecast renders. Cards show "…" then the score, or "—".
   // d25m: chunks of past days by explicit date range. Chunk 0 = the 7 newest days (loaded in the background after the live forecast);
-  // older chunks (8 days each) load only when their cards scroll near view. One try, 15 s cap, one chunk at a time, no retry storm.
+  // older chunks (8 days each) load only when their cards scroll near view. One try, 25 s cap (older archive days can take 7–15 s), one chunk at a time, no retry storm; a failed chunk shows "↻ retry" and reloads only when tapped.
   // Best scores cached per day in localStorage so repeat visits show them instantly (the replay data itself is refetched on tap).
   const PBK = "afterglow-pastbest-" + MODE, pbLoad = () => lsGet(PBK) || {}, pbSave = o => { try { const ks = Object.keys(o).sort(); while (ks.length > 40) delete o[ks.shift()]; localStorage.setItem(PBK, JSON.stringify(o)); } catch (e) {} };
   const chunkOf = k => { const a = pastKeys().indexOf(k); return a < 0 ? -1 : a < 7 ? 0 : 1 + Math.floor((a - 7) / 8); };
@@ -1008,7 +1008,7 @@
     const T = (pr, ms) => Promise.race([pr, new Promise((_, no) => setTimeout(() => no(new Error("timeout")), ms))]), H = Math.ceil(SPOTS.length / 3);
     CH[c] = { busy: null };
     const run = () => T(Promise.all([0, 1, 2].map(q => fetchBatch(SPOTS.slice(q * H, q * H + H), SPOT_VARS, "sunset,sunrise", API, "gfs_seamless", 1, ex))
-        .concat([fetchBatch(SPOTS.map(s => s.path[1]), WEST_VARS, null, API, "gfs_seamless", 1, ex)])), 15000).then(R => {
+        .concat([fetchBatch(SPOTS.map(s => s.path[1]), WEST_VARS, null, API, "gfs_seamless", 1, ex)])), 25000).then(R => {
       const S = R.slice(0, 3).flat(), Wm = R[3], D = { at: Date.now(), S, W: SPOTS.flatMap((_, i) => [Wm[i], Wm[i], Wm[i]]), E: S, AQ: null, fcModel: "noaa", prov: {}, past: true };
       const S0 = S[0], pb = pbLoad(); S0.daily.time.forEach((t, i) => { const k = ymd(t + 43200, S0.timezone); if (ks.includes(k)) try { pb[k] = bestOf(D, i); } catch (e) {} }); pbSave(pb);
       CH[c] = { data: D }; return D; });
