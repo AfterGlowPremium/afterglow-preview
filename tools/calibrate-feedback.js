@@ -29,7 +29,7 @@ function metrics(buf) {   // sky photo → brightness, saturation, warm-colour s
     let m = null;
     if (e.photo_path) try { const p = await fetch(`${URL0}/storage/v1/object/feedback/${e.photo_path}`, { headers: H }); if (!p.ok) throw new Error(p.status); m = metrics(Buffer.from(await p.arrayBuffer())); } catch (x) { log.push(`- ${e.id}: photo unreadable (${x.message})`); }
     const raw = e.pred && typeof e.pred.raw === "number" ? e.pred.raw : null, sky = e.pred && (e.pred.atShot || e.pred.sky);
-    const rec = { id: e.id, at: e.shot_at || e.created_at, shot: e.shot_at || null, saved: e.created_at, spot: e.spot, mode: e.mode, rating: e.rating, raw, sky, photo: m, ver: e.app_version };
+    const rec = { group: (e.pred && e.pred.group) || e.id, id: e.id, at: e.shot_at || e.created_at, shot: e.shot_at || null, saved: e.created_at, spot: e.spot, mode: e.mode, rating: e.rating, raw, sky, photo: m, ver: e.app_version };
     if (raw != null && typeof e.rating === "number") rec.resid = Math.round(m ? .7 * (e.rating - raw) + .3 * (m.colorScore - raw) : e.rating - raw);
     if (m && sky && typeof sky.total === "number") rec.cloudErr = Math.round(100 * m.cloud - sky.total);
     if (e.spot === "test") rec.test = true;
@@ -40,7 +40,9 @@ function metrics(buf) {   // sky photo → brightness, saturation, warm-colour s
   // calibration: last 120 days, median residual, |resid| > 45 dropped as outliers, shrunk toward 0 by n/(n+k), min counts, hard bounds.
   const cut = Date.now() - 120 * 864e5, cal = { updated: new Date().toISOString(), note: "score offsets from user feedback; bounded ±8 global, ±5 per spot" };
   for (const mode of ["sunset", "sunrise"]) {
-    const R = hist.filter(h => h.spot !== "test" && !h.test && h.mode === mode && h.resid != null && Date.parse(h.at) > cut && Math.abs(h.resid) <= 45), o = { n: R.length, global: 0, spots: {} };
+    const R0 = hist.filter(h => h.spot !== "test" && !h.test && h.mode === mode && h.resid != null && Date.parse(h.at) > cut), G = {};
+    R0.forEach(h => (G[h.group || h.id] = G[h.group || h.id] || []).push(h));   // d25e: multi-photo sends count once (median residual of the group)
+    const R = Object.values(G).map(L => Object.assign({}, L[0], { resid: med(L.map(h => h.resid)) })).filter(h => Math.abs(h.resid) <= 45), o = { n: R.length, global: 0, spots: {} };
     if (R.length >= 6) o.global = Math.round(clamp(med(R.map(h => h.resid)) * R.length / (R.length + 12), -8, 8));
     const by = {}; R.forEach(h => (by[h.spot] = by[h.spot] || []).push(h.resid - o.global));
     for (const [s, a] of Object.entries(by)) if (a.length >= 4) { const v = Math.round(clamp(med(a) * a.length / (a.length + 8), -5, 5)); if (v) o.spots[s] = v; }

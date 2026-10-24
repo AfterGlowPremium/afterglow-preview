@@ -66,13 +66,13 @@
         const t = r.ok ? "" : await r.text().catch(() => ""); if (!r.ok && r.status !== 409 && !/Duplicate|already exists/i.test(t)) throw new Error(`photo upload ${r.status} ${t.slice(0, 120)}`);
         path = e.photoPath = p; }
       const row = { id: e.id, spot: e.spot, mode: e.mode === "sunrise" ? "sunrise" : "sunset", saved_at: e.at, shot_at: e.shot || null, view_t: e.viewT ? new Date(e.viewT * 1000).toISOString() : null, day: e.day,
-        rating: e.actual, accuracy: e.acc, notes: (e.note || "").slice(0, 2000), photo_path: path, app_version: String(e.ver || "").slice(0, 20), pred: e.pred };
+        rating: e.actual, accuracy: e.acc, notes: (e.note || "").slice(0, 2000), photo_path: path, app_version: String(e.ver || "").slice(0, 20), pred: e.pred };   // group id rides in pred.group (no schema change)
       const r2 = await fetch(`${base}/rest/v1/feedback`, { method: "POST", headers: Object.assign({ "Content-Type": "application/json", Prefer: "return=minimal" }, H), body: JSON.stringify(row) });
       if (!r2.ok && r2.status !== 409) throw new Error(`feedback ${r2.status} ${(await r2.text().catch(() => "")).slice(0, 160)}`); },
     // queued sends run one after another (a send started while another runs waits for it, then runs again so the new entry is included)
-    flush(extra) { if (!UP.on()) return Promise.resolve({ fail: load().filter(e => !e.up).length, off: true });
-      const run = async () => { const a = load(); let fail = 0; UP.err = ""; if (extra && !a.some(e => e.id === extra.id)) a.push(extra);
-        for (const e of a) { if (e.up || !e.id) continue; try { await UP.one(e); e.up = true; e.photo = null; } catch (x) { fail++; UP.err = String(x.message || x); console.warn("feedback send", x); } }
+    flush(extra, prog) { if (extra && !Array.isArray(extra)) extra = [extra]; if (!UP.on()) return Promise.resolve({ fail: load().filter(e => !e.up).length, off: true });
+      const run = async () => { const a = load(); let fail = 0; UP.err = ""; (extra || []).forEach(x => { const k = a.findIndex(e => e.id === x.id); if (k < 0) a.push(x); else if (!a[k].photo && x.photo) a[k].photo = x.photo; }); const todo = a.filter(e => !e.up && e.id); let done = 0;
+        for (const e of todo) { done++; prog && prog(done, todo.length); try { await UP.one(e); e.up = true; e.photo = null; } catch (x) { fail++; UP.err = String(x.message || x); console.warn("feedback send", x); } }
         const cur = load(), by = new Map(a.map(e => [e.id, e])); const out = cur.map(e => { const d = by.get(e.id); return d && d.up ? Object.assign({}, e, { up: true, photo: null, photoPath: d.photoPath }) : d && d.photoPath ? Object.assign({}, e, { photoPath: d.photoPath }) : e; });
         try { localStorage.setItem(FK, JSON.stringify(out)); } catch (x) {} return { fail, err: UP.err }; };
       return UP.busy = (UP.busy || Promise.resolve()).catch(() => {}).then(run); }
@@ -85,8 +85,8 @@
     let el = document.getElementById("fb-panel"); if (!el) { el = document.createElement("aside"); el.id = "fb-panel"; document.body.appendChild(el); }
     el.innerHTML = `<button class="fb-x" aria-label="Close">✕</button><h3>Photo & feedback</h3>
       <label>Location<select id="fb-spot">${(g.__agSpots || []).map(s => `<option value="${s.id}"${sp && s.id === sp.id ? " selected" : ""}>${s.name}, ${s.state}</option>`).join("")}</select></label>
-      <label class="fb-file">📷 Add photo<input id="fb-photo" type="file" accept="image/*"></label><img id="fb-prev" alt="" hidden>
-      <label>Photo date &amp; time <span id="fb-tz" class="fine"></span><span class="fb-dt"><input id="fb-date" type="date"> <input id="fb-time" type="time"></span><span id="fb-src" class="fine"></span></label>
+      <label class="fb-file">📷 Add photos (up to 6)<input id="fb-photo" type="file" accept="image/*" multiple></label><div id="fb-thumbs"></div>
+      <label><span id="fb-dtl">Date &amp; time</span> <span id="fb-tz" class="fine"></span><span class="fb-dt"><input id="fb-date" type="date"> <input id="fb-time" type="time"></span><span id="fb-src" class="fine"></span></label>
       <label>How was it really? (0–100)<input id="fb-score" type="range" min="0" max="100" value="60"><output id="fb-o">60</output></label>
       <label>Forecast was<select id="fb-acc"><option>about right</option><option>too high</option><option>too low</option><option>wrong cloud type/placement</option></select></label>
       <label>Notes<textarea id="fb-note" rows="3" placeholder="e.g. cirrus lit up pink 10 min after sunset, water glassy"></textarea></label>
@@ -104,24 +104,33 @@
     let dtUser = false, dtExif = false; const dflt = () => { if (dtUser || dtExif) return; const ev = evFor($("#fb-spot").value); setDT(ev && ev.tSet ? new Date(ev.tSet * 1000) : new Date(), ev && ev.tSet ? "Set to this day's " + (g.AG_MODE === "sunrise" ? "sunrise" : "sunset") + " — change it if needed" : ""); };
     dflt(); $("#fb-spot").onchange = dflt; $("#fb-date").oninput = $("#fb-time").oninput = () => { dtUser = true; $("#fb-src").textContent = ""; };
     // photo: EXIF capture time read from the original bytes (re-encoding strips EXIF) fills date & time; decoded via object URL, downscaled to 1280 px JPEG
-    $("#fb-photo").onchange = e => { const f = e.target.files[0]; img = null; if (!f) return; msg("Reading photo…");
-      f.slice(0, 262144).arrayBuffer().then(b => { const m = /(\d{4}):(\d\d):(\d\d) (\d\d):(\d\d):(\d\d)/.exec(new TextDecoder("latin1").decode(b)); if (m && !dtUser) { dtExif = true; setDT(new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5]), "From the photo"); } }).catch(() => {});
-      const u = URL.createObjectURL(f), im = new Image();
+    // d25e: up to 6 photos; each gets its own date & time (EXIF capture time, else the form's date & time), editable under its thumbnail.
+    const MAXP = 6, P = []; const exifT = f => f.slice(0, 262144).arrayBuffer().then(b => { const m = /(\d{4}):(\d\d):(\d\d) (\d\d):(\d\d):(\d\d)/.exec(new TextDecoder("latin1").decode(b)); return m ? new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5]) : null; }).catch(() => null);
+    const shrink = f => new Promise((ok, no) => { const u = URL.createObjectURL(f), im = new Image();
       im.onload = () => { try { const c = document.createElement("canvas"), k = Math.min(1, 1280 / Math.max(im.naturalWidth, im.naturalHeight)); c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k);
-        c.getContext("2d").drawImage(im, 0, 0, c.width, c.height); img = c.toDataURL("image/jpeg", 0.72); $("#fb-prev").src = img; $("#fb-prev").hidden = false; msg(""); } catch (x) { msg("Couldn't prepare this photo: " + x.message); } URL.revokeObjectURL(u); };
-      im.onerror = () => { URL.revokeObjectURL(u); msg("Couldn't read this photo here (HEIC on a computer?). Try a JPEG, or pick it on the iPhone."); };
-      im.src = u; };
+        c.getContext("2d").drawImage(im, 0, 0, c.width, c.height); URL.revokeObjectURL(u); ok(c.toDataURL("image/jpeg", 0.72)); } catch (x) { URL.revokeObjectURL(u); no(x); } };
+      im.onerror = () => { URL.revokeObjectURL(u); no(new Error("unreadable")); }; im.src = u; });
+    const formD = () => { const d = new Date(`${$("#fb-date").value}T${$("#fb-time").value || "12:00"}`); return isNaN(d) ? new Date() : d; };
+    const dStr = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`, tStr = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    const drawThumbs = () => { const box = $("#fb-thumbs"); box.innerHTML = P.map((p, k) => `<div class="fb-th" data-k="${k}"><img src="${p.img}" alt="Photo ${k + 1}"><button class="fb-rm" aria-label="Remove photo ${k + 1}">✕</button>
+        <input type="date" class="fb-pd" value="${dStr(p.d)}"><input type="time" class="fb-pt" value="${tStr(p.d)}"><span class="fine">${p.src === "exif" ? "from photo" : "form time"}</span></div>`).join("");
+      box.querySelectorAll(".fb-th").forEach(n => { const p = P[+n.dataset.k]; n.querySelector(".fb-rm").onclick = () => { P.splice(+n.dataset.k, 1); drawThumbs(); };
+        const upd = () => { const d = new Date(`${n.querySelector(".fb-pd").value}T${n.querySelector(".fb-pt").value || "12:00"}`); if (!isNaN(d)) { p.d = d; p.src = "user"; } }; n.querySelector(".fb-pd").oninput = n.querySelector(".fb-pt").oninput = upd; });
+      $("#fb-dtl").textContent = P.length ? "Date & time (for notes / photos without a time)" : "Date & time"; $("#fb-photo").parentElement.style.display = P.length >= MAXP ? "none" : ""; };
+    $("#fb-photo").onchange = async e => { const fs = [...e.target.files]; e.target.value = ""; if (!fs.length) return; let bad = 0, over = Math.max(0, P.length + fs.length - MAXP);
+      for (const [k, f] of fs.slice(0, MAXP - P.length).entries()) { msg(`Reading photo ${k + 1} of ${Math.min(fs.length, MAXP - P.length)}…`);
+        try { const [img, d] = await Promise.all([shrink(f), exifT(f)]); P.push({ img, d: d || formD(), src: d ? "exif" : "form" }); drawThumbs(); } catch (x) { bad++; } }
+      msg((bad ? `${bad} photo${bad > 1 ? "s" : ""} couldn't be read here (HEIC on a computer?) — try JPEG or pick on the iPhone. ` : "") + (over ? `Only ${MAXP} photos per send — ${over} left out.` : "")); };
     $("#fb-send").onclick = async () => { const btn = $("#fb-send"); if (btn.disabled) return; btn.disabled = true; btn.textContent = "Sending…"; msg("");
-      try { const a = load(), id = $("#fb-spot").value, ev = evFor(id), dv = $("#fb-date").value, tv = $("#fb-time").value, st = g.__agState;
-        const sd = dv ? new Date(`${dv}T${tv || "12:00"}`) : null, shot = sd && !isNaN(sd) ? isoOff(sd) : null;
-        a.push({ id: (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + "-" + Math.random().toString(36).slice(2)), up: false, ver: g.AG_BUILD || "", day: st ? st.day : null,
-          pred: predFor(id, ev, sd && !isNaN(sd) ? sd.getTime() / 1000 : null),
-          at: new Date().toISOString(), shot, shotSrc: dtUser ? "user" : dtExif ? "exif" : "default", mode: g.AG_MODE, spot: id, viewT: g.__agPvT || null, actual: +$("#fb-score").value, acc: $("#fb-acc").value, note: $("#fb-note").value, photo: img });
-        // full storage: still send this entry (with its photo) straight from memory; only the waiting copy loses the photo
-        const me = a[a.length - 1]; let stored = true, noPhoto = false; try { localStorage.setItem(FK, JSON.stringify(a)); } catch (e) { me.photo = null; noPhoto = true; try { localStorage.setItem(FK, JSON.stringify(a)); } catch (e2) { stored = false; } me.photo = img; }
-        const n = await UP.flush(noPhoto || !stored ? me : undefined); if (!n.fail) stored = true;
-        if (!n.fail) { msg("Sent ✓ thanks!"); img = null; $("#fb-photo").value = ""; $("#fb-prev").hidden = true; $("#fb-note").value = ""; dtUser = dtExif = false; dflt(); }
-        else if (!stored) msg("Couldn't save — phone storage is full. Tap 'Download my feedback backup', then try again.");
+      try { const a = load(), id = $("#fb-spot").value, ev = evFor(id), st = g.__agState, uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + "-" + Math.random().toString(36).slice(2));
+        const grp = uid(), list = P.length ? P.map(p => ({ d: p.d, src: p.src, img: p.img })) : [{ d: formD(), src: dtUser ? "user" : "default", img: null }];
+        const mine = list.map((p, k) => { const pr = predFor(id, ev, p.d.getTime() / 1000); if (pr) { pr.group = grp; pr.gi = k; pr.gn = list.length; }
+          return { id: uid(), group: grp, up: false, ver: g.AG_BUILD || "", day: st ? st.day : null, pred: pr || { group: grp, gi: k, gn: list.length },
+            at: new Date().toISOString(), shot: isoOff(p.d), shotSrc: p.src, mode: g.AG_MODE, spot: id, viewT: g.__agPvT || null, actual: +$("#fb-score").value, acc: $("#fb-acc").value, note: $("#fb-note").value, photo: p.img }; });
+        a.push(...mine); let mem = [];
+        try { localStorage.setItem(FK, JSON.stringify(a)); } catch (e) { mem = mine; a.splice(a.length - mine.length); try { localStorage.setItem(FK, JSON.stringify(a.concat(mine.map(m => Object.assign({}, m, { photo: null }))))); } catch (e2) {} }
+        const n = await UP.flush(mem, (k, t) => { btn.textContent = t > 1 ? `Sending ${k} of ${t}…` : "Sending…"; });
+        if (!n.fail) { msg(mine.length > 1 ? `Sent ✓ ${mine.length} photos — thanks!` : "Sent ✓ thanks!"); P.length = 0; drawThumbs(); $("#fb-note").value = ""; dtUser = dtExif = false; dflt(); }
         else msg(navigator.onLine === false ? "Saved on phone — will send when you're online." : `Saved on phone, will send automatically. (${!n.err || /fetch|Load failed|NetworkError|network/i.test(n.err) ? "no connection right now" : "Send failed: " + n.err})`);
       } catch (x) { msg("Something went wrong: " + (x.message || x)); console.warn(x); }
       btn.disabled = false; btn.textContent = "Send feedback"; };
