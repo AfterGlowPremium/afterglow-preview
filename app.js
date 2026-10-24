@@ -616,7 +616,7 @@
     const word = l => l.lit < 0.08 ? "in shadow" : (l.c[1] > 200 ? "lit gold-white" : l.c[1] > 150 ? "lit gold" : l.c[1] > 100 ? "lit orange" : "lit pink-red");
     const render = anim => {
       if (anim !== true) anim = false;
-      raf = 0; const t = +sl.value; state.pvT = t; state.pvSpot = sp.id;
+      raf = 0; const t = +sl.value; state.pvT = t; state.pvSpot = sp.id; window.__agPvT = t;
       const back = $("#pv-back"), turned = !!state.turn && back;
       // Draft: when the view behind you is open water, render it with the same photoreal sky+water shader (sun behind camera)
       const wNow = Object.assign({}, Model.windAt(ev, t) || {});

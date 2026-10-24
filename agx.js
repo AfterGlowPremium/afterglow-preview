@@ -64,13 +64,25 @@
       <label>Forecast was<select id="fb-acc"><option>about right</option><option>too high</option><option>too low</option><option>wrong cloud type/placement</option></select></label>
       <label>Notes<textarea id="fb-note" rows="3" placeholder="e.g. cirrus lit up pink 10 min after sunset, water glassy"></textarea></label>
       <label class="fb-file">📷 Add photo<input id="fb-photo" type="file" accept="image/*"></label><img id="fb-prev" alt="" hidden>
-      <button id="fb-save" class="btn">Save</button> <button id="fb-exp" class="btn ghost">Export all (${items.length})</button>
+      <button id="fb-save" class="btn">Save</button> <button id="fb-exp" class="btn ghost">Export all (${items.length})</button><p id="fb-msg" class="fine" role="status"></p>
       <p class="fine">Saved on this phone for now. Draft plan: a daily job uploads these, pairs each with that day's forecast inputs, and re-fits the score weights.</p>`;
     let img = null; const $ = s => el.querySelector(s);
     $(".fb-x").onclick = () => el.classList.remove("open"); $("#fb-score").oninput = e => $("#fb-o").textContent = e.target.value;
-    $("#fb-photo").onchange = e => { const f = e.target.files[0]; if (!f) return; const im = new Image(), r = new FileReader(); r.onload = () => { im.onload = () => { const c = document.createElement("canvas"), k = Math.min(1, 900 / Math.max(im.width, im.height)); c.width = im.width * k; c.height = im.height * k; c.getContext("2d").drawImage(im, 0, 0, c.width, c.height); img = c.toDataURL("image/jpeg", 0.72); $("#fb-prev").src = img; $("#fb-prev").hidden = false; }; im.src = r.result; }; r.readAsDataURL(f); };
-    $("#fb-save").onclick = () => { const a = load(); a.push({ at: new Date().toISOString(), mode: g.AG_MODE, spot: $("#fb-spot").value, actual: +$("#fb-score").value, acc: $("#fb-acc").value, note: $("#fb-note").value, photo: img });
-      try { localStorage.setItem(FK, JSON.stringify(a)); $("#fb-save").textContent = "Saved ✓"; } catch (e) { a[a.length - 1].photo = null; localStorage.setItem(FK, JSON.stringify(a)); $("#fb-save").textContent = "Saved (photo too big for phone storage)"; } };
+    let shot = null; const msg = t => { $("#fb-msg").textContent = t; };
+    // d24y: read the photo's EXIF capture time from the original bytes (re-encoding strips EXIF), decode via an object URL (iPhone memory),
+    // downscale to 1280 px JPEG. Browsers apply EXIF orientation when drawing; iOS hands HEIC over as JPEG. Unreadable files say so.
+    $("#fb-photo").onchange = e => { const f = e.target.files[0]; img = null; shot = null; if (!f) return; msg("Reading photo…");
+      f.slice(0, 262144).arrayBuffer().then(b => { const m = /(\d{4}):(\d\d):(\d\d) (\d\d):(\d\d):(\d\d)/.exec(new TextDecoder("latin1").decode(b)); if (m) shot = `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}`; }).catch(() => {});
+      const u = URL.createObjectURL(f), im = new Image();
+      im.onload = () => { const c = document.createElement("canvas"), k = Math.min(1, 1280 / Math.max(im.naturalWidth, im.naturalHeight)); c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k);
+        c.getContext("2d").drawImage(im, 0, 0, c.width, c.height); URL.revokeObjectURL(u); img = c.toDataURL("image/jpeg", 0.72); $("#fb-prev").src = img; $("#fb-prev").hidden = false; msg(`Photo ready (${c.width}×${c.height}${shot ? ", taken " + shot.replace("T", " ") : ""}).`); };
+      im.onerror = () => { URL.revokeObjectURL(u); msg("Couldn't read this photo here (HEIC on a computer?). Try a JPEG, or pick it on the iPhone."); };
+      im.src = u; };
+    $("#fb-save").onclick = () => { const btn = $("#fb-save"); if (btn.disabled) return; btn.disabled = true; const a = load();
+      a.push({ at: new Date().toISOString(), shot, mode: g.AG_MODE, spot: $("#fb-spot").value, viewT: g.__agPvT || null, actual: +$("#fb-score").value, acc: $("#fb-acc").value, note: $("#fb-note").value, photo: img });
+      let ok = "Saved ✓ on this phone — use Export to send it";
+      try { localStorage.setItem(FK, JSON.stringify(a)); } catch (e) { a[a.length - 1].photo = null; try { localStorage.setItem(FK, JSON.stringify(a)); ok = "Saved without the photo (phone storage full) — Export, then clear"; } catch (e2) { ok = "Not saved: phone storage is full. Export, then clear."; } }
+      msg(ok); $("#fb-exp").textContent = `Export all (${load().length})`; img = null; shot = null; $("#fb-photo").value = ""; $("#fb-prev").hidden = true; $("#fb-note").value = ""; setTimeout(() => btn.disabled = false, 800); };
     $("#fb-exp").onclick = () => { const b = new Blob([JSON.stringify(load(), null, 1)], { type: "application/json" }), u = URL.createObjectURL(b), l = document.createElement("a"); l.href = u; l.download = "afterglow-feedback.json"; l.click(); };
     el.classList.add("open");
   }
