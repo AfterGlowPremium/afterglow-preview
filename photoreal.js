@@ -657,7 +657,7 @@ void main(){
     float e = .15;
     e = .04;
     vec2 ws = vec2(.35, 1.4) * mix(.8, 1.25, uChop);
-    vec2 wm = wp + vec2(uPhase * .35, uPhase * 1.1);          // wind sea drifts toward the viewer
+    vec2 wm = wp + vec2(uPhase * .35, -uPhase * 1.1);          // wind sea drifts toward the viewer
     float h0 = fbm(wm*ws, fpW*ws.y, 7);
     float hx = fbm((wm+vec2(e,0.))*ws, fpW*ws.y, 7);
     float hz = fbm((wm+vec2(0.,e))*ws, fpW*ws.y, 7);
@@ -665,7 +665,7 @@ void main(){
     vec3 n = normalize(vec3(-(hx-h0)/e*amp, 1., -(hz-h0)/e*amp*.6));
     // swell: long rolling crests (wave height from the marine forecast) — tilts the whole reflection in broad bands
     float sk = .16 + .05*sin(wp.x*.013);
-    n = normalize(n + vec3(0., 0., uSwell * .22 * cos((wp.y * gSwC - wp.x * gSwS) * sk + uPhase * 2.2)) * smoothstep(3000., 300., tW) * (1. - smoothstep(.2, .5, tW * pixA / max(-rd.y, 1e-3) * sk * .159)));   // d19: fade the swell bands once a pixel spans ~1/3 of a crest (no scalloped aliasing near the horizon)
+    n = normalize(n + vec3(0., 0., uSwell * .22 * cos((wp.y * gSwC - wp.x * gSwS) * sk - uPhase * 2.2)) * smoothstep(3000., 300., tW) * (1. - smoothstep(.2, .5, tW * pixA / max(-rd.y, 1e-3) * sk * .159)));   // d19: fade the swell bands once a pixel spans ~1/3 of a crest (no scalloped aliasing near the horizon)
     float far = smoothstep(150., 2500., tW);
     // ripples that survive at distance: anchored to world x and inverse distance (perspective-compressed streaks)
     vec2 rq = vec2(wp.x / tW * 55. + uSeed.x, 900. / tW + uSeed.y);
@@ -709,7 +709,7 @@ void main(){
     // whitecaps: breaking crests lit by the sky (no data → no foam; coverage from the forecast wind)
     if (uCaps > .01){
       // breaking crests in world space (metres); where they shrink below a pixel they fade into an average whitening
-      vec2 fq2 = wp * vec2(.22, .55) + vec2(uPhase * .3, uPhase * 1.) + uSeed * .013;
+      vec2 fq2 = wp * vec2(.22, .55) + vec2(uPhase * .3, -uPhase * 1.) + uSeed * .013;
       float fn = fbm(fq2, 0., 5) * .8 + fbm(fq2 * 2.3 + 5., 0., 3) * .3;
       float thr = mix(.76, .62, uCaps);
       float ww = smoothstep(.6, 2.5, fpW * .55);
