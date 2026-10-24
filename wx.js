@@ -120,6 +120,7 @@
     if (C.trees) snags(x, W, H, hz);
     if (C.dune) dune(x, W, H, now);
     if (C.sea) sea(x, W, H, hz, C, now);
+    if (C.carrier) carrier(x, W, H, hz, C, now);
     if (C.ghost) ghostTree(x, W, H, hz, C, now);
     if (C.torn) tornado(x, W, H, hz, now);
     if (C.jets) jets(x, W, H, hz, C, now);
@@ -219,6 +220,27 @@
     x.restore();
   }
   // Grandview Beach landmark: bare dead trees (eroded maritime forest) standing in the surf — soft, haze-faded silhouettes
+  // d26a: Fort Monroe — a distant US Navy carrier (Nimitz/Ford profile) hull-down on the horizon, left of the sun column.
+  // Flat flight deck with the angled-deck overhang, island right of centre with mast + radar; hazy silhouette, gold rim at low sun,
+  // a few tiny deck/nav lights in twilight, faint wake.
+  function carrier(x, W, H, hz, C, now) { const e = C.elev != null ? C.elev : 5, L = Math.max(36, W * 0.075), u = L / 100, cx = W * 0.26, y = hz;
+    const lt = clamp((e + 2) / 12), haze = 0.55 + 0.25 * lt, col = `rgba(${Math.round(52 + 70 * lt)},${Math.round(56 + 72 * lt)},${Math.round(66 + 74 * lt)},${haze.toFixed(2)})`;
+    x.save(); x.translate(cx - L / 2, y); x.fillStyle = col; x.beginPath();
+    x.moveTo(0, -3.2 * u); x.lineTo(4 * u, -1 * u); x.lineTo(92 * u, -0.6 * u); x.lineTo(100 * u, -3 * u);   // hull (bow right), waterline at 0
+    x.lineTo(100 * u, -4.2 * u); x.lineTo(70 * u, -4.4 * u); x.lineTo(58 * u, -5.4 * u); x.lineTo(14 * u, -5.4 * u); x.lineTo(2 * u, -4.6 * u); x.closePath(); x.fill();   // deck + angled-deck overhang (port side, aft)
+    x.fillRect(60 * u, -10 * u, 7 * u, 4.8 * u); x.fillRect(61.5 * u, -12.5 * u, 4 * u, 2.6 * u);   // island, two tiers (starboard, right of centre)
+    x.fillRect(63.2 * u, -17 * u, 0.9 * u, 4.6 * u); x.fillRect(61.6 * u, -15.6 * u, 4.2 * u, 0.7 * u);   // mast + yard
+    x.beginPath(); x.ellipse(65.6 * u, -13.2 * u, 1.3 * u, 0.6 * u, 0, 0, 6.283); x.fill();   // radar
+    for (const [a, b] of [[24, 30], [36, 41], [46, 51]]) { x.fillRect(a * u, -6.2 * u, (b - a) * u, 0.8 * u); }   // parked aircraft bumps
+    const rim = e > -3 && e < 12 && !C.turned ? clamp(1 - Math.abs(e - 2) / 10) : 0;
+    if (rim > 0.05) { x.fillStyle = `rgba(255,190,100,${(0.45 * rim).toFixed(2)})`; x.fillRect(14 * u, -5.6 * u, 44 * u, 0.5 * u); x.fillRect(60 * u, -10.2 * u, 7 * u, 0.5 * u); }
+    if (e < 0) { const tw = clamp(-e / 6), bl = (Math.floor(now / 1000) % 2) ? 1 : 0.35;   // twilight: deck edge + island + masthead lights
+      x.fillStyle = `rgba(255,236,190,${(0.8 * tw).toFixed(2)})`; for (const k of [10, 22, 34, 46, 56, 72, 86]) x.fillRect(k * u, -5.2 * u, 0.7, 0.7);
+      x.fillStyle = `rgba(255,250,235,${(0.9 * tw).toFixed(2)})`; x.fillRect(63.5 * u, -17.3 * u, 1, 1);
+      x.fillStyle = `rgba(255,70,60,${(0.85 * tw * bl).toFixed(2)})`; x.fillRect(66 * u, -12.8 * u, 1, 1); x.fillStyle = `rgba(80,255,120,${(0.7 * tw).toFixed(2)})`; x.fillRect(99 * u, -3.8 * u, 1, 1); }
+    const wk = (now / 4000) % 1; x.strokeStyle = `rgba(235,238,240,${(0.18 + 0.1 * lt).toFixed(2)})`; x.lineWidth = 0.8;   // faint wake astern + bow wave
+    x.beginPath(); x.moveTo(0, 0.4); x.lineTo(-18 * u - wk * 4 * u, 0.9); x.stroke(); x.beginPath(); x.moveTo(99 * u, 0.2); x.lineTo(104 * u, 0.6); x.stroke();
+    x.restore(); }
   // d25v: Grandview's weathered dead tree standing in the surf (Sean's photo), drawn procedurally: forked silver-gray trunk,
   // twisting bare limbs, a small dark sign hanging by a wire, foam washing round the base. Right side of the frame, clear of the sun
   // column (sun/glitter sit at the centre); silhouetted at low sun with a gold rim on the sun-facing (left) edges.
