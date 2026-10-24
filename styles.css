@@ -833,3 +833,53 @@ html.ag-desk .stage .ev-toggle a{font-size:13px;padding:8px 14px}
 @keyframes hmSpin{to{--hmA:360deg}}
 @keyframes hmGlow{from{box-shadow:0 0 12px rgba(255,79,163,.6),0 0 28px rgba(255,79,163,.3),inset 0 0 10px rgba(255,79,163,.2)}to{box-shadow:0 0 16px rgba(155,92,255,.65),0 0 40px rgba(155,92,255,.4),inset 0 0 14px rgba(155,92,255,.25)}}
 @media (prefers-reduced-motion:reduce){.hero-movie{animation:none}}
+/* d26p: animated welcome — full-screen canvas sky, compact glass card at the bottom, title fades in; safe-area aware */
+.home-cv{position:fixed;inset:0;width:100%;height:100%;display:block}
+html.show-home .home{align-items:flex-end;padding:calc(18px + env(safe-area-inset-top,0px)) 16px calc(18px + env(safe-area-inset-bottom,0px))}
+html.show-home .home-card{margin:auto auto 0;background:rgba(14,10,34,.38);border:1px solid rgba(255,122,196,.35);box-shadow:0 0 18px rgba(255,79,163,.25),0 0 40px rgba(155,92,255,.2);padding:22px 18px 16px}
+.home-card h1{animation:homeIn 1.6s ease-out both;text-shadow:0 0 18px rgba(255,79,163,.55),0 0 36px rgba(155,92,255,.35)}
+.home-card .home-sub{animation:homeIn 1.6s .4s ease-out both}.home-card .home-q,.home-btns{animation:homeIn 1.2s .8s ease-out both}
+@keyframes homeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.home-btn{box-shadow:0 0 16px rgba(255,79,163,.3)}.home-btn b{font-size:22px}
+@media (prefers-reduced-motion:reduce){.home-card h1,.home-card .home-sub,.home-card .home-q,.home-btns{animation:none}}
+/* d26q: welcome fits one screen (in-app browser bars included) — no scrolling */
+html.show-home .home{height:100dvh;height:100svh;overflow:hidden}
+html.show-home .home-card{padding:clamp(12px,2.6svh,22px) 16px clamp(10px,2svh,16px)}
+.home-card .home-logo{margin:0 auto clamp(4px,1.4svh,14px);transform:scale(clamp(.7,0.12svh,1))}
+.home-card h1{font-size:clamp(24px,min(7vw,5.2svh),42px);margin:0 0 clamp(4px,1svh,8px)}
+.home-card .home-sub{margin:0 0 clamp(8px,2svh,22px);font-size:clamp(12px,1.9svh,14px)}
+.home-card .home-q{margin:0 0 clamp(6px,1.4svh,14px)}
+.home-btn{padding:clamp(10px,2.2svh,18px) 10px}.home-btn .hb-ic{font-size:clamp(22px,3.8svh,30px)}
+.home-card .site-copy{margin-top:clamp(8px,1.6svh,18px)}
+@media (max-width:380px){.home-btns{grid-template-columns:1fr 1fr}}
+@media (max-height:600px){.home-card .home-logo{display:none}.home-btn small{display:none}}
+/* d26r: welcome intro timeline (hi-push at 1 s, hi-ui at 3 s) */
+.home-cv{transition:transform 2.2s cubic-bezier(.4,0,.2,1);transform-origin:50% 62%}
+.home.hi-push .home-cv{transform:scale(1.07)}
+.hi-intro{position:fixed;left:0;right:0;top:calc(14svh + env(safe-area-inset-top,0px));text-align:center;z-index:2;transition:transform 1.6s ease-in,opacity 1.2s ease-in;pointer-events:none}
+.hi-t{font-family:Fraunces,Georgia,serif;font-weight:600;font-size:clamp(40px,12vw,64px);line-height:1;color:#fff;text-shadow:0 2px 24px rgba(0,0,0,.45)}.hi-t em{font-style:normal;color:#EBB15B;display:block}
+.hi-tag{margin-top:10px;font:500 clamp(13px,3.6vw,16px)/1.3 var(--sans);color:#f4e9ff;opacity:.9}
+.home.hi-push .hi-intro{transform:translateY(-40svh);opacity:0}
+.hi-pill{position:fixed;z-index:2;display:flex;align-items:center;gap:7px;padding:7px 12px;border-radius:999px;background:rgba(12,8,26,.72);border:1px solid rgba(255,255,255,.18);color:#fff;font:600 13px/1 var(--sans);transition:opacity .9s,transform 1.4s cubic-bezier(.4,0,.2,1),top 1.4s,left 1.4s;pointer-events:none;animation:homeIn .8s .3s both}
+.hi-pill i{width:9px;height:9px;border-radius:50%;background:#87CEFA;box-shadow:0 0 8px #87CEFA}
+.hi-pill::before{content:"";position:absolute;top:50%;width:26px;height:1px;background:rgba(255,255,255,.45)}
+.hi-rb{left:6%;top:47svh}.hi-rb::before{right:100%}
+.hi-tri{left:50%;transform:translateX(-50%);top:54svh}.hi-tri i{background:#EBB15B;box-shadow:0 0 8px #EBB15B}.hi-tri::before{display:none}
+.hi-lt{right:6%;top:40svh}.hi-lt::before{left:100%}.hi-lt i{background:#b9a6ff;box-shadow:0 0 8px #b9a6ff}
+.home.hi-push .hi-tri,.home.hi-push .hi-lt{opacity:0}
+.home.hi-ui .hi-rb{top:calc(10px + env(safe-area-inset-top,0px));left:12px}.home.hi-ui .hi-rb i{animation:hiDot 1.6s ease-in-out infinite alternate}.home.hi-ui .hi-rb::before{display:none}
+@keyframes hiDot{to{box-shadow:0 0 16px 3px #87CEFA}}
+html.show-home .home-card{transform:translateY(110%);opacity:0;transition:transform 1.1s cubic-bezier(.2,.8,.2,1),opacity .8s}
+html.show-home .home.hi-ui .home-card{transform:none;opacity:1}
+.home:not(.hi-ui) .home-card *{animation-play-state:paused}
+@media (prefers-reduced-motion:reduce){.home-cv,.hi-intro,.hi-pill,html.show-home .home-card{transition:none}}
+.hi-pill{animation:hiFade .8s .3s backwards}@keyframes hiFade{from{opacity:0}}
+/* d26u: photoreal welcome — scene shifted up so the horizon, sun glow and storm cell sit above the chooser; chooser trimmed */
+html.show-home #home-gl,html.show-home #home-cv{top:-24svh;height:124svh}
+html.show-home .home-card .home-logo,html.show-home .home-card .home-sub{display:none}
+html.show-home .home-card{background:rgba(14,10,34,.45)}
+/* welcome v3: 2D hero fills the screen normally; bold intro title like the OG image; logo/sub stay hidden */
+html.show-home #home-cv{top:0;height:100%}
+.hi-intro{top:calc(9svh + env(safe-area-inset-top,0px))}
+.hi-t{font-size:clamp(52px,16vw,78px);font-weight:700;letter-spacing:-.01em}.hi-t em{color:#f2b14f}
+.home.hi-push .home-cv{transform:scale(1.05)}

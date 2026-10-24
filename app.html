@@ -27,7 +27,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="styles.css?v=d26o2">
+<link rel="stylesheet" href="styles.css?v=d26w">
 <style>/* inside the shell iframe: use the insets the shell measured */
 .top{padding-top:calc(18px + max(env(safe-area-inset-top,0px), var(--ag-sat,0px)))}
 @media (max-width:900px){
@@ -46,15 +46,18 @@
 </head>
 <body>
 <script>if (window.parent === window) location.replace("./" + location.search + location.hash);</script>
-<script>window.AG_BUILD = "d26o2"; window.AG_SHELL = window.parent !== window;</script>
+<script>window.AG_BUILD = "d26w"; window.AG_SHELL = window.parent !== window;</script>
 <script>window.AG = { realistic: true };</script>
-<script src="config.js?v=d26o2"></script>
+<script src="config.js?v=d26w"></script>
 <script>
   // No ?mode= → show the welcome homepage first (app.js stays idle until a choice is made)
   (function () { var m = new URLSearchParams(location.search).get("mode"); if (m !== "sunrise" && m !== "sunset") document.documentElement.classList.add("show-home"); })();
 </script>
 <section id="home" class="home" aria-label="Welcome to Afterglow Premium">
-  <div class="home-sky"></div>
+  <canvas id="home-cv" class="home-cv" aria-hidden="true"></canvas>
+  <div class="hi-intro" aria-hidden="true"><div class="hi-t">Afterglow <em>Premium</em></div><div class="hi-tag">East Coast sunrise &amp; sunset forecasts</div></div>
+  
+  
   <div class="home-card">
     <div class="logo home-logo"><span class="sun"></span></div>
     <h1>Welcome to Afterglow Premium</h1>
@@ -64,13 +67,46 @@
       <a class="home-btn rise" href="?mode=sunrise"><span class="hb-ic">🌅</span><b>Sunrise</b><small>Facing east · morning sky</small></a>
       <a class="home-btn set" href="?mode=sunset"><span class="hb-ic">🌇</span><b>Sunset</b><small>Facing west · evening sky</small></a>
     </div>
-    <a class="home-feat" href="?mode=sunset&spot=clearwater&t=peak&play=1">
-      <video src="shots/clearwater-epic-sunset.mp4" autoplay muted loop playsinline poster="shots/clearwater-peak.png"></video>
-      <div><b>Featured · Clearwater Beach, Pier 60</b><span>Realistic sunset render from NOAA HRRR cloud decks + GOES-19 satellite — clouds show where the data says they are. Tap to open it live with the slider &amp; Play.</span></div>
-    </a>
     <p class="site-copy">© Sean Tuttle 2026</p>
   </div>
 </section>
+<script>/* welcome intro v3 (Sean's OG reference): purple→gold sky, glassy water with long reflections, full rainbow, forked lightning striking the water. Canvas 2D. */
+(function(){var R=document.documentElement;if(!R.classList.contains("show-home"))return;var cv=document.getElementById("home-cv"),hm=document.getElementById("home");if(!cv)return;
+var x=cv.getContext("2d"),W=0,H=0,D=1,RM=matchMedia("(prefers-reduced-motion: reduce)").matches,sky=null;
+function size(){D=Math.min(2,devicePixelRatio||1);W=cv.clientWidth;H=cv.clientHeight;cv.width=W*D;cv.height=H*D;sky=null}addEventListener("resize",size);size();
+function bake(){var c=document.createElement("canvas");c.width=W*D;c.height=H*D;var y=c.getContext("2d"),hz=H*.56;y.scale(D,D);
+ var g=y.createLinearGradient(0,0,0,hz);g.addColorStop(0,"#140a2a");g.addColorStop(.35,"#2e1648");g.addColorStop(.62,"#5a2a5e");g.addColorStop(.82,"#b0506a");g.addColorStop(.93,"#e88a55");g.addColorStop(1,"#f6c46e");y.fillStyle=g;y.fillRect(0,0,W,hz);
+ var gl=y.createRadialGradient(W*.5,hz,0,W*.5,hz,W*.9);gl.addColorStop(0,"rgba(255,215,140,.75)");gl.addColorStop(.25,"rgba(240,140,90,.35)");gl.addColorStop(1,"rgba(120,50,110,0)");y.fillStyle=gl;y.fillRect(0,0,W,hz);
+ for(var i=0;i<14;i++){var cy=hz*(.5+Math.random()*.42),cx=Math.random()*W,w=W*(.25+Math.random()*.5),cg=y.createLinearGradient(0,cy-6,0,cy+6);cg.addColorStop(0,"rgba(70,35,80,.0)");cg.addColorStop(.5,"rgba(60,30,70,"+(.25+Math.random()*.25)+")");cg.addColorStop(1,"rgba(255,150,110,.12)");y.fillStyle=cg;y.beginPath();y.ellipse(cx,cy,w/2,2+Math.random()*6,0,0,6.283);y.fill()}
+ var wg=y.createLinearGradient(0,hz,0,H);wg.addColorStop(0,"#b8667a");wg.addColorStop(.06,"#5a2c5c");wg.addColorStop(.4,"#26143c");wg.addColorStop(1,"#0a0616");y.fillStyle=wg;y.fillRect(0,hz,W,H-hz);
+ return c}
+function rainbow(hz,a){var cx=W*.62,cy=hz+H*.02,r=W*.62,cols=["255,40,40","255,140,0","255,230,0","40,210,80","40,140,255","90,60,220","170,70,210"],lw=W*.017;x.save();x.globalCompositeOperation="screen";
+ var A1=Math.PI*1.8,xe=cx+r*Math.cos(A1);for(var k=0;k<cols.length;k++){var gg=x.createLinearGradient(cx-r,0,xe,0);gg.addColorStop(0,"rgba("+cols[k]+","+(.5*a)+")");gg.addColorStop(.55,"rgba("+cols[k]+","+(.55*a)+")");gg.addColorStop(1,"rgba("+cols[k]+",0)");x.strokeStyle=gg;x.lineWidth=lw+.5;x.beginPath();x.arc(cx,cy,r-k*lw,Math.PI,A1);x.stroke()}
+ x.restore();
+ // faint reflection of the bow
+ x.save();x.globalCompositeOperation="screen";x.beginPath();x.rect(0,hz,W,H*.12);x.clip();x.globalAlpha=.16*a;x.translate(0,2*hz);x.scale(1,-1);for(k=0;k<cols.length;k++){x.strokeStyle="rgba("+cols[k]+",.5)";x.lineWidth=lw;x.beginPath();x.arc(cx,cy,r-k*lw,Math.PI*1.0,Math.PI*1.08);x.stroke()}x.restore()}
+function seg(x0,y0,x1,y1,depth,rnd,out){if(depth<=0){out.push([x0,y0,x1,y1]);return}var mx=(x0+x1)/2+(rnd()-.5)*Math.abs(y1-y0)*.35,my=(y0+y1)/2;seg(x0,y0,mx,my,depth-1,rnd,out);seg(mx,my,x1,y1,depth-1,rnd,out)}
+function makeBolt(hz){var s=Math.random()*1e9|0,rnd=function(){s=(s*1664525+1013904223)>>>0;return s/4294967296};var main=[],br=[],x0=W*(.48+rnd()*.12);seg(x0,-10,x0+(rnd()-.5)*W*.1,hz,6,rnd,main);
+ for(var i=0;i<5;i++){var p=main[(rnd()*main.length*.8)|0],len=H*(.06+rnd()*.12),dir=rnd()<.5?-1:1,b=[];seg(p[2],p[3],p[2]+dir*len*.8,p[3]+len,4,rnd,b);br.push(b)}return {main:main,br:br}}
+var bolt=null,bt=0,next=performance.now()+900;
+function strokeSegs(L,w,a){x.lineWidth=w;x.strokeStyle="rgba(250,246,255,"+a+")";x.beginPath();L.forEach(function(q){x.moveTo(q[0],q[1]);x.lineTo(q[2],q[3])});x.stroke()}
+function drawBolt(hz,a){if(a<=0)return;x.save();x.lineCap="round";x.shadowColor="#c7b4ff";x.shadowBlur=22;strokeSegs(bolt.main,3.2,a);bolt.br.forEach(function(b){strokeSegs(b,1.4,a*.8)});x.shadowBlur=6;strokeSegs(bolt.main,1.4,a);x.restore();
+ // reflection in the water
+ x.save();x.beginPath();x.rect(0,hz,W,H-hz);x.clip();x.translate(0,2*hz);x.scale(1,-1);x.globalAlpha=.45;x.shadowColor="#c7b4ff";x.shadowBlur=16;var t=performance.now();bolt.main.forEach(function(q){var j=Math.sin(q[1]*.15+t/90)*3;x.strokeStyle="rgba(240,235,255,"+a+")";x.lineWidth=2.4;x.beginPath();x.moveTo(q[0]+j,q[1]);x.lineTo(q[2]+j,q[3]);x.stroke()});x.restore();
+ // sky + water flash
+ x.fillStyle="rgba(200,190,255,"+(.16*a)+")";x.fillRect(0,0,W,H)}
+function frame(now){if(!sky)sky=bake();var hz=H*.56,t=now/1000;x.setTransform(1,0,0,1,0,0);x.drawImage(sky,0,0);x.setTransform(D,0,0,D,0,0);
+ // sun glow just below the horizon + long glassy reflection
+ for(var y=hz+1;y<H;y+=2){var k=(y-hz)/(H-hz),w=W*(.06+.34*k)*(.85+.15*Math.sin(y*.21+t*2.1))*(.9+.1*Math.sin(y*.037-t*.7)),al=(.55*(1-k)+.05);x.fillStyle="rgba(255,200,130,"+al.toFixed(3)+")";x.fillRect(W*.5-w/2+Math.sin(y*.05+t)*3,y,w,1)}
+ x.strokeStyle="rgba(255,220,200,.05)";x.lineWidth=1;for(y=hz+4;y<H;y+=6+(y-hz)*.05){x.beginPath();for(var xx=0;xx<=W;xx+=14)x.lineTo(xx,y+Math.sin(xx*.025+t*.9+y)*1.1);x.stroke()}
+ rainbow(hz,1);
+ if(!RM&&now>next){bolt=makeBolt(hz);bt=now;next=now+3200+Math.random()*2600}else if(RM&&!bolt){bolt=makeBolt(hz);bt=now}
+ if(bolt){var e=now-bt,a=RM?1:(e<60?1:e<110?.35:e<190?.95:Math.max(0,1-(e-190)/550));drawBolt(hz,a)}
+ if(!RM&&R.classList.contains("show-home")&&!document.hidden)requestAnimationFrame(frame);else if(!RM)setTimeout(function(){requestAnimationFrame(frame)},500)}
+requestAnimationFrame(frame);
+var st=function(c){hm.classList.add(c)},T=[];function fin(){T.forEach(clearTimeout);st("hi-push");st("hi-ui")}
+if(RM)fin();else{T.push(setTimeout(function(){st("hi-push")},1400));T.push(setTimeout(function(){st("hi-ui")},3200));hm.addEventListener("pointerdown",function(e){if(!hm.classList.contains("hi-ui")){e.preventDefault();fin()}})}
+})();</script>
 <div class="sky-bg"></div>
 <header class="top">
   <div class="brand">
@@ -150,14 +186,14 @@
 <div id="loading" class="loading"><div class="ld-sun"></div><p>Reading the sky…</p></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="spots.js?v=d26o2"></script>
-<script src="search.js?v=d26o2"></script>
-<script src="model.js?v=d26o2"></script>
-<script src="preview.js?v=d26o2"></script>
-<script src="photoreal.js?v=d26o2"></script>
-<script src="ground.js?v=d26o2"></script>
-<script src="photostage.js?v=d26o2"></script>
-<script src="satellite.js?v=d26o2"></script>
+<script src="spots.js?v=d26w"></script>
+<script src="search.js?v=d26w"></script>
+<script src="model.js?v=d26w"></script>
+<script src="preview.js?v=d26w"></script>
+<script src="photoreal.js?v=d26w"></script>
+<script src="ground.js?v=d26w"></script>
+<script src="photostage.js?v=d26w"></script>
+<script src="satellite.js?v=d26w"></script>
 <script>
   (function () {
     var m = new URLSearchParams(location.search).get("mode"); if (m !== "sunrise" && m !== "sunset") return;
@@ -173,12 +209,12 @@
     }
   })();
 </script>
-<script src="obs.js?v=d26o2"></script>
-<script src="wx.js?v=d26o2"></script>
-<script src="agx.js?v=d26o2"></script>
-<script src="looks.js?v=d26o2"></script>
-<script src="app.js?v=d26o2"></script>
-<script src="scene.js?v=d26o2"></script>
-<script>/* d26o2 */(function(){function f(){var h=document.querySelector(".top"),c=h&&h.querySelector(".top-ctl");if(c)document.documentElement.style.setProperty("--brandH",Math.max(0,c.offsetTop-6)+"px");}addEventListener("load",f);addEventListener("resize",f);setTimeout(f,1500);})();</script>
+<script src="obs.js?v=d26w"></script>
+<script src="wx.js?v=d26w"></script>
+<script src="agx.js?v=d26w"></script>
+<script src="looks.js?v=d26w"></script>
+<script src="app.js?v=d26w"></script>
+<script src="scene.js?v=d26w"></script>
+<script>/* d26w */(function(){function f(){var h=document.querySelector(".top"),c=h&&h.querySelector(".top-ctl");if(c)document.documentElement.style.setProperty("--brandH",Math.max(0,c.offsetTop-6)+"px");}addEventListener("load",f);addEventListener("resize",f);setTimeout(f,1500);})();</script>
 </body>
 </html>
