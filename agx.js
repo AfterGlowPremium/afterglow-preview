@@ -1,7 +1,7 @@
 // DRAFT extras: wave ≥3 ft icon (Open-Meteo Marine), NWS severe triangle + tornado flag (api.weather.gov),
 // default-facing (water side) per spot, photo upload + feedback panel (localStorage, exportable).
 (function (g) {
-  const FACE_EAST = new Set(["hatteraslh","saltponds","windmillpt","grandview","plumtree","capehenry","avalonpier","jennettes","frisco","buxton","avon",
+  const FACE_EAST = new Set(["hatteraslh","saltponds","grandview","plumtree","capehenry","avalonpier","jennettes","frisco","buxton","avon",
     "ditchplains","rockaway","manasquan","narragansett","hamptonnh","ocmd","vb1st","sandbridge","sturns","rodanthe","wrightsville","folly","tybee","jaxpier","newsmyrna","sebastian","cocoa"]);
   // d13: shore-facing angle (direction the beach faces, toward open water, degrees true) — drives offshore/onshore/cross-shore.
   // Wind FROM normal±60° = onshore, FROM normal+180±60° = offshore, otherwise cross-shore. Measured from the OSM coastline / charts.
