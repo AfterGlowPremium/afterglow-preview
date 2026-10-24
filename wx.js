@@ -10,13 +10,27 @@
     const bolt = bp >= 25 && (!bw || (t >= bw.start - 1800 && t <= bw.end + 1800)) ? clamp(bp / 60, 0.4, 1) : 0;
     const rainIt = WX.items.find(x => x.id === "rain");
     const rain = rainIt ? clamp(0.25 + (WX.rain && WX.rain.mm || 0) / 4 + (WX.rain && WX.rain.pp || 0) / 300, 0.2, 1) : 0;
-    const snow = on("snow") ? 0.7 : 0, fog = on("fog") ? 0.6 : 0;
+    const snowIt = WX.items.find(x => x.id === "snow"), snow = snowIt ? (snowIt.lvl || 0.6) : 0, fog = on("fog") ? 0.6 : 0;
     const bow = ev.bonus && ev.bonus.bow, bwin = bow && bow.win;
     const bowOn = !!(bow && bow.p >= 10 && bwin && t >= bwin.start && t <= bwin.end && elev > -0.3 && elev < 42);
     const bowA = bowOn ? clamp(Math.min(t - bwin.start, bwin.end - t) / 420) * clamp(0.35 + bow.p / 60) : 0;
-    return { bolt, boltP: bp, rain, rainName: rainIt && rainIt.name, snow, fog, bow: bowA, bowP: bow ? bow.p : 0, red: bow && bow.red, wind: WX.wind && WX.wind.mph || 0 };
+    return { bolt, boltP: bp, rain, rainName: rainIt && rainIt.name, snow, snowName: snowIt && snowIt.name, fog, bow: bowA, bowP: bow ? bow.p : 0, red: bow && bow.red, wind: WX.wind && WX.wind.mph || 0 };
   }
-  let drops = null;
+  let drops = null, flakes = null;
+  // d24n: snow — soft gray-white veil (hides the sun disk when heavy), haze thickening toward the horizon, three depth layers of flakes
+  // (far: tiny/slow/dim, near: big/soft/fast) drifting with the wind and fluttering, and a whitened ground/foreground band.
+  function snowfall(x, W, H, hz, C, slant, now) {
+    const s = C.snow, n = Math.round(160 + 900 * s);
+    if (!flakes || flakes.length !== n) flakes = Array.from({ length: n }, (_, i) => { const z = Math.pow(((i * 0.7548) % 1), 1.6); return [((i * 0.618) % 1), ((i * 0.377) % 1), z, (i * 2.399) % 6.283]; });
+    let gr = x.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, `rgba(196,200,208,${0.5 * s})`); gr.addColorStop(hz / H, `rgba(214,216,222,${0.72 * s})`); gr.addColorStop(1, `rgba(200,204,212,${0.35 * s})`); x.fillStyle = gr; x.fillRect(0, 0, W, H);
+    gr = x.createLinearGradient(0, hz - H * 0.18, 0, hz + H * 0.06); gr.addColorStop(0, "rgba(225,227,232,0)"); gr.addColorStop(0.7, `rgba(225,227,232,${0.55 * s})`); gr.addColorStop(1, `rgba(225,227,232,${0.25 * s})`); x.fillStyle = gr; x.fillRect(0, hz - H * 0.18, W, H * 0.24);
+    gr = x.createLinearGradient(0, H * 0.86, 0, H); gr.addColorStop(0, "rgba(240,242,246,0)"); gr.addColorStop(1, `rgba(240,242,246,${0.6 * s})`); x.fillStyle = gr; x.fillRect(0, H * 0.86, W, H * 0.14);
+    const tt = now / 1000, drift = slant * 0.35;
+    for (const f of flakes) { const z = f[2], sp = 0.05 + 0.22 * z, r = 0.6 + 4.2 * z * z + 0.6 * z, a = 0.35 + 0.55 * z;
+      const y = ((f[1] + tt * sp) % 1) * (H + 20) - 10, xx = ((((f[0] + drift * tt * sp * 0.6 + 0.012 * Math.sin(tt * (0.8 + z) + f[3])) % 1) + 1) % 1) * W;
+      if (z > 0.75) { const g2 = x.createRadialGradient(xx, y, 0, xx, y, r * 1.6); g2.addColorStop(0, `rgba(255,255,255,${a})`); g2.addColorStop(1, "rgba(255,255,255,0)"); x.fillStyle = g2; x.beginPath(); x.arc(xx, y, r * 1.6, 0, 6.283); x.fill(); }
+      else { x.fillStyle = `rgba(250,251,255,${a})`; x.beginPath(); x.arc(xx, y, r, 0, 6.283); x.fill(); } }
+  }
   function draw(cv, C, t, now) {
     const W = cv.clientWidth, H = cv.clientHeight, dpr = Math.min(2, g.devicePixelRatio || 1);
     if (!W || !H) return;
@@ -44,11 +58,11 @@
       }
     }
     if (C.rain || C.snow) {
-      const n = Math.round(60 + 240 * Math.max(C.rain, C.snow));
+      const n = C.snow ? 0 : Math.round(60 + 240 * C.rain);
       if (!drops || drops.length !== n) drops = Array.from({ length: n }, (_, i) => [((i * 0.618) % 1), ((i * 0.377) % 1), 0.6 + ((i * 0.733) % 1) * 0.8]);
       const fall = ((t / 30) % 1 + 1) % 1 + now * (C.snow ? 0.00015 : 0.0008);
       x.save();
-      if (C.snow) { x.fillStyle = "rgba(255,255,255,.75)"; for (const d of drops) { const y = ((d[1] + fall * d[2]) % 1) * H, xx = (((d[0] + slant * 0.2 * y / H) % 1) + 1) % 1 * W; x.beginPath(); x.arc(xx, y, 1 + d[2], 0, 6.283); x.fill(); } }
+      if (C.snow) snowfall(x, W, H, hz, C, slant, now);
       else { x.filter = "blur(0.7px)"; x.strokeStyle = "rgba(205,215,232,.26)"; x.lineWidth = 1; x.beginPath();
         for (const d of drops) { const y = ((d[1] + fall * d[2]) % 1) * (H + 30) - 15, xx = (((d[0] + slant * 0.3 * y / H) % 1) + 1) % 1 * W, L = 9 + 13 * d[2]; x.moveTo(xx, y); x.lineTo(xx + slant * L, y + L); }
         x.stroke();
@@ -179,7 +193,7 @@
   }
   function label(C) {
     const t = [];
-    if (C.rain) t.push(`🌧️ ${C.rainName || "Rain"} forecast`); if (C.snow) t.push("❄️ Snow forecast"); if (C.fog) t.push("🌫️ Fog forecast");
+    if (C.rain) t.push(`🌧️ ${C.rainName || "Rain"} forecast`); if (C.snow) t.push(`❄️ ${C.snowName || "Snow"} forecast`); if (C.fog) t.push("🌫️ Fog forecast");
     if (C.bolt) t.push(`⚡ Lightning ${C.boltP}%`); if (C.torn) t.push("🌪 NWS Tornado Warning"); if (C.wind > 40 && C.rain) t.push(`💨 ${Math.round(C.wind)} mph — sideways rain`); { const Sx = C.sea || C.seaLbl; if (Sx && Sx.ft >= 1) t.push(`🌊 ${Sx.ft.toFixed(1)} ft · ${Math.round(Sx.per || 0)} s${Sx.wl ? `\n💨 ${Math.round(Sx.mph != null ? Sx.mph : Sx.wl.kt * 1.15)} mph ${Sx.wl.look}` : Sx.off ? " · offshore, clean" : ""}${Sx.combo ? " · combo swell, peaky" : ""}`); } if (C.bow > 0.01) t.push(`🌈 Rainbow ${C.bowP}%`);
     return t.join("\n");
   }
