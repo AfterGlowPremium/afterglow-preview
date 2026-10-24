@@ -665,7 +665,7 @@ void main(){
     vec3 n = normalize(vec3(-(hx-h0)/e*amp, 1., -(hz-h0)/e*amp*.6));
     // swell: long rolling crests (wave height from the marine forecast) — tilts the whole reflection in broad bands
     float sk = .16 + .05*sin(wp.x*.013);
-    n = normalize(n + vec3(0., 0., uSwell * .22 * cos(wp.y * sk + wp.x * .02 + uPhase * 2.2)) * smoothstep(3000., 300., tW) * (1. - smoothstep(.2, .5, tW * pixA / max(-rd.y, 1e-3) * sk * .159)));   // d19: fade the swell bands once a pixel spans ~1/3 of a crest (no scalloped aliasing near the horizon)
+    n = normalize(n + vec3(0., 0., uSwell * .22 * cos((wp.y * gSwC - wp.x * gSwS) * sk + uPhase * 2.2)) * smoothstep(3000., 300., tW) * (1. - smoothstep(.2, .5, tW * pixA / max(-rd.y, 1e-3) * sk * .159)));   // d19: fade the swell bands once a pixel spans ~1/3 of a crest (no scalloped aliasing near the horizon)
     float far = smoothstep(150., 2500., tW);
     // ripples that survive at distance: anchored to world x and inverse distance (perspective-compressed streaks)
     vec2 rq = vec2(wp.x / tW * 55. + uSeed.x, 900. / tW + uSeed.y);

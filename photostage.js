@@ -49,7 +49,7 @@
   function seaP(spot, ev, t) {
     if (spot.water === false) return { chop: 0, swell: 0, caps: 0, phase: 0, sea: null };
     const W = (g.Model.seaAt && g.Model.seaAt(ev, t)) || g.Model.seaState({ wind: ev.s.wind || 0, gust: ev.s.gust || 0 }, 0.5);
-    return { chop: W.chop, swell: W.swell, caps: W.caps, phase: (t % 86400) / 420, sea: W };
+    return { chop: W.chop, swell: W.swell, caps: W.caps, phase: (t % 86400) / 420 + performance.now() / 1000 * 0.25, sea: W };   // d25o: continuous drift
   }
   function params(spot, ev, t, opt = {}) {
     const pos = g.Model.sunPos(t, spot.lat, spot.lng), s = ev.s;
