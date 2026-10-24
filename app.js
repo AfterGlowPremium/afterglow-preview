@@ -582,12 +582,12 @@
     // adaptive resolution for animated frames, paused while the map is showing or the tab is hidden.
     const AN = window.__agAnim || (window.__agAnim = { n: 0, tok: 0, id: 0, last: 0, ema: 33, scale: 0.8, fps: 30, slow: 0, t30: 0 });
     // v21: desktop targets 60 fps with a 0.75 resolution floor; if it can't hold 60 even at the floor it drops to 30 (re-tries 60 every 20 s). Phones: 30 fps, floor 0.5 (unchanged).
-    const desk = isDesk(); if (desk) { if (AN.fps !== 30 || !AN.t30) AN.fps = 60; AN.scale = Math.max(0.75, AN.scale); AN.ema = 1000 / AN.fps; } else { AN.fps = 30; }
+    const desk = isDesk(); if (AN.fps !== 30 || !AN.t30) AN.fps = 60; if (desk) AN.scale = Math.max(0.75, AN.scale); AN.ema = 1000 / AN.fps;   // d24d: phones also target 60 fps (adaptive resolution, 30 fps only as fallback)
     if (AN.id) { cancelAnimationFrame(AN.id); AN.id = 0; } const myTok = AN.tok = ++AN.n;
     const alive = () => AN.tok === myTok && !document.hidden && document.body.classList.contains("detail-open") && document.body.contains(cv);
     const animLoop = ts => { AN.id = 0; if (!alive()) return;
-      const dt = ts - AN.last, fps = isDesk() ? AN.fps : 30, iv = 1000 / fps, floor = isDesk() ? 0.75 : 0.5;
-      if (fps === 30 && AN.t30 && isDesk() && ts - AN.t30 > 20000) { AN.fps = 60; AN.t30 = 0; AN.slow = 0; AN.ema = 1000 / 60; }   // v21: re-try 60 fps
+      const dt = ts - AN.last, fps = AN.fps, iv = 1000 / fps, floor = isDesk() ? 0.75 : 0.5;
+      if (fps === 30 && AN.t30 && ts - AN.t30 > 20000) { AN.fps = 60; AN.t30 = 0; AN.slow = 0; AN.ema = 1000 / 60; }   // v21: re-try 60 fps
       if (dt >= iv - (fps === 60 ? 2 : 4)) {
         if (AN.last) { AN.ema = AN.ema * 0.85 + Math.min(dt, 250) * 0.15;
           const hi = fps === 60 ? 21 : 40, lo = fps === 60 ? 18 : 35;
