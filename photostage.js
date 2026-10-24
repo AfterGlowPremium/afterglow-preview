@@ -114,6 +114,7 @@
   async function apiOK() {
     if (CANVAS_ONLY) return false;
     if (api !== null) return api;
+    if (/github\.io$/.test(location.hostname)) { api = false; return false; }   // d26o: static Pages has no API — skip the 404 probe
     try { const r = await fetch("api/health", { cache: "no-store" }); api = r.ok ? await r.json() : false; } catch (e) { api = false; }
     return api;
   }

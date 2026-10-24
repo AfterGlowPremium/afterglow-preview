@@ -458,7 +458,7 @@
       HM.raf = requestAnimationFrame(fr); if (now - last < 80) return; last = now;
       const f = ((now - start) % DUR) / DUR;
       const tt = t0 + (t1 - t0) * f;
-      try { PhotoStage.draw(cv, b.spot, b.ev, tt, { scale: 0.5, dprCap: 1, fast: 1 }); } catch (e) { return; }
+      try { PhotoStage.draw(cv, b.spot, b.ev, tt, { scale: 0.8, dprCap: 1.5, fast: 1 }); } catch (e) { return; }
       const el = document.getElementById("hero-t"); if (el) el.textContent = fmtTime(tt, b.tz); };
     const go = () => { if (!HM.raf) HM.raf = requestAnimationFrame(fr); };
     HM.go = go; setTimeout(go, 600);
