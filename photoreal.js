@@ -1007,8 +1007,8 @@ void main(){
 
     gl.uniform1f(U.uWater, P.water ? 1 : 0); gl.uniform1f(U.uPier, P.pier ? 1 : 0); gl.uniform1f(U.uShore, P.shore || 0); gl.uniform1f(U.uHills, P.hills || 0); if (U.uCity) gl.uniform1f(U.uCity, P.city || 0); if (U.uBridge) gl.uniform1f(U.uBridge, P.bridge || 0); { const G = P.ground || {}; if (U.uGnd) gl.uniform4f(U.uGnd, G.near || 0, G.nearD || 0, G.far || 0, G.land ? 1 : 0); if (U.uFS) gl.uniform4f(U.uFS, G.d || 0, G.th || 0, G.town || 0, G.dune || 0); if (U.uFSv) gl.uniform4f(U.uFSv, G.dl != null ? G.dl : (G.d || 0), G.dr != null ? G.dr : (G.d || 0), G.a0 != null ? G.a0 : -9, G.a1 != null ? G.a1 : 9); }
     gl.uniform1f(U.uCamH, P.heroCam || P.camH || 0.002);
-    const aspect = W / H, vfov = (aspect < 1 ? 62 : aspect < 1.5 ? 50 : 40) * (P.fovMul || 1);
-    gl.uniform1f(U.uFov, vfov * d2r); gl.uniform1f(U.uPitch, (vfov * (P.hero && P.surf ? 0.04 : P.surf > 1.2 ? 0.09 : 0.17)) * d2r * (P.fovMul || 1) / Math.max(0.2, P.fovMul || 1));
+    const cam = camera(P, W, H), vfov = cam.vfov; P.hz = cam.hz; P.vfov = vfov;   // d24u: horizon line shared with the 2D overlays (storm towers)
+    gl.uniform1f(U.uFov, vfov * d2r); gl.uniform1f(U.uPitch, cam.pitch);
     gl.uniform2f(U.uSeed, P.seed * 977 % 500, P.seed * 613 % 500); gl.uniform1f(U.uWind, P.wind || 0);
     gl.uniform1f(U.uLQ, P.lq ? 1 : 0); gl.uniform1f(U.uDog, P.dog || 0); gl.uniform1f(U.uPixScale, 1);
     gl.uniform1f(U.uTwi, Math.max(0, Math.min(1, (1.5 - P.elev) / 3)) * Math.max(0, Math.min(1, (P.elev + 8) / 3)) * (1 - clamp(P.gray || 0))); gl.uniform1f(U.uGrainT, P.grain || 0.37);
@@ -1063,5 +1063,11 @@ void main(){
     for (let i = 1; i < T.length; i++) if (e >= T[i][0]) { const [x0, y0] = T[i - 1], [x1, y1] = T[i], f = (e - x1) / (x0 - x1); return Math.exp(Math.log(y1) + (Math.log(y0) - Math.log(y1)) * f); }
     return T[T.length - 1][1];
   }
-  g.Photoreal = { render, meter, setup, autoExpo, hash, supported: () => { try { return !!document.createElement("canvas").getContext("webgl2"); } catch (e) { return false; } } };
+  // d24u: camera = the one source of truth for the WebGL scene's field of view, pitch and HORIZON (fraction of canvas height from the top).
+  // Shader: rd.y = d0.y·cos(p) + sin(p) with d0 = (uv·2·tan(fov/2), −1) → horizon (rd.y = −dip) at uv.y = −(tan p + dip/cos p)/(2·tan(fov/2)).
+  function camera(P, W, H) { const aspect = W / H, vfov = (aspect < 1 ? 62 : aspect < 1.5 ? 50 : 40) * (P.fovMul || 1), d2r = Math.PI / 180;
+    const pitch = (vfov * (P.hero && P.surf ? 0.04 : P.surf > 1.2 ? 0.09 : 0.17)) * d2r * (P.fovMul || 1) / Math.max(0.2, P.fovMul || 1);
+    const camKm = P.heroCam || P.camH || 0.002, dip = Math.sqrt(2 * camKm / 6371);
+    return { vfov, pitch, hz: 0.5 + (Math.tan(pitch) + dip / Math.cos(pitch)) / (2 * Math.tan(vfov * d2r / 2)) }; }
+  g.Photoreal = { camera, render, meter, setup, autoExpo, hash, supported: () => { try { return !!document.createElement("canvas").getContext("webgl2"); } catch (e) { return false; } } };
 })(window);

@@ -782,8 +782,8 @@ html.ag-desk .stage .ev-toggle a{font-size:13px;padding:8px 14px}
 .stage .pv-fg2.pv-cy{transform:none;transform-origin:20% 10%;animation:cymoss 7s ease-in-out infinite alternate}
 @keyframes cymoss{from{transform:skewX(-1.2deg)}to{transform:skewX(1.4deg) translateX(.3%)}}
 @media (prefers-reduced-motion:reduce){.stage .pv-fg2.pv-cy{animation:none}}
-/* d24p: Windmill Point great blue heron (right side, marsh edge): occasional head turn */
-.stage .pv-fg.pv-hr{object-position:100% 100%}
-.stage .pv-fg2.pv-hr{transform:none;object-position:100% 100%;transform-origin:90.3% 74.2%;animation:hrhead 13s ease-in-out infinite}
+/* d24p: Windmill Point great blue heron (bottom-left, clear of the right-side labels): occasional head turn */
+.stage .pv-fg.pv-hr{object-position:0% 100%}
+.stage .pv-fg2.pv-hr{transform:none;object-position:0% 100%;transform-origin:12.8% 74.2%;animation:hrhead 13s ease-in-out infinite}
 @keyframes hrhead{0%,38%{transform:rotate(0)}44%,60%{transform:rotate(-4deg) translateX(-.2%)}66%,100%{transform:rotate(0)}}
 @media (prefers-reduced-motion:reduce){.stage .pv-fg.pv-hr,.stage .pv-fg2.pv-hr{animation:none}}
