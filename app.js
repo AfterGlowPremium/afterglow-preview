@@ -526,7 +526,7 @@
         <div id="pv-gen" class="pv-gen" hidden></div>
         <div class="stage-rail">
           <div class="rail-top"><div class="stage-score" title="${EV} score"><b>${ev.score}</b><i>${lb.t}</i></div><div id="pv-wxl" class="pv-wxl" hidden></div></div>
-          <div class="rail-ctl"><button id="pv-play" class="play" title="Play the ${RISE ? "morning" : "evening"} (Space)">${PLAY}</button><button id="pv-turn" class="play turn" aria-pressed="false" title="Turn around and see the sky behind you (${RISE ? "west" : "east"}) — where rainbows appear">↻ 180°</button><button id="pv-fb" class="play fb" title="Send a photo &amp; rating for this spot">Feedback</button><span id="pv-fbs" class="fb-score" hidden></span>
+          <div class="rail-ctl"><button id="pv-play" class="play pv-play-hid" title="Play the ${RISE ? "morning" : "evening"} (Space)">${PLAY}</button><button id="pv-turn" class="play turn" aria-pressed="false" title="Turn around and see the sky behind you (${RISE ? "west" : "east"}) — where rainbows appear">↻ 180°</button><button id="pv-fb" class="play fb" title="Send a photo &amp; rating for this spot">Feedback</button><span id="pv-fbs" class="fb-score" hidden></span>
             <div class="rail-zoom" role="group" aria-label="Zoom"><button class="zb" data-z="+" aria-label="Zoom in">+</button><output id="pv-zo">1.0×</output><button class="zb" data-z="-" aria-label="Zoom out">−</button><input id="pv-zoom" type="range" min="1" max="4" step="0.01" value="1" aria-label="Zoom into the scene" hidden></div></div>
           <div class="stage-bottom">
             <div class="stage-now"><b id="pv-time"></b><span id="pv-phase"></span><small id="pv-elev"></small></div>
@@ -537,7 +537,7 @@
       </section>
       <div class="scrub" style="--track:${tr}">
         <div class="scrub-marks">${marks.map((m, k) => `<button data-t="${m[1]}" style="left:${pct(m[1])}%" class="mk ${m[0]} ${k % 2 ? "alt" : ""}"><i></i><span class="lf">${m[2]}</span><span class="ls">${m[3]}</span><em>${fmtTime(m[1], r.tz).replace(/ [A-Z]{2,4}$/, "")}</em></button>`).join("")}</div>
-        <input id="scrub" type="range" min="${t0}" max="${t1}" step="20" value="${T.peak}" aria-label="Time of ${RISE ? "morning" : "evening"}">
+        <input id="scrub" type="range" min="${t0}" max="${t1}" step="20" value="${T.peak}" aria-label="Time of ${RISE ? "morning" : "evening"}"><span id="pv-thumb" class="thumb-glyph" aria-hidden="true">▶</span>
         <div class="scrub-row"><span id="pv-what" class="pv-what"></span></div>
       </div>
       <details class="readout-box" id="pv-ro"${state.roClosed ? "" : " open"}><summary>Sky &amp; water readouts</summary><div class="readout">
@@ -629,7 +629,12 @@
       AN.id = requestAnimationFrame(animLoop); };
     const startAnim = () => { if (!AN.id && AN.tok === myTok) { AN.last = 0; AN.id = requestAnimationFrame(animLoop); } };
     const word = l => l.lit < 0.08 ? "in shadow" : (l.c[1] > 200 ? "lit gold-white" : l.c[1] > 150 ? "lit gold" : l.c[1] > 100 ? "lit orange" : "lit pink-red");
+    // d25w: the slider thumb is the play button — glyph rides on the thumb; tap = play/pause, drag = scrub (pauses)
+    const posG = () => { const g = $("#pv-thumb"); if (!g || !sl) return; const r = sl.getBoundingClientRect(), pr = sl.parentElement.getBoundingClientRect(), f = (+sl.value - +sl.min) / ((+sl.max - +sl.min) || 1), R = 17;
+      g.style.left = (r.left - pr.left + R + f * (r.width - 2 * R)) + "px"; g.style.top = (r.top - pr.top + r.height / 2) + "px"; g.textContent = playing ? "❚❚" : "▶"; g.classList.toggle("on", !!playing); };
+    window.__agPosG = posG;
     const render = anim => {
+      posG();
       if (anim !== true) anim = false;
       raf = 0; const t = +sl.value; state.pvT = t; state.pvSpot = sp.id; window.__agPvT = t;
       const back = $("#pv-back"), turned = !!state.turn && back;
@@ -757,9 +762,13 @@
       PhotoStage.apiOK().then(ok => { if (!ok || state.spot !== sp.id) return; if (gen) { gen.hidden = false; gen.textContent = "Photo finish…"; }
         PhotoStage.ensurePhotos(sp, ev, t0, t1, ev.timing.peak, aspect, s2 => { if (state.spot === sp.id && document.body.contains(cv)) status(s2); }); });
     }
+    { let d0 = null; const nearThumb = e => { const r = sl.getBoundingClientRect(), f = (+sl.value - +sl.min) / ((+sl.max - +sl.min) || 1), cx = r.left + 17 + f * (r.width - 34); return Math.abs(e.clientX - cx) <= 26; };
+      sl.addEventListener("pointerdown", e => { d0 = nearThumb(e) ? { x: e.clientX, y: e.clientY, t: performance.now(), v: sl.value, was: !!playing } : null; });
+      sl.addEventListener("pointerup", e => { const d = d0; d0 = null; if (!d) return; if (performance.now() - d.t < 350 && Math.hypot(e.clientX - d.x, e.clientY - d.y) < 8) { sl.value = d.v; if (d.was) stop(); else $("#pv-play").click(); posG(); } });
+      sl.addEventListener("pointercancel", () => { d0 = null; }); new ResizeObserver(() => posG()).observe(sl); }
     sl.addEventListener("input", () => { stop(); dragging = true; clearTimeout(hqT); hqT = 0; queue(); });
     document.querySelectorAll(".scrub .mk").forEach(b => b.addEventListener("click", () => { stop(); sl.value = b.dataset.t; queue(); }));
-    const stop = () => { if (playing) { cancelAnimationFrame(playing); playing = 0; $("#pv-play").textContent = PLAY; } };
+    const stop = () => { if (playing) { cancelAnimationFrame(playing); playing = 0; $("#pv-play").textContent = PLAY; } window.__agPosG && window.__agPosG(); };
     // d21: Play renders at an adaptive resolution with a raised floor (was the 0.42 drag preview): effective CSS-pixel density
     // phones 0.9–1.3 (DPR cap 2), desktop 1.0–1.6; if a phone still can't hold ~30 fps at the floor it drops to the short ray-march (fast)
     const playOpt = () => { const Q = window.__agPlayQ, cap = 2, dpr = Math.min(window.devicePixelRatio || 1, cap); return { scale: Math.min(1, Q.eff / dpr), dprCap: cap, fast: Q.fast ? 1 : 0 }; };
@@ -778,6 +787,7 @@
       if (+sl.value >= t1 - 60) sl.value = t0;
       const from = +sl.value;
       $("#pv-play").textContent = "❚❚ Pause";
+      setTimeout(posG);
       const step = ts => { playTick(ts); if (start == null) start = ts; const f = Math.min(1, (ts - start) / (dur * (t1 - from) / (t1 - t0))); sl.value = from + (t1 - from) * f; dragging = f < 1; render(); playing = f < 1 ? requestAnimationFrame(step) : (stop(), 0); };
       playing = requestAnimationFrame(step);
     };
