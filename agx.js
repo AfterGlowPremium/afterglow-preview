@@ -70,10 +70,11 @@
       const r2 = await fetch(`${base}/rest/v1/feedback`, { method: "POST", headers: Object.assign({ "Content-Type": "application/json", Prefer: "return=minimal" }, H), body: JSON.stringify(row) });
       if (!r2.ok && r2.status !== 409) throw new Error(`feedback ${r2.status} ${(await r2.text().catch(() => "")).slice(0, 160)}`); },
     // queued sends run one after another (a send started while another runs waits for it, then runs again so the new entry is included)
-    flush() { if (!UP.on()) return Promise.resolve({ fail: load().filter(e => !e.up).length, off: true });
-      const run = async () => { const a = load(); let fail = 0; UP.err = "";
+    flush(extra) { if (!UP.on()) return Promise.resolve({ fail: load().filter(e => !e.up).length, off: true });
+      const run = async () => { const a = load(); let fail = 0; UP.err = ""; if (extra && !a.some(e => e.id === extra.id)) a.push(extra);
         for (const e of a) { if (e.up || !e.id) continue; try { await UP.one(e); e.up = true; e.photo = null; } catch (x) { fail++; UP.err = String(x.message || x); console.warn("feedback send", x); } }
-        try { localStorage.setItem(FK, JSON.stringify(a)); } catch (x) {} return { fail, err: UP.err }; };
+        const cur = load(), by = new Map(a.map(e => [e.id, e])); const out = cur.map(e => { const d = by.get(e.id); return d && d.up ? Object.assign({}, e, { up: true, photo: null, photoPath: d.photoPath }) : d && d.photoPath ? Object.assign({}, e, { photoPath: d.photoPath }) : e; });
+        try { localStorage.setItem(FK, JSON.stringify(out)); } catch (x) {} return { fail, err: UP.err }; };
       return UP.busy = (UP.busy || Promise.resolve()).catch(() => {}).then(run); }
   };
   g.addEventListener("online", () => UP.flush()); setTimeout(() => UP.flush(), 4000);
@@ -93,6 +94,11 @@
       <p class="fine"><a href="#" id="fb-dl">Download my feedback backup</a></p>`;
     let img = null; const $ = s => el.querySelector(s), msg = t => { $("#fb-msg").textContent = t; };
     $(".fb-x").onclick = () => el.classList.remove("open"); $("#fb-score").oninput = e => $("#fb-o").textContent = e.target.value;
+    // d25d: forecast cloud at the event (ev.s — ev.sky is a text summary, which is why low/mid/high were missing) and at the photo time from the spot's hourly forecast
+    const predFor = (id, ev, t) => { if (!ev) return null; const st = g.__agState, k = (g.__agSpots || []).findIndex(s => s.id === id), S = st && st.data && st.data.S && st.data.S[k], M = g.Model, r1 = v => v == null ? null : Math.round(v);
+      const cl = (h, tt) => h && M && M.at ? { total: r1(M.at(h, "cloud_cover", tt)), low: r1(M.at(h, "cloud_cover_low", tt)), mid: r1(M.at(h, "cloud_cover_mid", tt)), high: r1(M.at(h, "cloud_cover_high", tt)), precip: M.at(h, "precipitation", tt) } : null;
+      const s = ev.s || {}; return { score: ev.score, raw: ev.scoreRaw != null ? ev.scoreRaw : ev.score, tSet: ev.tSet,
+        sky: { total: r1(s.total), low: r1(s.low), mid: r1(s.mid), high: r1(s.high), precip: s.precip ?? null }, atShot: t && S ? Object.assign({ t: Math.round(t) }, cl(S.hourly, t)) : null }; };
     const evFor = id => { const st = g.__agState, r = st && st.results && st.results.find(x => x.spot.id === id); return r && r.ev; };
     const setDT = (d, src) => { $("#fb-date").value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; $("#fb-time").value = `${pad(d.getHours())}:${pad(d.getMinutes())}`; $("#fb-tz").textContent = "(" + tzLab(d) + ")"; $("#fb-src").textContent = src; };
     let dtUser = false, dtExif = false; const dflt = () => { if (dtUser || dtExif) return; const ev = evFor($("#fb-spot").value); setDT(ev && ev.tSet ? new Date(ev.tSet * 1000) : new Date(), ev && ev.tSet ? "Set to this day's " + (g.AG_MODE === "sunrise" ? "sunrise" : "sunset") + " — change it if needed" : ""); };
@@ -109,10 +115,11 @@
       try { const a = load(), id = $("#fb-spot").value, ev = evFor(id), dv = $("#fb-date").value, tv = $("#fb-time").value, st = g.__agState;
         const sd = dv ? new Date(`${dv}T${tv || "12:00"}`) : null, shot = sd && !isNaN(sd) ? isoOff(sd) : null;
         a.push({ id: (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + "-" + Math.random().toString(36).slice(2)), up: false, ver: g.AG_BUILD || "", day: st ? st.day : null,
-          pred: ev ? { score: ev.score, raw: ev.scoreRaw != null ? ev.scoreRaw : ev.score, tSet: ev.tSet, sky: ev.sky ? { total: ev.sky.total, low: ev.sky.low, mid: ev.sky.mid, high: ev.sky.high } : null } : null,
+          pred: predFor(id, ev, sd && !isNaN(sd) ? sd.getTime() / 1000 : null),
           at: new Date().toISOString(), shot, shotSrc: dtUser ? "user" : dtExif ? "exif" : "default", mode: g.AG_MODE, spot: id, viewT: g.__agPvT || null, actual: +$("#fb-score").value, acc: $("#fb-acc").value, note: $("#fb-note").value, photo: img });
-        let stored = true; try { localStorage.setItem(FK, JSON.stringify(a)); } catch (e) { a[a.length - 1].photo = null; try { localStorage.setItem(FK, JSON.stringify(a)); } catch (e2) { stored = false; } }
-        const n = stored ? await UP.flush() : { fail: 1, err: "phone storage full" };
+        // full storage: still send this entry (with its photo) straight from memory; only the waiting copy loses the photo
+        const me = a[a.length - 1]; let stored = true, noPhoto = false; try { localStorage.setItem(FK, JSON.stringify(a)); } catch (e) { me.photo = null; noPhoto = true; try { localStorage.setItem(FK, JSON.stringify(a)); } catch (e2) { stored = false; } me.photo = img; }
+        const n = await UP.flush(noPhoto || !stored ? me : undefined); if (!n.fail) stored = true;
         if (!n.fail) { msg("Sent ✓ thanks!"); img = null; $("#fb-photo").value = ""; $("#fb-prev").hidden = true; $("#fb-note").value = ""; dtUser = dtExif = false; dflt(); }
         else if (!stored) msg("Couldn't save — phone storage is full. Tap 'Download my feedback backup', then try again.");
         else msg(navigator.onLine === false ? "Saved on phone — will send when you're online." : `Saved on phone, will send automatically. (${!n.err || /fetch|Load failed|NetworkError|network/i.test(n.err) ? "no connection right now" : "Send failed: " + n.err})`);

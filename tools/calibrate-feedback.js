@@ -18,7 +18,8 @@ function metrics(buf) {   // sky photo → brightness, saturation, warm-colour s
     n++; L += l; S += s; const w = (h < 55 || h > 300) && s > .3 && l > .12; if (w) warm++; if (w && s > .55 && l > .25) vivid++;
     if (y < Ht * .55 && l > .08) { nu++; if (s < .18 || (w && s < .5)) cl++; } }
   const out = { w: W, h: Ht, bright: +(L / n).toFixed(3), sat: +(S / n).toFixed(3), warm: +(warm / n).toFixed(3), vivid: +(vivid / n).toFixed(3), cloud: +(nu ? cl / nu : 0).toFixed(3) };
-  out.colorScore = Math.round(clamp(100 * (1.6 * out.warm + 2.2 * out.vivid + .35 * out.sat), 0, 100)); return out;
+  // d25d: soft-saturating (was linear → 100 for any vivid shot). Checked on groundtruth/photos: gray decks 3–12, partial colour ~40–65, vivid batch2/07 ≈ 92.
+  const x = Math.max(0, 1.6 * out.warm + 2.2 * out.vivid + .35 * out.sat - .05); out.colorScore = Math.round(100 * (1 - Math.exp(-1.6 * x))); return out;
 }
 (async () => {
   const hist = rd(HIST, []), seen = new Set(hist.map(h => h.id)), log = [`## ${new Date().toISOString()}`];
@@ -27,7 +28,7 @@ function metrics(buf) {   // sky photo → brightness, saturation, warm-colour s
   for (const e of rows) {
     let m = null;
     if (e.photo_path) try { const p = await fetch(`${URL0}/storage/v1/object/feedback/${e.photo_path}`, { headers: H }); if (!p.ok) throw new Error(p.status); m = metrics(Buffer.from(await p.arrayBuffer())); } catch (x) { log.push(`- ${e.id}: photo unreadable (${x.message})`); }
-    const raw = e.pred && typeof e.pred.raw === "number" ? e.pred.raw : null, sky = e.pred && e.pred.sky;
+    const raw = e.pred && typeof e.pred.raw === "number" ? e.pred.raw : null, sky = e.pred && (e.pred.atShot || e.pred.sky);
     const rec = { id: e.id, at: e.shot_at || e.created_at, shot: e.shot_at || null, saved: e.created_at, spot: e.spot, mode: e.mode, rating: e.rating, raw, sky, photo: m, ver: e.app_version };
     if (raw != null && typeof e.rating === "number") rec.resid = Math.round(m ? .7 * (e.rating - raw) + .3 * (m.colorScore - raw) : e.rating - raw);
     if (m && sky && typeof sky.total === "number") rec.cloudErr = Math.round(100 * m.cloud - sky.total);
