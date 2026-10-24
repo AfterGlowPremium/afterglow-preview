@@ -98,8 +98,31 @@
   let pref = null; try { pref = localStorage.getItem(KEY); } catch (e) {}
   on = pref !== "off"; ui();
   if (on) { make(); hookAll(); tryPlay(false); }   // autoplay where allowed (desktop); phones wait for the first tap
-  window.AGMusic = { hook: listen, get playing() { return playing(); }, get audible() { return audible; }, get time() { return au ? au.currentTime : 0; }, get on() { return on; }, get level() { return lvl; } };
+  window.AGMusic = { get ctx() { return ctx; }, hook: listen, get playing() { return playing(); }, get audible() { return audible; }, get time() { return au ? au.currentTime : 0; }, get on() { return on; }, get level() { return lvl; } };
   document.addEventListener("visibilitychange", () => { if (!document.hidden && on && au && (au.paused || !ctxOK())) { hookAll(); tryPlay(false); } });
   const mount = () => document.body.appendChild(b);
   document.body ? mount() : addEventListener("DOMContentLoaded", mount);
+})();
+
+// d26g: wind sound — synthesized (filtered noise with slow gusting), only while a spot is open whose wind at the slider time
+// (gust if known) is above 20 mph. Follows the 🎵 toggle (muted → silent), mixes under the music, fades in/out, iOS-safe (starts
+// only on an AudioContext that a user gesture has unlocked).
+(function () {
+  let C = null, G = null, BP = null, LP = null, src = null, tgt = 0, mph = 0, cur = 0, lfo = 0, tick = 0, gest = false;
+  const unlock = () => { gest = true; }; ["pointerdown", "touchend", "keydown"].forEach(e => addEventListener(e, unlock, { capture: true, passive: true }));
+  function build() { const M = window.AGMusic; C = (M && M.ctx) || C; if (!C) { const A = window.AudioContext || window.webkitAudioContext; if (!A || !gest) return false; C = new A(); }
+    if (C.state !== "running") { if (!gest) return false; C.resume().catch(() => {}); }
+    if (G) return true;
+    const n = C.createBuffer(1, C.sampleRate * 3, C.sampleRate), d = n.getChannelData(0); let b = 0; for (let i = 0; i < d.length; i++) { b = 0.985 * b + 0.015 * (Math.random() * 2 - 1); d[i] = b * 6 + (Math.random() * 2 - 1) * 0.08; }   // soft brown-ish noise
+    src = C.createBufferSource(); src.buffer = n; src.loop = true; BP = C.createBiquadFilter(); BP.type = "bandpass"; BP.Q.value = 0.7; BP.frequency.value = 500; LP = C.createBiquadFilter(); LP.type = "lowpass"; LP.frequency.value = 1800;
+    G = C.createGain(); G.gain.value = 0; src.connect(BP).connect(LP).connect(G).connect(C.destination); src.start(); return true; }
+  function step() { if (!G) return; const on = !window.AGMusic || window.AGMusic.on, t = C.currentTime;
+    lfo += 0.04 + Math.random() * 0.03; const gust = 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(lfo) * Math.sin(lfo * 0.37 + 1.3)), w = Math.min(1, (mph - 20) / 30);
+    const goal = on && tgt > 0 ? (0.035 + 0.11 * w) * gust : 0; cur += (goal - cur) * 0.12;   // under the lo-fi music
+    G.gain.setTargetAtTime(cur, t, 0.25); BP.frequency.setTargetAtTime(320 + 520 * gust * (0.6 + 0.6 * w), t, 0.4);
+    if (goal === 0 && cur < 0.0015) { clearInterval(tick); tick = 0; G.gain.setTargetAtTime(0, t, 0.3); } }
+  window.AGWind = { set(v, open) { mph = v || 0; tgt = open && mph > 20 ? 1 : 0;
+      if (tgt && !G && !build()) return; if (tgt && C && C.state !== "running" && gest) C.resume().catch(() => {});
+      if (G && !tick) tick = setInterval(step, 120); }, get level() { return cur; } };
+  document.addEventListener("visibilitychange", () => { if (document.hidden && window.AGWind) AGWind.set(0, false); });
 })();
