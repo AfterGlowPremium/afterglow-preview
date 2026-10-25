@@ -579,14 +579,14 @@
     return `
       <section class="stage" style="--c:${lb.c}">
         <canvas id="pv" aria-label="Illustrated forecast of the ${EV} at ${sp.name}"></canvas>
-        <img id="pv-ph0" class="pv-photo" alt=""><img id="pv-ph1" class="pv-photo" alt=""><canvas id="pv-back" class="pv-back" hidden aria-label="180° view behind you"></canvas><canvas id="pv-wx" class="pv-wx" aria-hidden="true"></canvas>
+        <img id="pv-ph0" class="pv-photo" alt=""><img id="pv-ph1" class="pv-photo" alt=""><canvas id="pv-back" class="pv-back" hidden aria-label="View in the other direction"></canvas><canvas id="pv-wx" class="pv-wx" aria-hidden="true"></canvas>
         <div class="stage-top">
           <div><div class="d-kick">${sp.type} · ${sp.state}${r.mi != null ? " · " + Math.round(r.mi) + " mi away" : ""} · ${fmtDay(ev.tSet, r.tz, state.day)} ${fmtDate(ev.tSet, r.tz)}</div><h2>${sp.name}</h2>${sp.vantage ? `<div class="d-kick vant">📍 ${Ev} view from ${sp.vantage.name}</div>` : ""}${state.arch ? "" : `<div class="ev-toggle" role="group" aria-label="Sunrise or sunset at this spot"><a href="${evHref("sunrise", sp.id)}" data-ev="sunrise" class="${RISE ? "on" : ""}"${RISE ? ' aria-current="true"' : ""} title="Same spot facing east at sunrise">🌅 Sunrise</a><a href="${evHref("sunset", sp.id)}" data-ev="sunset" class="${RISE ? "" : "on"}"${RISE ? "" : ' aria-current="true"'} title="Same spot facing west at sunset">🌇 Sunset</a></div>`}</div>
         </div>
         <div id="pv-gen" class="pv-gen" hidden></div>
         <div class="stage-rail">
           <div class="rail-top"><div class="stage-score" title="${EV} score"><b>${ev.score}</b><i>${lb.t}</i></div><div id="pv-wxl" class="pv-wxl" hidden></div></div>
-          <div class="rail-ctl"><button id="pv-play" class="play pv-play-hid" title="Play the ${RISE ? "morning" : "evening"} (Space)">${PLAY}</button><button id="pv-turn" class="play turn" aria-pressed="false" title="Turn around and see the sky behind you (${RISE ? "west" : "east"}) — where rainbows appear">↻ 180°</button><button id="pv-fb" class="play fb" title="Send a photo &amp; rating for this spot">Feedback</button><span id="pv-fbs" class="fb-score" hidden></span>
+          <div class="rail-ctl"><button id="pv-play" class="play pv-play-hid" title="Play the ${RISE ? "morning" : "evening"} (Space)">${PLAY}</button><button id="pv-turn" class="play turn" aria-pressed="false" title="Face ${RISE ? "west" : "east"} — see the sky on the other side, where rainbows appear" aria-label="Face ${RISE ? "west" : "east"}">Face ${RISE ? "West" : "East"}</button><button id="pv-fb" class="play fb" title="Send a photo &amp; rating for this spot">Feedback</button><span id="pv-fbs" class="fb-score" hidden></span>
             <div class="rail-zoom" role="group" aria-label="Zoom"><button class="zb" data-z="+" aria-label="Zoom in">+</button><output id="pv-zo">1.0×</output><button class="zb" data-z="-" aria-label="Zoom out">−</button><input id="pv-zoom" type="range" min="1" max="4" step="0.01" value="1" aria-label="Zoom into the scene" hidden></div></div>
           <div class="stage-bottom">
             <div class="stage-now"><b id="pv-time"></b><span id="pv-phase"></span><small id="pv-elev"></small></div>
@@ -755,8 +755,8 @@
         if (st && og > 0 && faceOpp) { if (!el) { el = document.createElement("div"); el.className = "pv-opp"; el.style.cssText = "position:absolute;left:0;right:0;top:0;height:62%;pointer-events:none;mix-blend-mode:soft-light;background:radial-gradient(120% 90% at 50% 15%,rgba(255,70,90,.95),rgba(255,120,60,.6) 45%,rgba(255,120,60,0) 80%)"; st.appendChild(el); }
           const e = o.elev != null ? o.elev : 0, tf = Math.max(0, Math.min(1, (3 - e) / 3)) * Math.max(0, Math.min(1, (e + 9) / 5)); el.style.opacity = (og * tf * 0.85).toFixed(2); el.hidden = false; } else if (el) el.hidden = true; }
       if (back) back.hidden = !turnedIll;
-      { const d = $("#pv-dir"), az = turned ? (ev.sunsetAz + 180) % 360 : ev.sunsetAz; if (d) d.textContent = (turned ? "↻ Behind you · facing " : "Facing ") + compass(az) + " " + Math.round(az) + "°"; }
-      if (turned) { ph.forEach(im => im.style.opacity = 0); if (badge) badge.textContent = !turnedIll ? "180° view · realistic render from forecast" : o.bow ? `🌈 Rainbow ${ev.bonus.bow.p}% in view · 180° view · illustrated` : "180° view behind you · illustrated · not a photo"; }
+      { const d = $("#pv-dir"), az = turned ? (ev.sunsetAz + 180) % 360 : ev.sunsetAz; if (d) d.textContent = "Facing " + compass(az) + " " + Math.round(az) + "°"; if (ev.sunsetAz != null && state.baseAz !== ev.sunsetAz) { state.baseAz = ev.sunsetAz; state.__syncTurn && state.__syncTurn(); } }
+      if (turned) { ph.forEach(im => im.style.opacity = 0); if (badge) badge.textContent = !turnedIll ? "Realistic render from forecast · not a photo" : o.bow ? `🌈 Rainbow ${ev.bonus.bow.p}% in view · illustrated` : "Illustrated · not a photo"; }
       else showPhotos(t);
       if (dragging && o.mode === "live" && !hqT) hqT = setTimeout(() => { hqT = 0; dragging = false; queue(); }, 160);   // v17 fix: surf re-renders no longer cancel the full-res pass (scene stuck low-res after a drag)
       wxT = t; wxC = window.Wx && (o.mode === "live" || window.AGX) ? Wx.conditions(ev, t, o.elev) : null;
@@ -818,7 +818,8 @@
       gen.hidden = set.done || !set.busy; gen.textContent = `Photo finish ${n}/${tot}…`;
       queue();
     };
-    { const tb = $("#pv-turn"); if (tb) { const sync = () => { tb.classList.toggle("on", !!state.turn); tb.setAttribute("aria-pressed", state.turn ? "true" : "false"); tb.textContent = state.turn ? "↺ Back" : "↻ 180°"; tb.title = state.turn ? "Face the " + EV + " again" : "Turn around and see the sky behind you — where rainbows appear"; };
+    { const tb = $("#pv-turn"); if (tb) { const sync = () => { tb.classList.toggle("on", !!state.turn); tb.setAttribute("aria-pressed", state.turn ? "true" : "false"); const base = state.baseAz != null ? state.baseAz : (RISE ? 90 : 270), az = state.turn ? (base + 180) % 360 : base, to = az >= 180 ? "East" : "West"; tb.textContent = "Face " + to; tb.title = "Face " + to.toLowerCase() + (state.turn ? " (toward the " + EV + ")" : " — the sky on the other side, where rainbows appear"); tb.setAttribute("aria-label", "Face " + to.toLowerCase()); };   // d28h: compass labels from the actual view bearing (was ↻ 180° / ↺ Back)
+      state.__syncTurn = sync;
       sync(); tb.onclick = () => { state.turn = !state.turn; sync(); queue(); }; } }
     if (modeBtn) modeBtn.onclick = () => { photoOn = !photoOn; modeBtn.textContent = "AI finish: " + (photoOn ? "on" : "off"); queue(); };
     if (PhotoStage.live()) {
