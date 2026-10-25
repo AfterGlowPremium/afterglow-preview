@@ -11,7 +11,7 @@
   // Same spots in both modes; sunrise swaps in each spot's EAST-facing view (arc / obstruction / water / note).
   // Geography-matched views (spots.js SCENE): what is really on the horizon in the direction you face, plus what is
   // behind you (for the 180° Turn). Sunrise may use a nearby east-facing vantage (e.g. Avon Pier vs. the soundside harbor).
-  const SPOTS = window.SPOTS.map(sp => {
+  const SPOTS = window.SPOTS.map(sp0 => { const sp = sp0, G1 = ((window.GEO180 || {})[sp0.id] || {})[RISE ? "rise" : "set"], fixB = o => { if (G1 && G1.behind && !(window.Ground && Ground.GEO[sp0.id])) o.behind = Object.assign({}, o.behind, { water: !!G1.behind.water, type: G1.behind.water ? o.behind.type : (G1.behind.town > .4 ? "Town" : G1.behind.near === 1 ? "Dunes" : "Woods") }); return o; }; return fixB((() => {
     const v = (window.SUNRISE_VIEW || {})[sp.id] || [60, 150, 2, false, ""], sc = (window.SCENE || {})[sp.id] || ["lowshore", sp.type, "lowshore"], at = sc[3];
     const coastal = x => /Beach|Pier|Boardwalk|Dunes/.test(x);
     if (RISE) {
@@ -23,7 +23,7 @@
     // behind you at sunset = east: the sunrise view from this same spot (land/town when the sunrise vantage is elsewhere)
     const behind = at ? { type: "Town", far: "trees", water: false } : { type: sc[1], far: sc[2], water: v[3] };
     return Object.assign({}, sp, { far: sc[0], behind, vantage: null });
-  });
+  })()); });
   // v21: desktop (wide screen + mouse) — docked detail panel, higher render quality, wheel zoom, keyboard shortcuts. Phones unchanged.
   const DESK_Q = window.matchMedia ? matchMedia("(min-width:1024px) and (pointer:fine), (min-width:1024px) and (pointer:none)") : { matches: false };
   const isDesk = () => !!DESK_Q.matches;
@@ -669,12 +669,12 @@
     // d14: ONE animation loop for the whole app (token kills loops left over from a previous spot), locked to 30 fps,
     // adaptive resolution for animated frames, paused while the map is showing or the tab is hidden.
     const AN = window.__agAnim || (window.__agAnim = { n: 0, tok: 0, id: 0, last: 0, ema: 33, scale: 0.8, fps: 30, slow: 0, t30: 0 });
-    // v21: desktop targets 60 fps with a 0.75 resolution floor; if it can't hold 60 even at the floor it drops to 30 (re-tries 60 every 20 s). Phones: 30 fps, floor 0.7 (d28c).
+    // v21: desktop targets 60 fps with a 0.75 resolution floor; if it can't hold 60 even at the floor it drops to 30 (re-tries 60 every 20 s). Phones: 30 fps, floor 0.7 (d28d).
     const desk = isDesk(); if (desk) { if (AN.fps !== 30 || !AN.t30) AN.fps = 60; AN.scale = Math.max(0.75, AN.scale); AN.ema = 1000 / AN.fps; } else { AN.fps = 30; }
     AN.lockAt = 0; if (AN.id) { cancelAnimationFrame(AN.id); AN.id = 0; } const myTok = AN.tok = ++AN.n;
     const alive = () => AN.tok === myTok && !document.hidden && document.body.classList.contains("detail-open") && document.body.contains(cv);
     const animLoop = ts => { AN.id = 0; if (!alive()) return;
-      const dt = ts - AN.last, fps = isDesk() ? AN.fps : 30, iv = 1000 / fps, floor = isDesk() ? 0.75 : (AN.ema > 55 ? 0.6 : 0.7);   // d28c: phone floor 0.5→0.7 (0.5 looked blocky)
+      const dt = ts - AN.last, fps = isDesk() ? AN.fps : 30, iv = 1000 / fps, floor = isDesk() ? 0.75 : (AN.ema > 55 ? 0.6 : 0.7);   // d28d: phone floor 0.5→0.7 (0.5 looked blocky)
       if (fps === 30 && AN.t30 && isDesk() && ts - AN.t30 > 20000) { AN.fps = 60; AN.t30 = 0; AN.slow = 0; AN.ema = 1000 / 60; }   // v21: re-try 60 fps
       if (dt >= iv - (fps === 60 ? 2 : 4)) {
         if (!AN.lockAt) AN.lockAt = ts + 3000; const lockd = !isDesk() && ts > AN.lockAt && AN.ema < 45;   // d24e: phones settle resolution in ~3 s then hold it (no visible pumping on surf)

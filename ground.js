@@ -43,10 +43,11 @@
   // sp = the app's spot (with .behind = { type, far, water }); rise = sunrise mode (behind = west)
   function behind(sp, rise) {
     const B = Object.assign({ type: "Beach", far: "lowshore", water: true }, sp.behind || {});
-    const o = Object.assign({}, (GEO[sp.id] || {})[rise ? "west" : "east"] || generic(B));
+    const G1 = ((window.GEO180 || {})[sp.id] || {})[rise ? "rise" : "set"];   // d28d: surveyed per-direction geography (no more mirrored copy of the forward view)
+    const o = Object.assign({}, (GEO[sp.id] || {})[rise ? "west" : "east"] || (G1 && G1.behind) || generic(B));
     o.water = !o.land; return o;
   }
   // d24: what you face when the spot's own view is land (e.g. 1st Street Jetty at sunset = the hotels) — null = the usual horizon
-  function front(sp, rise) { const F = (GEO[sp.id] || {}).front; const o = F && F[rise ? "east" : "west"]; return o ? Object.assign({}, o, { water: !o.land }) : null; }
+  function front(sp, rise) { const F = (GEO[sp.id] || {}).front; const G1 = ((window.GEO180 || {})[sp.id] || {})[rise ? "rise" : "set"]; const o = F ? F[rise ? "east" : "west"] : G1 && G1.front && G1.front.land ? G1.front : null; return o ? Object.assign({}, o, { water: !o.land }) : null; }
   g.Ground = { behind, front, GEO };
 })(window);
