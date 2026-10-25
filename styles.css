@@ -883,3 +883,9 @@ html.show-home #home-cv{top:0;height:100%}
 .hi-intro{top:calc(9svh + env(safe-area-inset-top,0px))}
 .hi-t{font-size:clamp(52px,16vw,78px);font-weight:700;letter-spacing:-.01em}.hi-t em{color:#f2b14f}
 .home.hi-push .home-cv{transform:scale(1.05)}
+/* d26z: slim one-line map layer bar on phones */
+@media (max-width:900px){
+  .overlay-ctl{top:8px;left:8px;right:8px;gap:2px;padding:3px;border-radius:999px;background:rgba(13,10,26,.55);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;flex-wrap:nowrap}
+  .overlay-ctl::-webkit-scrollbar{display:none}
+  .overlay-ctl button{flex:0 0 auto;white-space:nowrap;padding:5px 9px;font-size:12px;line-height:1.1;border-radius:999px}
+}
