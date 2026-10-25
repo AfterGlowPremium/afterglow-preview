@@ -149,8 +149,8 @@
     const a = clamp(1 - 0.6 * day) * tr * ext * (0.25 + 0.75 * clamp(m.frac / 0.3)) * (1 - 0.5 * day * clamp(1 - m.frac / 0.15));   // d28o: thin crescent near the sun is dim, near-invisible in bright twilight if (a <= 0.02) return;
     const tint = clamp(1 - m.alt / 9), col = `rgba(${Math.round(250 - 5 * tint)},${Math.round(240 - 85 * tint)},${Math.round(222 - 165 * tint)},`;   // yellow-white aloft → deep orange at the horizon
     g.__agMoon = { cx, cy, r, a: +a.toFixed(3), alt: m.alt, frac: m.frac };
-    if (C.moonWater && day < 0.85 && m.alt < 30) {   // reflection: a soft broken glitter path of short horizontal ripples, widening toward you, fading with depth
-      let sd = 3; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647, T = (g.performance ? performance.now() : 0) / 1000, A0 = 0.55 * a * (1 - day) * (0.4 + 0.6 * m.frac), dep = (H - hz0) * 0.55;
+    if (C.moonWater && day < 0.85 && m.alt < 30 && (C.waterDeg == null || C.waterDeg * ppd > 1.5)) {   // reflection: a soft broken glitter path of short horizontal ripples, widening toward you, fading with depth
+      let sd = 3; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647, T = (g.performance ? performance.now() : 0) / 1000, A0 = 0.55 * a * (1 - day) * (0.4 + 0.6 * m.frac), dep = Math.min((H - hz0) * 0.55, C.waterDeg != null ? C.waterDeg * ppd : 1e9);   // d28u: only over the actual water band (none over marsh/lawn)
       x.save(); for (let i = 0; i < 70; i++) { const f = Math.pow(rnd(), 1.6), yy = hz0 + 1 + f * dep, w = r * (0.35 + 1.4 * f) * (0.4 + rnd()), sx = (rnd() - 0.5) * r * (0.6 + 2.2 * f) + Math.sin(T * 0.8 + i) * r * 0.08;
         const al = A0 * (1 - f) * (0.35 + 0.65 * (0.5 + 0.5 * Math.sin(T * 1.3 + i * 2.1))); if (al < 0.01) continue;
         const q = x.createLinearGradient(cx + sx - w, 0, cx + sx + w, 0), rc = m.alt > 6 ? "rgba(215,224,240," : col; q.addColorStop(0, rc + "0)"); q.addColorStop(0.5, rc + (al * 0.95).toFixed(3) + ")"); q.addColorStop(1, rc + "0)"); x.fillStyle = q; x.fillRect(cx + sx - w, yy, w * 2, 0.8 + 2.2 * f); } x.restore(); }

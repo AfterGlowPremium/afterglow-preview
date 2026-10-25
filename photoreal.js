@@ -271,7 +271,8 @@ vec3 cloudShade(int L, vec3 P, vec3 rd, float t, float pixA, out float alpha){
   // ambient: blue skylight from above + warm horizon light
   vec3 hA = sunT(P + up*2.5, sun), hB = sunT(P + up*12., sun);
   float skyLit = dot(hA, vec3(.25,.45,.3))*.75 + dot(hB, vec3(.25,.45,.3))*.25;
-  vec3 amb = ESUN * (vec3(.007,.013,.028) * (skyLit + .012) + .005*hA*vec3(1.,.75,.65));
+  float ntA = smoothstep(-.01, -.09, dot(up, uSun));   // d28u: blue hour / night — skylight on the cloud goes dim grey-violet, not saturated blue (blue blobs, Plum Tree Island)
+  vec3 amb = ESUN * (mix(vec3(.007,.013,.028), vec3(.0075,.007,.0095), ntA) * (skyLit + .012) + .005*hA*vec3(1.,.75,.65));
   amb *= L == 2 ? mix(1., .3, d*d*(1. - .4*face)) : mix(1., .45, d);   // d28o: deep shadowed bases/cores in thick low cloud
   // once the deck is in Earth's shadow it is lit only by the dim twilight sky: let it sit just below the sky, not glow
   amb *= mix(L == 0 ? .6 : .8, 1., clamp(dot(Ts, vec3(.33)) * 25., 0., 1.));
