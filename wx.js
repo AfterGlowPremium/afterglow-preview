@@ -251,14 +251,21 @@
       const ph = ((now / (per * 1000)) + r / 3) % 1, d = 0.12 + ph * 0.75, y = hz + (H - hz) * d * 0.9, a = Math.sin(ph * Math.PI) * clamp(ft / 8, 0.25, 0.8);
       const thick = (S.off ? 1.2 : 3) * (1 + d * 3) * (ft / 4), blur = 1.5 + d * 3;
       x.filter = `blur(${blur.toFixed(1)}px)`;
-      for (let k = 0; k < 90; k++) {
-        const u = k / 90, peak = S.combo ? Math.pow(Math.abs(Math.sin(u * Math.PI * 3 + r * 1.7)), 2) : 1, n = Math.sin(u * 37 + r * 5 + now * 0.0007) * 0.5 + 0.5;
+      // d28c: surf lines drawn as smooth tapered runs (was 90 hard-edged rectangles → stair steps on phones)
+      const N = 90, pts = [];
+      for (let k = 0; k <= N; k++) {
+        const u = k / N, peak = S.combo ? Math.pow(Math.abs(Math.sin(u * Math.PI * 3 + r * 1.7)), 2) : 1, n = Math.sin(u * 37 + r * 5 + now * 0.0007) * 0.5 + 0.5;
         const on = S.off ? (n > 0.35 && peak > 0.4) : n > 0.15;
-        if (!on) continue;
-        const yy = y + rel * 30 * d * (1 - 2 * u) - peak * thick * 0.6, al = a * (0.35 + 0.4 * n) * (S.combo ? peak : 1);
-        x.fillStyle = `rgba(255,236,226,${al.toFixed(3)})`; x.fillRect(u * W, yy, W / 90 + 1, thick * (0.6 + n));
-        if (!S.off && ph > 0.5) { x.fillStyle = `rgba(235,225,230,${(al * 0.35).toFixed(3)})`; x.fillRect(u * W, yy + thick, W / 90 + 1, thick * 2.5 * ph); }   // soupy foam behind the break
-      }
+        pts.push(on ? { X: u * W, yy: y + rel * 30 * d * (1 - 2 * u) - peak * thick * 0.6, al: a * (0.35 + 0.4 * n) * (S.combo ? peak : 1), th: thick * (0.6 + n) } : null); }
+      const run = (seg, foam) => { if (seg.length < 2) return; const g = x.createLinearGradient(seg[0].X, 0, seg[seg.length - 1].X, 0), L = seg.length - 1;
+        seg.forEach((q, i) => { const tp = Math.min(1, Math.min(i, L - i) / 2.5); g.addColorStop(i / L, foam ? `rgba(235,225,230,${(q.al * 0.35 * tp).toFixed(3)})` : `rgba(255,236,226,${(q.al * tp).toFixed(3)})`); });
+        const top = q => foam ? q.yy + thick : q.yy, bot = q => foam ? q.yy + thick + thick * 2.5 * ph : q.yy + q.th;
+        x.fillStyle = g; x.beginPath(); x.moveTo(seg[0].X, (top(seg[0]) + bot(seg[0])) / 2);
+        for (let i = 1; i <= L; i++) { const p0 = seg[i - 1], p1 = seg[i]; x.quadraticCurveTo(p0.X, top(p0), (p0.X + p1.X) / 2, (top(p0) + top(p1)) / 2); }
+        x.lineTo(seg[L].X, (top(seg[L]) + bot(seg[L])) / 2);
+        for (let i = L; i >= 1; i--) { const p0 = seg[i], p1 = seg[i - 1]; x.quadraticCurveTo(p0.X, bot(p0), (p0.X + p1.X) / 2, (bot(p0) + bot(p1)) / 2); }
+        x.closePath(); x.fill(); };
+      let seg = []; for (const q of pts.concat([null])) { if (q) seg.push(q); else { run(seg, false); if (!S.off && ph > 0.5) run(seg, true); seg = []; } }
     }
     x.restore();
   }
