@@ -54,6 +54,7 @@ uniform float uFast; uniform float uGray; uniform float uHero; uniform float uHe
 
 const float PI = 3.14159265;
 const float R0 = 6360.0;
+const float HZB = .03;   // d28b: horizon-colour samples sit at a fixed elevation, so they vary only with azimuth; any sharp cloud detail there smeared into thin vertical lines down the water and waves — sample them blurred
 const float RT = 6420.0;
 const float HR = 8.0;
 const float HM = 1.2;
@@ -97,7 +98,7 @@ float chapman(float X, float h, float mu){
   float x0 = sqrt(1. - mu*mu) * (X + h); float c0 = sqrt(x0);
   return 2.*c0*exp(X - x0) - c/(1. - c*mu)*exp(-h);
 }
-vec2 sph(vec3 ro, vec3 rd, float r){ float b = dot(ro,rd), c = dot(ro,ro) - r*r, d = b*b - c; if (d < 0.) return vec2(-1.); d = sqrt(d); return vec2(-b-d, -b+d); }
+vec2 sph(vec3 ro, vec3 rd, float r){ float b = dot(ro,rd), L = length(ro), c = (L - r) * (L + r), d = b*b - c; if (d < 0.) return vec2(-1.); d = sqrt(d); return vec2(-b-d, -b+d); }   // d28b: (L-r)(L+r) instead of dot(ro,ro)-r*r: fp32 cancellation at R0=6360 km caused blocky clouds and thin vertical lines on phones
 float ozoneLen(vec3 p, vec3 d){
   vec2 a = sph(p, d, R0+35.), b = sph(p, d, R0+15.);
   float la = max(a.y, 0.) - max(a.x, 0.);
@@ -273,7 +274,10 @@ vec3 skyRay(vec3 ro, vec3 rd, float pixA, bool full, out vec3 Tout){
     seg(A, ro, rd, prev, tk, ns, cs);
     prev = tk;
     float cov = k == 0 ? uCov.x : k == 1 ? uCov.y : max(uCov.z, uBlock);
-    if (cov > .02 && tk < 1400.){
+    if (cov > .02 && tk < 1400. && rd.y < .0045){   // d28b: grazing rays (the fixed-elevation horizon-colour samples used for water/wave/fog colour) hit the cloud deck edge-on;
+      float lum = dot(A.L, vec3(.2126,.7152,.0722)); float al = cov * .55 * mix(1., .55, uBlockGap);   // per-azimuth cloud detail there turned into thin vertical lines down the water — use a smooth coverage veil instead
+      A.L = mix(A.L, mix(vec3(lum), A.L, .6), al * .5); A.T *= 1. - al * .3;
+    } else if (cov > .02 && tk < 1400.){
       float al; vec3 c = cloudShade(k, ro + rd*tk, rd, tk, pixA, al);
       float far = smoothstep(260., 620., tk);
       al = mix(al, cov * .92 * mix(1., .55, uBlockGap), far);
@@ -592,11 +596,11 @@ void main(){
   bool gfar = uGnd.w > .5 && rd.y < 0. && !fsHit && !gnear;
 
   if (pier > .5){
-    vec3 Tt; vec3 sk = skyRay(ro, normalize(vec3(rd.x, .02, rd.z)), pixA, false, Tt);
+    vec3 Tt; vec3 sk = skyRay(ro, normalize(vec3(rd.x, .02, rd.z)), pixA + HZB, false, Tt);
     col = sk * .03 + vec3(.0006,.0005,.0008);
   } else if (fsHit || gnear || gfar){
     gGnd = 1.;
-    vec3 Ta; vec3 hzS = antiTw(skyRay(ro, normalize(vec3(rd.x, .004, rd.z)), pixA, false, Ta), rd, .004);
+    vec3 Ta; vec3 hzS = antiTw(skyRay(ro, normalize(vec3(rd.x, .004, rd.z)), pixA + HZB, false, Ta), rd, .004);
     vec2 rh = normalize(rd.xz + 1e-5);
     vec3 Tb; vec3 amb = skyRay(ro, normalize(vec3(-rh.x * .8, .6, -rh.y * .8)), pixA * 4., false, Tb) * .45 + skyRay(ro, vec3(0., 1., 0.), pixA * 4., false, Tb) * .3 + hzS * .35;   // sky irradiance: sun-side sky (not the glare), zenith, horizon   // light from the sky the surface faces (the sun side)
     if (fsHit) col = shadeFacade(ro, rd, fsD, fsLP, fsTopH, fsK, fsHv, sunVis, hzS, amb, fsD * pixA);
@@ -675,13 +679,13 @@ void main(){
     n = normalize(n + vec3(rp2*.03, 0., (rp*.11 + rp2*.05)) * (.4 + .6*far) * mix(.06, 1.7, uChop) * smoothstep(4., 30., tW));   // v17: fade the perspective ripple streaks near the camera (they formed rings)
     vec3 rr = reflect(rd, n); rr.y = max(rr.y, .002); rr = normalize(rr);
     float tPr; float pr = uPier > 0. ? pierHit(pw*vec3(1,0,1) + vec3(0,-2.0+.0,0)*0. + vec3(0,-2.,0)*-0., rr, tPr) : 0.;
-    vec3 Tr; vec3 refl = skyRay(ro, rr, pixA*2., false, Tr);
+    vec3 Tr; vec3 refl = skyRay(ro, rr, pixA*2. + .03 * (1. - smoothstep(.002, .03, rr.y)), false, Tr);   // d28b: grazing reflections all sample ~the same sky elevation → the sky's azimuthal detail smeared into thin vertical lines; blur them
     refl = antiTw(refl, rr, asin(rr.y));
     if (uFS.x > 0.){   // d23: the lit shoreline mirrored in the water
       vec3 rL = reflect(rd, normalize(mix(vec3(0., 1., 0.), n, .45))); rL.y = max(rL.y, .0005);   // rough water smears the land's reflection vertically, it doesn't shred it
       float azr = atan(rL.x, -rL.z), Ds = fsDist(azr), Dr = Ds - tW;
       if (Dr > 1.){ float yr = rL.y * Dr, kk, hv2; vec2 lp2 = vec2(azr * Ds + uSeed.x * 3., yr); float tp2 = fsTop(lp2.x, kk, hv2) * fsMask(azr);
-        if (yr < tp2){ vec3 Ta2; vec3 hz2 = antiTw(skyRay(ro, normalize(vec3(rr.x, .004, rr.z)), pixA * 2., false, Ta2), rr, .004);
+        if (yr < tp2){ vec3 Ta2; vec3 hz2 = antiTw(skyRay(ro, normalize(vec3(rr.x, .004, rr.z)), pixA * 2. + HZB, false, Ta2), rr, .004);
           refl = shadeFacade(ro, rL, Ds, lp2, tp2, kk, hv2, sunVis, hz2, hz2 * 1.15, Ds * pixA * 3.); } } }
     // reflected sun: microfacet glitter
     vec3 sa = uSunA;
@@ -699,7 +703,7 @@ void main(){
     col = refl * F * 1.0 + glit + body * (1.-F);
     col *= mix(1., .5 + .5*smoothstep(.32, .62, h0), uChop * .75 * (1. - .6*far));   // wind chop: shadowed wave backs break up the mirror
     // aerial perspective over the water
-    vec3 Ta; vec3 hzS = antiTw(skyRay(ro, normalize(vec3(rd.x, .001, rd.z)), pixA, false, Ta), rd, .001);
+    vec3 Ta; vec3 hzS = antiTw(skyRay(ro, normalize(vec3(rd.x, .001, rd.z)), pixA + HZB, false, Ta), rd, .001);
     { float sa0 = soupAmt(wp); if (sa0 > .01){   // v17 inside soup: bubbly lace, brighter than the water at dusk, lit by the sun when it gets through
         float b2 = fbm(wp * vec2(6.5, 8.) + vec2(0., -uSurfT * 2.), fpW * 8., 3), strk = fbm(vec2(wp.x * .5 + uSeed.x, wp.y * 4.5 - uSurfT * 1.2), fpW * 4.5, 4);
         float lace = smoothstep(.3, .7, sa0 * (.6 + .5 * b2 + .3 * strk));
@@ -750,7 +754,7 @@ void main(){
         sprayA += exp(-max(dy, 0.) / (.6 + 2.2 * uOff)) * behind * e * smoothstep(.3, .7, nz) * uOff * .25 * min(uSurf, 4.6) * max(.25, min(t*.004, 1.)); }
       float st = max(.12, min(dy * .5, 6.)) * (t > 60. ? 1.4 : 1.); t += st; if (t > 420.) break;
     }
-    vec3 Ta; vec3 hz2 = antiTw(skyRay(ro, normalize(vec3(rd.x, .001, rd.z)), pixA, false, Ta), rd, .001);
+    vec3 Ta; vec3 hz2 = antiTw(skyRay(ro, normalize(vec3(rd.x, .001, rd.z)), pixA + HZB, false, Ta), rd, .001);
     bool pierFirst = pier > .5 && tP < (hitT > 0. ? hitT : 1e9);
     if (hitT > 0. && !pierFirst){
       vec3 p = rd * hitT; vec2 q = p.xz; float e2 = .12;
@@ -760,7 +764,7 @@ void main(){
       float rr1 = fbm(q * vec2(.9, 2.2) + uSeed, 0., 4) - .5, rr2 = fbm(q * vec2(3.5, 6.) + 3., 0., 3) - .5;
       n = normalize(n + vec3(rr2 * .05, 0., rr1 * .12) * mix(1.3, .45, uOff) * (.4 + uChop));
       vec3 rv = reflect(rd, n); rv.y = max(rv.y, .004); rv = normalize(rv);
-      vec3 Tr; vec3 refl = skyRay(ro, rv, pixA * 2., false, Tr); refl = antiTw(refl, rv, asin(clamp(rv.y, -1., 1.)));
+      vec3 Tr; vec3 refl = skyRay(ro, rv, pixA * 2. + .03 * (1. - smoothstep(.004, .03, rv.y)), false, Tr);   // d28b: blur grazing reflections (vertical-line artifacts) refl = antiTw(refl, rv, asin(clamp(rv.y, -1., 1.)));
       float cosI = max(dot(-rd, n), .02), F = .02 + .98 * pow(1. - cosI, 5.);
       float x = surfX(q), d = -q.y, sec = surfSec(q), brk = smoothstep(150., 70., d) * sec;
       float faceZ = smoothstep(.8, .97, x), thin = smoothstep(.93, 1., x) * smoothstep(.0, .6, n.z);
@@ -841,7 +845,7 @@ void main(){
       if (gFoamD < .35){ float dn = smoothstep(.35, -.35, gFoamD) * stp * 2.2; fDen += dn; fY += dn * clamp(I.y / max(I.z, .1), 0., 1.3); }
       t += stp; if (t > 120. || fDen > 6. || (rd.y > 0. && p.y + camM > gSurf * 3.8)) break;
     }
-    vec3 Ta; vec3 hz2 = antiTw(skyRay(ro, normalize(vec3(rd.x, .001, rd.z)), pixA, false, Ta), rd, .001);
+    vec3 Ta; vec3 hz2 = antiTw(skyRay(ro, normalize(vec3(rd.x, .001, rd.z)), pixA + HZB, false, Ta), rd, .001);
     vec3 sL = ESUN * sunAtm * sunVis * smoothstep(-.015, .02, uSunA.y) * .045 * uBack;   // direct sun only where it gets through cloud
     float fwd = max(dot(rd, uSunA), 0.);
     bool pierFirst = pier > .5 && tP < (ht > 0. ? ht * gK : 1e9);
