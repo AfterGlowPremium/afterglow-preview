@@ -186,7 +186,8 @@
   g.Model.evaluate = function (sp) {
     let ev = base.apply(this, arguments);
     try { const C = !/[?&](obs|sat)=0/.test(location.search) && ev && O.cv[sp.id];
-      if (C && Math.abs(C.tSet - ev.tSet) < 3600 && Math.max(...C.cv.slice(0, 5)) >= 0.05) {   // d24x: was 0.15 — scattered small cumulus (5–15 %) were ignored const e2 = base.apply(this, withCanvas(arguments, ev, C));
+      if (C && Math.abs(C.tSet - ev.tSet) < 3600 && Math.max(...C.cv.slice(0, 5)) >= 0.05) {   // d24x: was 0.15 — scattered small cumulus (5–15 %) were ignored
+        const e2 = base.apply(this, withCanvas(arguments, ev, C));
         if (e2) { e2.satCanvas = C; e2.scoreNoSat = ev.score; (e2.reasons || (e2.reasons = [])).unshift(`Satellite (GOES ${C.src === "goes-ir4km-only" ? "infrared" : "visible+IR"}): broken cloud along the ${g.AG_MODE === "sunrise" ? "sunrise" : "sunset"} path — ${C.cv.slice(0, 5).map((v, i) => `${C.km[i]} km ${Math.round(v * 100)}%`).join(", ")}; ${C.far < 0.3 ? "open horizon beyond" : "cloud on the horizon too"}. The model had little mid cloud here; using the observed cloud${O.satNote(C)}.`); ev = e2;
           // broken cloud (not a solid deck) across the visible western sky + an open horizon = the lit-cloud sunset: 85–95
           let q;
