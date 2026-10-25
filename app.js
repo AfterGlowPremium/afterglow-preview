@@ -455,13 +455,15 @@
   function hmDrop() { if (HM.off) { relGL(HM.off); HM.off = null; } }
   function heroMovie(b) {
     HM.b = b; const cv = document.getElementById("hero-cv"); if (!cv || !window.PhotoStage) return; HM.fails = 0; HM.twoD = false; hmDrop();
-    if (HM.io) HM.io.disconnect(); if ("IntersectionObserver" in window) { HM.io = new IntersectionObserver(es => { HM.vis = es[0].isIntersecting; if (HM.vis) go(); else hmDrop(); }); HM.io.observe(cv); }
+    if (HM.io) { HM.io.disconnect(); HM.io = null; } HM.paused = false;
     const T = b.ev.timing, a0 = RISE ? (T.civilEnd || T.sunset - 1800) : (T.golden || T.sunset - 2700), a1 = RISE ? (T.golden || T.sunset + 2700) : (T.civilEnd || T.glowEnd || T.sunset + 1800);
     const t0 = Math.min(a0, a1), t1 = Math.max(a0, a1), DUR = 14000; let last = 0, n = 0; const start = performance.now();
     const fr = now => { HM.raf = 0; if (HM.b !== b || !document.body.contains(cv)) return;
       if (document.body.classList.contains("detail-open")) { hmDrop(); return; }
-      if (!HM.vis || document.hidden) return;
-      HM.raf = requestAnimationFrame(fr); if (now - last < 80) return; last = now;
+      if (document.hidden || HM.paused) return;
+      HM.raf = requestAnimationFrame(fr); if (now - last < 80) return;
+      { const r = cv.getBoundingClientRect(); if (r.bottom < 0 || r.top > innerHeight || !r.width) { hmDrop(); return; } }   // off-screen: keep ticking cheaply, no drawing
+      last = now;
       const f = ((now - start) % DUR) / DUR, tt = t0 + (t1 - t0) * f, dpr = Math.min(1.5, window.devicePixelRatio || 1), W = Math.max(64, Math.round(cv.clientWidth * dpr)), H = Math.max(40, Math.round(cv.clientHeight * dpr));
       if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
       const c2 = cv.getContext("2d");
@@ -469,7 +471,7 @@
         if (HM.twoD || !PhotoStage.live()) { const tmp = HM.tmp || (HM.tmp = document.createElement("canvas")); tmp.width = W; tmp.height = H; Preview.draw(tmp, b.spot, b.ev, tt); c2.drawImage(tmp, 0, 0, W, H); }
         else {
           if (!HM.off) { HM.off = document.createElement("canvas"); }
-          const off = HM.off; PhotoStage.draw(off, b.spot, b.ev, tt, { w: Math.round(W / 1.2), h: Math.round(H / 1.2), fast: 1 });
+          const off = HM.off; PhotoStage.draw(off, b.spot, b.ev, tt, { w: Math.round(W / 1.6), h: Math.round(H / 1.6), fast: 1 });
           const g = off._pr && off._pr.gl; if (!g || g.isContextLost()) throw new Error("ctx");
           c2.drawImage(off, 0, 0, W, H);
           if (++n % 25 === 1) { const d = c2.getImageData(W >> 1, H >> 2, 4, 4).data; let s = 0; for (let i = 0; i < d.length; i += 4) s += d[i] + d[i + 1] + d[i + 2]; if (s / 48 < 4) throw new Error("black"); else HM.fails = 0; }
@@ -477,7 +479,7 @@
       } catch (e) { hmDrop(); if (++HM.fails >= 3) HM.twoD = true; }
       const el = document.getElementById("hero-t"); if (el) el.textContent = fmtTime(tt, b.tz); };
     const go = () => { if (!HM.raf) HM.raf = requestAnimationFrame(fr); };
-    HM.go = go; setTimeout(go, 600);
+    HM.go = go; setTimeout(go, 600); clearInterval(HM.wd); HM.wd = setInterval(go, 1500);   // watchdog: restart the loop if anything stopped it
   }
   function relGL(c) { try { const g = c && c._pr && c._pr.gl; const x = g && g.getExtension("WEBGL_lose_context"); if (x && !g.isContextLost()) x.loseContext(); } catch (e) {} }
   window.__agRelGL = relGL; window.__agHM = HM;
