@@ -108,7 +108,8 @@
     const RISE = g.AG_MODE === "sunrise", EV = RISE ? "sunrise" : "sunset", DIR = RISE ? "Eastern" : "Western", dir = RISE ? "eastern" : "western";
     const tSet = S.daily[EV][di], h = S.hourly, e = E.hourly, lat = sp.lat, lng = sp.lng;
     const W = Wl[0].hourly; // nearest western point (kept for legacy fields)
-    const path = Wl.map((w, k) => ({ km: [40, 120, 200][k], low: at(w.hourly, "cloud_cover_low", tSet), mid: at(w.hourly, "cloud_cover_mid", tSet), high: at(w.hourly, "cloud_cover_high", tSet), precip: at(w.hourly, "precipitation", tSet) }));
+    const PKM = [40, 120, 200, 350];   // d28: optional 4th sample ~350 km (cirrus grazing point) when the app supplies it
+    const path = Wl.filter(Boolean).slice(0, 4).map((w, k) => ({ km: PKM[k], low: at(w.hourly, "cloud_cover_low", tSet), mid: at(w.hourly, "cloud_cover_mid", tSet), high: at(w.hourly, "cloud_cover_high", tSet), precip: at(w.hourly, "precipitation", tSet) }));
     const aqh = AQ && AQ.hourly;
     const s = {
       total: at(h, "cloud_cover", tSet), low: at(h, "cloud_cover_low", tSet), mid: at(h, "cloud_cover_mid", tSet), high: at(h, "cloud_cover_high", tSet),
@@ -126,6 +127,9 @@
     const steamIn = (() => { const mean = (k, t0, t1) => { let n = 0, z = 0; for (let t = t0; t <= t1; t += 3600) { const v = at(h, k, t); if (v != null) { z += v; n++; } } return n ? z / n : null; };
       const t0 = h.time && h.time[0]; return { temp: s.temp, dew: s.dew, wind: s.wind, gust: s.gust, night: mean("cloud_cover", tSet - 9 * 3600, tSet), air7: t0 != null && t0 <= tSet - 7 * 86400 ? mean("temperature_2m", tSet - 7 * 86400, tSet) : null }; })();
     const az = sunPos(tSet, lat, lng).az;
+    // d28 (#5): cloud over-forecast correction from nightly calibration — ONLY when calibration marks it applied (default: logged only)
+    const CALm = g.AG_CAL && g.AG_CAL[RISE ? "sunrise" : "sunset"], cBias = CALm && CALm.cloudApplied === true && CALm.cloudN >= 6 ? Math.max(-30, Math.min(30, CALm.cloudBias || 0)) : 0;
+    if (cBias) { const f = clamp(1 + cBias / 100, 0.6, 1.4), adj = x => x == null ? x : clamp(x * f, 0, 100); ["total", "low", "mid", "high"].forEach(k => s[k] = adj(s[k])); path.forEach(p => { p.low = adj(p.low); p.mid = adj(p.mid); p.high = adj(p.high); }); s.wLow = path[0].low; s.wMid = path[0].mid; s.wHigh = path[0].high; }
     const hi = s.high / 100, md = s.mid / 100, lo = s.low / 100;
 
     // ---- §1 timing ----
@@ -139,11 +143,31 @@
     const glowEnd = RISE ? (timeBeforeBelow(tSet, lat, lng, -depress, 120) || tSet - 20 * 60) : (timeAtElev(tSet, lat, lng, -depress, 120) || tSet + 20 * 60);
     let timing = { rise: RISE, golden, sunset: tSet, peak: tSet + (RISE ? -1 : 1) * peakMin * 60, glowEnd, civilEnd, dom, twilightMin: civilEnd ? Math.round(Math.abs(civilEnd - tSet) / 60) : null };
 
+    // ---- d28 (#1/#4) height-aware light path. A ray that reaches a cloud at height h above the viewer while the sun is d below the
+    // horizon is at y(x) = h − x·d + x²/(2R) km over ground x km toward the sun (d in rad). Low cloud (≤ ~2 km) blocks it where y < 2;
+    // mid cloud (~2–6 km) blocks where 2 ≤ y < 6 (the 40 km mid is mostly the deck being lit → weight 0.3). Below a mid deck the ray
+    // runs UNDER it — that is the underlit case. pathLit(d) = Π(1 − cover·blocks); timing comes from where it stays lit.
+    const R_E = 6371, LOWTOP = 2, MIDTOP = 6;
+    const tgtH = dom === "high" ? 9 : dom === "mid" ? (md >= 0.6 ? 2.6 : 4) : dom === "low" ? 1.2 : 0;   // a thick mid deck is lit at its base
+    const rayY = (x, hh, dRad) => hh - x * dRad + x * x / (2 * R_E);
+    const pathLitAt = (hh, dDeg) => path.reduce((acc, p) => { const y = rayY(p.km, hh, dDeg * RAD); if (y < 0) return 0;
+      const bl = y < LOWTOP ? (p.low || 0) / 100 : y < MIDTOP ? (p.km <= 40 ? 0.3 : 1) * (p.mid || 0) / 100 : 0; return acc * (1 - clamp(bl)); }, 1);
+    const dMax = tgtH ? Math.sqrt(2 * tgtH / R_E) * DEG + 0.5 : 0;
+    let litSum = 0, litN = 0, dLit = 0;
+    for (let dd = 0; tgtH && dd <= dMax + 1e-6; dd += dMax / 8) { const L = pathLitAt(tgtH, Math.max(0, dd - 0.5)); litSum += L; litN++; if (L >= 0.45) dLit = dd; }
+    const pathLit = litN ? litSum / litN : 1;
+    if (tgtH) {   // #4 geometry peak: deepest red while still lit ≈ 60% of the lit depression range; glow ends where the ray is cut
+      const dPk = Math.max(0.15, 0.7 * dLit), tAt = el => RISE ? timeBeforeBelow(tSet, lat, lng, el, 120) : timeAtElev(tSet, lat, lng, el, 120);
+      const pk = tAt(-dPk), ge = tAt(-Math.max(dLit, 0.3));
+      if (pk) timing = Object.assign({}, timing, { peak: pk, peakGeo: true, depLit: +dLit.toFixed(2) }); if (ge && dLit >= 0.3) timing.glowEnd = ge;
+    }
+
     // ---- §2.4 western clear slot (low + ½ mid along the sun azimuth, 40/120/200 km) ----
     const blockAt = p => clamp((p.low + 0.5 * p.mid) / 100);
     const slotBlock = 0.45 * blockAt(path[0]) + 0.35 * blockAt(path[1]) + 0.2 * blockAt(path[2]);
     const pathLow = 0.45 * path[0].low + 0.35 * path[1].low + 0.2 * path[2].low;
-    const slotQ = pw(slotBlock, [[0, 1], [0.3, 0.85], [0.5, 0.5], [0.7, 0.15], [0.9, 0]]);
+    const slotQ0 = pw(slotBlock, [[0, 1], [0.3, 0.85], [0.5, 0.5], [0.7, 0.15], [0.9, 0]]);
+    const slotQ = tgtH ? clamp(0.5 * slotQ0 + 0.5 * pathLit) : slotQ0;   // d28: half legacy slot, half ray geometry
     // ---- d23 GAP LIGHTING (Buckroe, Oct 17 2026: deck overhead, open slot 110–140 km WSW → sun shone in under the deck, rated 94) ----
     // Light geometry: at sunset the ray that lights a deck base h km up grazes the ground ~sqrt(2Rh) km out (≈200 km for 3 km,
     // ≈130 km for 1.3 km) and is only a few hundred metres up 100+ km out. So what blocks it is LOW cloud far along the azimuth;
@@ -160,7 +184,10 @@
     const highQ = pw(hi, [[0, 0], [0.1, 0.3], [0.2, 0.85], [0.3, 1], [0.7, 1], [0.9, 0.6], [1, 0.45]]);
     const midQ = pw(md, [[0, 0], [0.1, 0.35], [0.2, 1], [0.6, 1], [0.85, 0.45], [1, 0.25]]);
     let screen = clamp(Math.max(highQ, 0.92 * midQ) + 0.12 * Math.min(highQ, midQ));
-    if (hi > 0.85 && md > 0.6) screen *= 0.75; // thick featureless deck (§2.7)
+    // d28 (#3) underlit deck: thick mid overhead, thinner mid 120–200 km out, low path clear → the sun lights the base from below
+    const farMid = path.length > 2 ? (path[1].mid + path[2].mid) / 200 : md, farLow = path.length > 2 ? Math.max(path[1].low, path[2].low) / 100 : 1;
+    const underQ = clamp((md - 0.55) / 0.25) * clamp((md - farMid - 0.15) / 0.3) * clamp((0.4 - farLow) / 0.3) * clamp((0.6 - lo) / 0.4 + (gapLit || 0));
+    if (hi > 0.85 && md > 0.6 && underQ < 0.3) screen *= 0.75; // thick featureless deck (§2.7) — not when it's underlit
     const canvasCover = 1 - (1 - hi) * (1 - md);
     // trailing-edge contrast (§2.5): overhead screen counts only as much as light gets in
     const screenEff = screen * (0.35 + 0.65 * slotQ);
@@ -206,6 +233,7 @@
       { k: "Smoke / aerosol aloft", w: 5, q: smokeQ },
     ];
     let sky = comp.reduce((a, c) => a + c.w * c.q, 0);
+    if (underQ > 0) sky += 12 * underQ * (0.5 + 0.5 * clean);   // d28 #3 bonus
     const month = new Date(tSet * 1000).getUTCMonth();
     const season = [9, 10, 11, 0, 1].includes(month) ? 1.04 : [5, 6, 7].includes(month) ? 0.95 : 1; // §10.1 weak prior
     sky *= season;
@@ -391,7 +419,7 @@
     else if (age >= 1.2 && age <= 4.5) badges.push({ id: "moon", name: "Crescent moon", p: 60, t: tSet + 20 * 60, icon: "🌒", why: "Thin crescent low in the west in the afterglow." });
 
     return { tSet, score, sky, site, s, path, priorRain, steamIn, reasons: R, gates, comp, badges, bonus, wx, tri, dog: { p: pct(dog.p), t: dog.t }, bow: { p: pct(bow.p), t: bow.t },
-      sea, clouds: cloudTypes(s), sunsetAz: az, canvasCover, slotBlock, geoBlock, gapOpen, gapLit, deckQ, scoreDry, clean, rhLow, dewDep, dP6, dP24, dDew, fropaH, front, timing,
+      sea, clouds: cloudTypes(s), sunsetAz: az, canvasCover, slotBlock, pathLit, underQ, cBias, geoBlock, gapOpen, gapLit, deckQ, scoreDry, clean, rhLow, dewDep, dP6, dP24, dDew, fropaH, front, timing,
       windSer, siteInfo: { inArc, off, alignQ, obst: sp.obst, water: sp.water, surface, arc: sp.arc }, season, screen };
   }
 
@@ -447,7 +475,14 @@
   // d25a: nightly calibration (tools/calibrate-feedback.js → data/calib.json). Bounded score offsets learned from user photos+ratings; absent file = no change.
   g.AG_CAL = null; try { fetch("https://afterglowpremium.github.io/afterglow-preview/data/calib.json?_=" + Math.floor(Date.now() / 3600000), { cache: "no-store" }).then(r => r.ok ? r.json() : null).then(j => { g.AG_CAL = j; }).catch(() => {}); } catch (e) {}
   const evaluate0 = evaluate;
-  function evaluateCal(sp, ...rest) { const ev = evaluate0(sp, ...rest), C = g.AG_CAL; if (!C || !ev || typeof ev.score !== "number") return ev;
+  // d28o test hook: ?force=H,M,L,WL[,cape[,ct]] pins cloud cover (%) at the spot (H/M/L) and low cloud along the light path (WL) for every hour, so the score AND the render come from the same inputs (dev / cloud-type demos only)
+  const FORCE = (() => { try { const v = new URLSearchParams(location.search).get("force"); if (!v) return null; const a = v.split(",").map(Number); return { h: a[0] || 0, m: a[1] || 0, l: a[2] || 0, wl: a[3] != null && !isNaN(a[3]) ? a[3] : a[2] || 0, cape: a[4] || 0, ct: a[5] || 0 }; } catch (e) { return null; } })();
+  g.__agForce = FORCE;
+  function forced(H, F, path) { if (!H || !H.time) return H; const c = v => H.time.map(() => v), o = Object.assign({}, H);
+    o.cloud_cover_high = c(F.h); o.cloud_cover_mid = c(F.m); o.cloud_cover_low = c(path ? F.wl : F.l); o.cloud_cover = c(Math.min(100, Math.max(F.h, F.m, path ? F.wl : F.l)));
+    if (F.cape) { o.cape = c(F.cape); if (path) o.precipitation = c(1.5); o.precipitation_probability = c(70); } else { o.precipitation = c(0); o.precipitation_probability = c(0); } return o; }
+  function evaluateCal(sp, S, Wl, E, ...rest) { if (FORCE) { S = Object.assign({}, S, { hourly: forced(S.hourly, FORCE) }); Wl = Wl.map(w => w && Object.assign({}, w, { hourly: forced(w.hourly, FORCE, true) })); E = Object.assign({}, E, { hourly: forced(E.hourly, FORCE) }); }
+    const ev = evaluate0(sp, S, Wl, E, ...rest), C = g.AG_CAL; if (!C || !ev || typeof ev.score !== "number") return ev;
     const m = (C[g.AG_MODE === "sunrise" ? "sunrise" : "sunset"]) || {}, off = Math.max(-10, Math.min(10, (m.global || 0) + ((m.spots || {})[sp.id] || 0)));
     if (off) { ev.scoreRaw = ev.score; ev.score = Math.round(clamp(ev.score + off, 0, 100)); ev.calOff = off; } return ev; }
   g.Model = { sunPos, offset, evaluate: evaluateCal, label, likely, clamp, timeAtElev, EPIC, seaState, seaAt, windAt, at };

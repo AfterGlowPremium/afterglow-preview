@@ -56,7 +56,8 @@
     // azimuth at approx local sunset today: search for elevation crossing
     let t = Math.floor(nowT / 86400) * 86400 + (RISE ? 5 : 12) * 3600, az = RISE ? 90 : 270;
     for (let k = 0; k < 160; k++) { const p = sunPos(t + k * 300, sp.lat, sp.lng); if (RISE ? (p.elev > 0 && k > 0) : (p.elev < 0 && k > 0)) { az = p.az; break; } }
-    sp.az = az; sp.west = offset(sp.lat, sp.lng, az, 80); sp.path = [40, 120, 200].map(km => offset(sp.lat, sp.lng, az, km)); sp.east = offset(sp.lat, sp.lng, (az + 180) % 360, 12); sp.eastPts = [10, 30].map(km => offset(sp.lat, sp.lng, (az + 180) % 360, km));   // d23r: rain opposite the sun 5–40 km (rainbows)
+    sp.az = az; sp.west = offset(sp.lat, sp.lng, az, 80); sp.path = [40, 120, 200].map(km => offset(sp.lat, sp.lng, az, km)); sp.far = offset(sp.lat, sp.lng, az, 350);   // d28: cirrus grazing point (optional, model treats as missing if absent)
+    sp.east = offset(sp.lat, sp.lng, (az + 180) % 360, 12); sp.eastPts = [10, 30].map(km => offset(sp.lat, sp.lng, (az + 180) % 360, km));   // d23r: rain opposite the sun 5–40 km (rainbows)
   });
 
   // Open-Meteo free tier: 600 weighted calls/min, 5000/hour per IP. One mode load is ~300 weighted calls
@@ -123,7 +124,7 @@
     const okD = c => c && c.sig === sig && c.W && c.W.length === n * 3 && c.E && c.E.length === n;
     let B = lsGet(BK), D = lsGet(DK);
     const fresh = c => c && Date.now() - c.at < (force ? FRESH_AUTO : FRESH);
-    const join = (b, dd, extra) => Object.assign({ at: Math.min(b.at, dd.at), sig, S: b.S, AQ: b.AQ, fcModel: b.fcModel, W: dd.W, E: dd.E }, extra || {});
+    const join = (b, dd, extra) => Object.assign({ at: Math.min(b.at, dd.at), sig, S: b.S, AQ: b.AQ, fcModel: b.fcModel, W: dd.W, E: dd.E, WF: dd.WF }, extra || {});
     if (okB(B) && okD(D) && fresh(B) && fresh(D)) return join(B, D);
     // Primary: NOAA HRRR (0–48 h, 3 km) blended into NOAA GFS (days 3–7) — Open-Meteo "gfs_seamless" mirror of NOAA NOMADS output.
     const getB = async (models, lite) => {
@@ -131,7 +132,7 @@
       let AQ = null; try { AQ = await fetchBatch(SPOTS, "aerosol_optical_depth,pm2_5,dust", null, "https://air-quality-api.open-meteo.com/v1/air-quality", null, 1); } catch (e) { console.warn("AQ unavailable", e); }
       return { at: Date.now(), sig, S, AQ, fcModel: models ? "noaa" : "fallback", lite: !!lite };
     };
-    const getD = async models => { const [W, E] = await Promise.all([fetchBatch(SPOTS.flatMap(s => s.path), WEST_VARS, null, API, models), fetchBatch(SPOTS.flatMap(s => s.eastPts), EAST_VARS, null, API, models).then(mergeE)]); return { at: Date.now(), sig, W, E }; };
+    const getD = async models => { const [W, E, WF] = await Promise.all([fetchBatch(SPOTS.flatMap(s => s.path), WEST_VARS, null, API, models), fetchBatch(SPOTS.flatMap(s => s.eastPts), EAST_VARS, null, API, models).then(mergeE), fetchBatch(SPOTS.map(s => s.far), "cloud_cover_low,cloud_cover_mid,cloud_cover_high", null, API, models, 1).catch(() => null)]); return { at: Date.now(), sig, W, E, WF }; };
     const tryLive = async (models, lite) => {
       const [b, dd] = await Promise.all([okB(B) && fresh(B) ? B : getB(models, lite), okD(D) && fresh(D) ? D : getD(models)]);
       if (b !== B && !b.lite) lsSet(BK, b); if (dd !== D) lsSet(DK, dd);   // never cache the lite set over a full one
@@ -397,13 +398,13 @@
   // ---------- Compute ----------
   function compute() {
     const { S, W, E, AQ } = state.data;
-    state.results = SPOTS.map((spot, i) => ({ spot, i, tz: S[i].timezone, ev: evaluate(spot, S[i], [W[i * 3], W[i * 3 + 1], W[i * 3 + 2]], E[i], state.day, AQ && AQ[i]) })); window.__agState = state;
+    state.results = SPOTS.map((spot, i) => ({ spot, i, tz: S[i].timezone, ev: evaluate(spot, S[i], [W[i * 3], W[i * 3 + 1], W[i * 3 + 2], state.data && state.data.WF && state.data.WF[i]], E[i], state.day, AQ && AQ[i]) })); window.__agState = state;
   }
 
   // ---------- Render ----------
   // d25j: one chronological day row — past days (lazy replay, scores fill in) to the LEFT of Tonight/Today, live days to the right.
   // On load the row scrolls so Tonight is the first visible card; swipe right to see past days. Tapping a past card swaps in that day's replay.
-  const bestOf = (D, i) => Math.max(...SPOTS.map((sp, k) => evaluate(sp, D.S[k], [D.W[k * 3], D.W[k * 3 + 1], D.W[k * 3 + 2]], D.E[k], i, D.AQ && D.AQ[k]).score));
+  const bestOf = (D, i) => Math.max(...SPOTS.map((sp, k) => evaluate(sp, D.S[k], [D.W[k * 3], D.W[k * 3 + 1], D.W[k * 3 + 2], D.WF && D.WF[k]], D.E[k], i, D.AQ && D.AQ[k]).score));
   const pastBest = {};
   function renderDays() {
     const L = state.arch ? state.live.data : state.data, S0 = L.S[0], card = (cls, attr, d1, d2, sc) => {
@@ -668,12 +669,12 @@
     // d14: ONE animation loop for the whole app (token kills loops left over from a previous spot), locked to 30 fps,
     // adaptive resolution for animated frames, paused while the map is showing or the tab is hidden.
     const AN = window.__agAnim || (window.__agAnim = { n: 0, tok: 0, id: 0, last: 0, ema: 33, scale: 0.8, fps: 30, slow: 0, t30: 0 });
-    // v21: desktop targets 60 fps with a 0.75 resolution floor; if it can't hold 60 even at the floor it drops to 30 (re-tries 60 every 20 s). Phones: 30 fps, floor 0.7 (d28e).
+    // v21: desktop targets 60 fps with a 0.75 resolution floor; if it can't hold 60 even at the floor it drops to 30 (re-tries 60 every 20 s). Phones: 30 fps, floor 0.7 (d28d).
     const desk = isDesk(); if (desk) { if (AN.fps !== 30 || !AN.t30) AN.fps = 60; AN.scale = Math.max(0.75, AN.scale); AN.ema = 1000 / AN.fps; } else { AN.fps = 30; }
     AN.lockAt = 0; if (AN.id) { cancelAnimationFrame(AN.id); AN.id = 0; } const myTok = AN.tok = ++AN.n;
     const alive = () => AN.tok === myTok && !document.hidden && document.body.classList.contains("detail-open") && document.body.contains(cv);
     const animLoop = ts => { AN.id = 0; if (!alive()) return;
-      const dt = ts - AN.last, fps = isDesk() ? AN.fps : 30, iv = 1000 / fps, floor = isDesk() ? 0.75 : (AN.ema > 55 ? 0.6 : 0.7);   // d28e: phone floor 0.5→0.7 (0.5 looked blocky)
+      const dt = ts - AN.last, fps = isDesk() ? AN.fps : 30, iv = 1000 / fps, floor = isDesk() ? 0.75 : (AN.ema > 55 ? 0.6 : 0.7);   // d28d: phone floor 0.5→0.7 (0.5 looked blocky)
       if (fps === 30 && AN.t30 && isDesk() && ts - AN.t30 > 20000) { AN.fps = 60; AN.t30 = 0; AN.slow = 0; AN.ema = 1000 / 60; }   // v21: re-try 60 fps
       if (dt >= iv - (fps === 60 ? 2 : 4)) {
         if (!AN.lockAt) AN.lockAt = ts + 3000; const lockd = !isDesk() && ts > AN.lockAt && AN.ema < 45;   // d24e: phones settle resolution in ~3 s then hold it (no visible pumping on surf)
@@ -1055,7 +1056,7 @@
   function archSnap(dayIdx, viewed) {
     const d = state.data; if (!d || state.arch || !d.S[0]) return;
     const S0 = d.S[0], key = ymd(S0.daily.time[dayIdx] + 43200, S0.timezone);
-    const rows = SPOTS.map((sp, k) => { const ev = evaluate(sp, d.S[k], [d.W[k * 3], d.W[k * 3 + 1], d.W[k * 3 + 2]], d.E[k], dayIdx, d.AQ && d.AQ[k]);
+    const rows = SPOTS.map((sp, k) => { const ev = evaluate(sp, d.S[k], [d.W[k * 3], d.W[k * 3 + 1], d.W[k * 3 + 2], d.WF && d.WF[k]], d.E[k], dayIdx, d.AQ && d.AQ[k]);
       return [sp.id, ev.score, ev.bonus.bow.p, ev.bonus.dog.p, ev.wx.items.map(w => w.icon).join(""), ev.tri.on ? 1 : 0, ev.tSet, ev.wx.bolt ? ev.wx.bolt.p : 0]; });
     const a = archLoad(), prev = a.days[key] || {};
     if (prev.at && (d.at || 0) < prev.at && !viewed) return;   // never let an older cached forecast overwrite a newer save
@@ -1176,7 +1177,7 @@
     setTimeout(stamp, 0);
     if (window.AGX) AGX.refresh(SPOTS);
     // d15: observed sky (METAR + GOES + latest model) for today's events → re-score + re-render when it lands, and every 10 min
-    const obsTick = () => { if (!window.AGObs || state.arch) return; const D = state.data, today = SPOTS.map((spot, k) => ({ spot, ev: evaluate(spot, D.S[k], [D.W[k * 3], D.W[k * 3 + 1], D.W[k * 3 + 2]], D.E[k], 0, D.AQ && D.AQ[k]) }));
+    const obsTick = () => { if (!window.AGObs || state.arch) return; const D = state.data, today = SPOTS.map((spot, k) => ({ spot, ev: evaluate(spot, D.S[k], [D.W[k * 3], D.W[k * 3 + 1], D.W[k * 3 + 2], D.WF && D.WF[k]], D.E[k], 0, D.AQ && D.AQ[k]) }));
       window.AGPrio = r => (state.spot === r.spot.id ? 0 : map.getBounds().contains([r.spot.lat, r.spot.lng]) ? 1 : 2);
       return AGObs.refresh(SPOTS, today, 0).then(ch => { if (ch) update(); }).catch(e => console.warn("obs", e)); };
     (window.AGObs && AGObs.cvSnap || Promise.resolve()).then(obsTick);   // d24: first pass once the satellite-canvas snapshot is in; later passes ride the 15-min cycle
