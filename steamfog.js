@@ -8,11 +8,14 @@
     fetch(`https://waterservices.usgs.gov/nwis/iv/?format=json&sites=${c.usgs}&parameterCd=00010&period=P2D`).then(r => r.json()).then(d => {
       const v = d.value.timeSeries[0].values[0].value.filter(x => x.value != null && +x.value > -20), L = v[v.length - 1];
       W[id] = L ? { c: +L.value, t: Date.parse(L.dateTime) / 1000 } : { fail: 1 }; g.__agQueue && g.__agQueue(); }).catch(() => { W[id] = { fail: 1 }; }); }
+  // d28l: ?steam= persists for the tab (sessionStorage) so it survives the self-update reload, the Welcome → Sunrise pick and opening a spot; ?steam=off clears it
+  const ss = () => { try { return sessionStorage.getItem("agSteam") || ""; } catch (e) { return ""; } };
+  try { const m = /[?&]steam=(\w+)/i.exec(location.search); if (m) { const v = m[1].toLowerCase(); if (v === "off") sessionStorage.removeItem("agSteam"); else sessionStorage.setItem("agSteam", v); } } catch (e) {}
   const LV = p => p >= 70 ? "Strong" : p >= 45 ? "Likely" : p >= 20 ? "Possible" : "None";
   function calc(sp, ev) {
     if (!sp || !CFG[sp.id] || g.AG_MODE !== "sunrise") return null;
-    const fm = /[?&]steam=(strong|likely|possible|none)/i.exec(location.search);
-    if (fm) { const p = { strong: 85, likely: 58, possible: 30, none: 0 }[fm[1].toLowerCase()]; return { p, level: LV(p), forced: true, txt: `Steam fog ${LV(p)} ${p}% · test override (?steam=)` }; }
+    const fm = /[?&]steam=(strong|likely|possible|none|off)/i.exec(location.search) || /^(strong|likely|possible|none)$/.exec(ss()) && [0, ss()];
+    if (fm && fm[1].toLowerCase() !== "off") { const p = { strong: 85, likely: 58, possible: 30, none: 0 }[fm[1].toLowerCase()]; return { p, level: LV(p), forced: true, txt: `Steam fog ${LV(p)} ${p}% · test override (?steam=)` }; }
     const I = ev && ev.steamIn; if (!I || I.temp == null || I.wind == null) return null;
     load(sp.id); const w = W[sp.id], now = Date.now() / 1000, near = ev.tSet && Math.abs(ev.tSet - now) < 3 * 86400;
     let wc = null, src = "";
