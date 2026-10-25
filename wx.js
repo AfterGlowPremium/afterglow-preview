@@ -116,11 +116,16 @@
   // placed on the camera horizon like the other props (view centred on C.faceAz, ~H/base px per degree at zoom 1), dimmed by daylight and cloud.
   const RAD = Math.PI / 180, J2000 = 2451545;
   function moonCalc(t, lat, lng) { const d = t / 86400 + 2440587.5 - J2000, e = RAD * 23.4397;
-    const L = RAD * (218.316 + 13.176396 * d), M = RAD * (134.963 + 13.064993 * d), F = RAD * (93.272 + 13.22935 * d);
-    const l = L + RAD * 6.289 * Math.sin(M), b = RAD * 5.128 * Math.sin(F), dist = 385001 - 20905 * Math.cos(M);
+    // d28s: Meeus ch.47 main periodic terms (was SunCalc 1-term: up to 2° alt / 6° az / 14 min rise-set error) + topocentric parallax below
+    const Tc_ = d / 36525, Lp = 218.3164477 + 481267.88123421 * Tc_, Dm_ = 297.8501921 + 445267.1114034 * Tc_, Mm_ = 357.5291092 + 35999.0502909 * Tc_, Mp = 134.9633964 + 477198.8675055 * Tc_, Fm_ = 93.272095 + 483202.0175233 * Tc_, Ec_ = 1 - 0.002516 * Tc_;
+    const Sm_ = (tb, fn) => tb.reduce((z, [c, a, b2, cc, dd]) => z + c * (Math.abs(b2) === 1 ? Ec_ : 1) * fn(RAD * (a * Dm_ + b2 * Mm_ + cc * Mp + dd * Fm_)), 0);
+    const TL = [[6288774,0,0,1,0],[1274027,2,0,-1,0],[658314,2,0,0,0],[213618,0,0,2,0],[-185116,0,1,0,0],[-114332,0,0,0,2],[58793,2,0,-2,0],[57066,2,-1,-1,0],[53322,2,0,1,0],[45758,2,-1,0,0],[-40923,0,1,-1,0],[-34720,1,0,0,0],[-30383,0,1,1,0],[15327,2,0,0,-2],[-12528,0,0,1,2],[10980,0,0,1,-2],[10675,4,0,-1,0],[10034,0,0,3,0],[8548,4,0,-2,0],[-7888,2,1,-1,0],[-6766,2,1,0,0],[-5163,1,0,-1,0]];
+    const TR = [[-20905355,0,0,1,0],[-3699111,2,0,-1,0],[-2955968,2,0,0,0],[-569925,0,0,2,0],[48888,0,1,0,0],[-3149,0,0,0,2],[246158,2,0,-2,0],[-152138,2,-1,-1,0],[-170733,2,0,1,0],[-204586,2,-1,0,0],[-129620,0,1,-1,0],[108743,1,0,0,0],[104755,0,1,1,0]];
+    const TB = [[5128122,0,0,0,1],[280602,0,0,1,1],[277693,0,0,1,-1],[173237,2,0,0,-1],[55413,2,0,-1,1],[46271,2,0,-1,-1],[32573,2,0,0,1],[17198,0,0,2,1],[9266,2,0,1,-1],[8822,0,0,2,-1]];
+    const l = RAD * (Lp + Sm_(TL, Math.sin) / 1e6), b = RAD * Sm_(TB, Math.sin) / 1e6, dist = 385000.56 + Sm_(TR, Math.cos) / 1000;
     const ra = Math.atan2(Math.sin(l) * Math.cos(e) - Math.tan(b) * Math.sin(e), Math.cos(l)), dec = Math.asin(Math.sin(b) * Math.cos(e) + Math.cos(b) * Math.sin(e) * Math.sin(l));
-    const lw = RAD * -lng, ph = RAD * lat, H = RAD * (280.16 + 360.9856235 * d) - lw - ra;
-    let alt = Math.asin(Math.sin(ph) * Math.sin(dec) + Math.cos(ph) * Math.cos(dec) * Math.cos(H)); const az = Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(ph) - Math.tan(dec) * Math.cos(ph));
+    const lw = RAD * -lng, ph = RAD * lat, H = RAD * (280.46061837 + 360.98564736629 * d) - lw - ra;
+    let alt = Math.asin(Math.sin(ph) * Math.sin(dec) + Math.cos(ph) * Math.cos(dec) * Math.cos(H)); alt -= Math.asin(6378.14 / dist * Math.cos(alt)); /* d28s: topocentric parallax (~0.95°) */ const az = Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(ph) - Math.tan(dec) * Math.cos(ph));
     alt += RAD * 0.017 / Math.tan(alt + RAD * 10.26 / (alt / RAD + 5.10)) * (alt > -0.03 ? 1 : 0);   // refraction near the horizon
     // sun
     const Ms = RAD * (357.5291 + 0.98560028 * d), C0 = RAD * (1.9148 * Math.sin(Ms) + 0.02 * Math.sin(2 * Ms) + 0.0003 * Math.sin(3 * Ms)), ls = Ms + C0 + RAD * 102.9372 + Math.PI;
