@@ -895,3 +895,8 @@ html.show-home #home-cv{top:0;height:100%}
   .overlay-ctl button{padding:2px 6px;font-size:11px;line-height:1.15;letter-spacing:-.01em}
 }
 .hero-movie.paused::after{content:"❚❚";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:22px;color:#fff;background:rgba(10,6,22,.5);border-radius:50%;width:48px;height:48px;display:flex;align-items:center;justify-content:center;z-index:2}
+
+/* d28i steam fog line */
+.pv-steam{font-size:11.5px;line-height:1.3;margin:4px 0 2px;color:var(--mute)}
+.pv-steam b{font-weight:600;color:#cfd6e4}.pv-steam b.sf-possible{color:#e8c9a0}.pv-steam b.sf-likely{color:#ffb38a}.pv-steam b.sf-strong{color:#ff8fb0}
+.pv-steam small{display:block;font-size:10px;opacity:.75}

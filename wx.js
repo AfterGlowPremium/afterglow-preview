@@ -163,6 +163,7 @@
     { const hzF = C.hz != null ? C.hz : 0.6, a = W / H, base = a < 1 ? 62 : a < 1.5 ? 50 : 40, k = C.vfov && C.vfov !== 20 ? Math.tan(base * Math.PI / 360) / Math.tan(C.vfov * Math.PI / 360) : 1;
       const hz0 = (0.5 + (hzF - 0.5) / k) * H; g.__agPropK = k;
       if (C.moonPos && C.faceAz != null) { x.save(); x.translate(W / 2, H / 2); x.scale(k, k); x.translate(-W / 2, -H / 2); moon(x, W, H, hz0, C); x.restore(); }
+      if (C.steam) { x.save(); x.translate(W / 2, H / 2); x.scale(k, k); x.translate(-W / 2, -H / 2); steam(x, W, H, hz0, C, now); x.restore(); }   // d28j: river steam fog, world-locked
       if (C.house) { x.save(); x.translate(W / 2, H / 2); x.scale(k, k); x.translate(-W / 2, -H / 2); house(x, W, H, hz0, C); x.restore(); }   // d28g: 558 Plantation Pl across the lawn (Mattaponi land side)
       if (C.carrier || C.chinook || C.ghost) { x.save(); x.translate(W / 2, H / 2); x.scale(k, k); x.translate(-W / 2, -H / 2);
         if (C.carrier) { carrier(x, W, H, hz0, C, now); heli(x, W, H, hz0, C, now); } if (C.chinook) chinook(x, W, H, hz0, C, now); if (C.ghost) ghostTree(x, W, H, hz, C, now); x.restore(); } }
@@ -323,6 +324,19 @@
   // d28g: the cream two-storey farmhouse at 558 Plantation Pl (Sean's Zillow photo): dark gray roof, two front gables + entry gable,
   // black shutters, full-width white-railed wraparound porch, brick stair, round shrubs, trees around it. ~32 m wide, ~11 m to the ridge,
   // ~95 m across the lawn (camera 1.7 m). Front-lit by the low sun behind you at sunset; backlit (sun behind the house) at sunrise.
+  // d28j: steam fog — soft wisps hugging the water: densest along the far tree line, a second thinner band near shore, thinning upward,
+  // drifting slowly; lit sunrise pink/orange when the sun is near the horizon, cool gray-blue before dawn. Density ∝ chance.
+  function steam(x, W, H, hz, C, now) {
+    g.__agSteam = C.steam; const d = 0.25 + 0.75 * clamp(C.steam.p / 85), e = C.elev != null ? C.elev : 0, warm = clamp((e + 6) / 6) * clamp((10 - e) / 8), lit = clamp((e + 9) / 10);
+    const r = Math.round(150 + 105 * lit), gC = Math.round(155 + 60 * lit - 25 * warm), b = Math.round(170 + 40 * lit - 70 * warm);
+    let sd = 7; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647, T = now / 1000;
+    for (let i = 0; i < 70; i++) { const band = i < 46 ? 0 : 1, u = rnd(), v = rnd(), sp = 6 + 10 * rnd();
+      const xx = ((u * W * 1.4 + T * sp * (band ? 1.6 : 1)) % (W * 1.4)) - W * 0.2, wob = Math.sin(T * 0.3 + i) * 2;
+      const yy = band ? hz + H * (0.06 + 0.12 * v) : hz - H * 0.012 + H * 0.022 * v + wob * 0.3, rw = W * (band ? 0.12 : 0.09) * (0.6 + rnd()), rh = H * (band ? 0.014 : 0.022) * (0.6 + rnd()) * (1 + (band ? 0 : 0.6 * (1 - v)));
+      const a = d * (band ? 0.22 : 0.5) * (0.5 + 0.5 * Math.sin(T * 0.4 + i * 1.7)) + d * (band ? 0.08 : 0.2);
+      x.save(); x.translate(xx, yy); x.scale(1, rh / rw); const gr = x.createRadialGradient(0, 0, 0, 0, 0, rw);
+      gr.addColorStop(0, `rgba(${r},${gC},${b},${a.toFixed(3)})`); gr.addColorStop(1, `rgba(${r},${gC},${b},0)`); x.fillStyle = gr; x.beginPath(); x.arc(0, 0, rw, 0, 6.283); x.fill(); x.restore(); }
+    const gr = x.createLinearGradient(0, hz - H * 0.035, 0, hz + H * 0.02); gr.addColorStop(0, `rgba(${r},${gC},${b},0)`); gr.addColorStop(0.6, `rgba(${r},${gC},${b},${(0.4 * d).toFixed(3)})`); gr.addColorStop(1, `rgba(${r},${gC},${b},0)`); x.fillStyle = gr; x.fillRect(-W, hz - H * 0.035, W * 3, H * 0.055); }
   function house(x, W, H, hz, C) {
     const a = W / H, vf = a < 1 ? 62 : a < 1.5 ? 50 : 40, ppd = H / vf, D = 95, m = ppd * 180 / Math.PI / D;   // px per metre at D
     const cx = W * 0.6, gy = hz + 1.7 * m, e = C.elev != null ? C.elev : 3, front = !!C.house.front;

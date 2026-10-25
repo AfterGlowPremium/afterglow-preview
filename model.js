@@ -123,6 +123,9 @@
       aod: aqh ? at(aqh, "aerosol_optical_depth", tSet) : null, pm25: aqh ? at(aqh, "pm2_5", tSet) : null, dust: aqh ? at(aqh, "dust", tSet) : null,
     };
     const priorRain = sumRange(h, "precipitation", tSet - 24 * 3600, tSet - 3600);
+    // d28j: steam-fog inputs (SteamFog.calc): overnight mean cloud (radiational cooling) + 7-day mean air temp (documented water-temp fallback)
+    const steamIn = (() => { const mean = (k, t0, t1) => { let n = 0, z = 0; for (let t = t0; t <= t1; t += 3600) { const v = at(h, k, t); if (v != null) { z += v; n++; } } return n ? z / n : null; };
+      const t0 = h.time && h.time[0]; return { temp: s.temp, dew: s.dew, wind: s.wind, gust: s.gust, night: mean("cloud_cover", tSet - 9 * 3600, tSet), air7: t0 != null && t0 <= tSet - 7 * 86400 ? mean("temperature_2m", tSet - 7 * 86400, tSet) : null }; })();
     const az = sunPos(tSet, lat, lng).az;
     // d28 (#5): cloud over-forecast correction from nightly calibration — ONLY when calibration marks it applied (default: logged only)
     const CALm = g.AG_CAL && g.AG_CAL[RISE ? "sunrise" : "sunset"], cBias = CALm && CALm.cloudApplied === true && CALm.cloudN >= 6 ? Math.max(-30, Math.min(30, CALm.cloudBias || 0)) : 0;
@@ -415,7 +418,7 @@
     else if (Math.abs(age - 14.77) <= 1.6) badges.push({ id: "moon", name: "Full moon rise", p: 80, t: tSet, icon: "🌕", why: `Moon ${age < 14.77 ? "rises shortly before" : "rises shortly after"} sunset, opposite the sun.` });
     else if (age >= 1.2 && age <= 4.5) badges.push({ id: "moon", name: "Crescent moon", p: 60, t: tSet + 20 * 60, icon: "🌒", why: "Thin crescent low in the west in the afterglow." });
 
-    return { tSet, score, sky, site, s, path, priorRain, reasons: R, gates, comp, badges, bonus, wx, tri, dog: { p: pct(dog.p), t: dog.t }, bow: { p: pct(bow.p), t: bow.t },
+    return { tSet, score, sky, site, s, path, priorRain, steamIn, reasons: R, gates, comp, badges, bonus, wx, tri, dog: { p: pct(dog.p), t: dog.t }, bow: { p: pct(bow.p), t: bow.t },
       sea, clouds: cloudTypes(s), sunsetAz: az, canvasCover, slotBlock, pathLit, underQ, cBias, geoBlock, gapOpen, gapLit, deckQ, scoreDry, clean, rhLow, dewDep, dP6, dP24, dDew, fropaH, front, timing,
       windSer, siteInfo: { inArc, off, alignQ, obst: sp.obst, water: sp.water, surface, arc: sp.arc }, season, screen };
   }

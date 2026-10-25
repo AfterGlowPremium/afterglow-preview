@@ -598,7 +598,7 @@
       <div class="scrub" style="--track:${tr}">
         <div class="scrub-marks">${marks.map((m, k) => `<button data-t="${m[1]}" style="left:${pct(m[1])}%" class="mk ${m[0]} ${k % 2 ? "alt" : ""}"><i></i><span class="lf">${m[2]}</span><span class="ls">${m[3]}</span><em>${fmtTime(m[1], r.tz).replace(/ [A-Z]{2,4}$/, "")}</em></button>`).join("")}</div>
         <input id="scrub" type="range" min="${t0}" max="${t1}" step="20" value="${T.peak}" aria-label="Time of ${RISE ? "morning" : "evening"}"><span id="pv-thumb" class="thumb-glyph" aria-hidden="true">▶</span>
-        <div class="scrub-row"><span id="pv-what" class="pv-what"></span></div>
+        <div class="scrub-row"><span id="pv-what" class="pv-what"></span></div>${window.SteamFog && SteamFog.CFG[sp.id] && RISE ? `<div class="pv-steam" id="pv-steam" hidden></div>` : ""}
       </div>
       <details class="readout-box" id="pv-ro"${state.roClosed ? "" : " open"}><summary>Sky &amp; water readouts</summary><div class="readout">
         ${chip("High", Math.round(s.high) + "%", types.high || "", P.clouds)}
@@ -760,6 +760,8 @@
       else showPhotos(t);
       if (dragging && o.mode === "live" && !hqT) hqT = setTimeout(() => { hqT = 0; dragging = false; queue(); }, 160);   // v17 fix: surf re-renders no longer cancel the full-res pass (scene stuck low-res after a drag)
       wxT = t; wxC = window.Wx && (o.mode === "live" || window.AGX) ? Wx.conditions(ev, t, o.elev) : null;
+      { const SF = window.SteamFog && SteamFog.calc(sp, ev), el = $("#pv-steam"); if (el) { if (SF) { const h2 = `<b class="sf-${SF.level.toLowerCase()}">🌫 ${SF.txt.replace(/^Steam fog /, "Steam fog: ")}</b><small>${SF.src || ""}</small>`; if (el.innerHTML !== h2) el.innerHTML = h2; el.hidden = false; } else el.hidden = true; }
+        if (wxC && SF && SF.p >= 20 && (GB ? !GB.land : sp.water)) wxC.steam = { p: SF.p }; }   // d28j: steam fog over the water (west river view; east only if water in view)
       // d23y: rain is drawn only where it was ACTUALLY raining at the scene time (live or replay): NEXRAD >= ~20 dBZ within ~5 km of the spot
       // in the 5-min frame nearest t (IEM archive for past times). No radar → nearby station reports (event-time METARs, or the latest
       // reports for "now") plus the model. No data at all (e.g. the future) → the model, as before.
@@ -802,7 +804,7 @@
     let wxT = 0, wxC = null, wxRaf = 0;
     const wxLoop = now => { wxRaf = 0; const wc = $("#pv-wx"); if (!wc || !document.body.contains(cv) || document.hidden || !document.body.classList.contains("detail-open")) return;   // d14: no weather overlay drawing behind the map / in a hidden tab
       if (wxC) Wx.draw(wc, wxC, wxT, now); else { const c2 = wc.getContext("2d"); c2.setTransform(1, 0, 0, 1, 0, 0); c2.clearRect(0, 0, wc.width, wc.height); }
-      if (wxC && (wxC.rain || wxC.snow || wxC.bolt || wxC.sea || wxC.torn || wxC.jets || wxC.ghost || wxC.house || wxC.carrier || wxC.chinook || wxC.cb || wxC.storms || wxC.dune || wxC.shore)) wxRaf = requestAnimationFrame(wxLoop); };
+      if (wxC && (wxC.rain || wxC.snow || wxC.bolt || wxC.sea || wxC.torn || wxC.jets || wxC.ghost || wxC.house || wxC.steam || wxC.carrier || wxC.chinook || wxC.cb || wxC.storms || wxC.dune || wxC.shore)) wxRaf = requestAnimationFrame(wxLoop); };
     let dragging = false, hqT = 0, photoOn = true;
     const ph = [$("#pv-ph0"), $("#pv-ph1")], badge = $("#pv-badge"), modeBtn = $("#pv-mode"), gen = $("#pv-gen");
     const [t0, t1] = scrubRange(ev.timing);
