@@ -24,6 +24,7 @@ uniform float uWater, uPier, uShore, uHills;
 uniform float uCity, uBridge;
 uniform vec4 uGnd;   // d23 ground: x near-ground type (0 none, 1 sand beach, 2 marsh grass, 3 lawn/park), y near depth m, z far-ground type (land views), w 1 = land-only view
 uniform vec4 uFS;    // d23 lit shoreline/land facade: x distance m (0 = open water), y tree height m, z house fraction 0..1, w dune fraction 0..1
+uniform vec2 uMarsh;  // d28e: x = distance (m) where a tidal marsh plain starts across the water (0 = none), y = 1 swamp-forest treeline (low, ragged cypress/gum)
 uniform vec4 uFSv;   // d23: x distance at the left edge (m), y at the right edge, z/w azimuth range (rad) where the shore exists
 uniform float uCamH;    // camera height km
 uniform float uPitch, uFov;
@@ -472,6 +473,7 @@ float fsTop(float x, out float kind, out float hv){
   float roof = hh > 0. ? hh + 2.2 * (1. - abs(fx - .47) * 2.4) : 0.;   // gable
   float crowns = fbm(vec2(x * .05, 1.3) + uSeed, 0., 4), xw = x + 5. * fbm(vec2(x * .04, 2.2), 0., 3), cx = fract(xw / 6.) - .5, hc2 = h12(vec2(floor(xw / 6.), 1.7));
   float bump = sqrt(max(0., 1. - 4. * cx * cx)) * (.55 + .45 * hc2) + .08 * vn(vec2(x * .35, 4.1));   // individual crowns, softly rounded
+  if (uMarsh.y > .5){ crowns = crowns * (.55 + .9 * fbm(vec2(x * .011, 5.7) + uSeed, 0., 3)) + .35 * step(.93, h12(vec2(floor(x / 9.), 8.1))) * sqrt(max(0., 1. - 4. * (fract(x / 9.) - .5) * (fract(x / 9.) - .5))); }   // d28e: ragged swamp edge, taller cypress/gum crowns poking up
   float tree = uFS.y * (.58 + .3 * crowns + .2 * bump) * (1. - uFS.w) * (1. - .55 * house * step(.001, roof));
   float dune = uFS.w * (2.2 + 3.2 * fbm(vec2(x * .02, 9.) + uSeed, 0., 4) + .5 * vn(vec2(x * .9, 3.)));
   float top = max(max(tree, house * roof), dune);
@@ -594,18 +596,22 @@ void main(){
   if (fsD > 1. && gT > fsD){ float yH = camM0 + rd.y * fsD; fsLP = vec2(az * fsD + uSeed.x * 3., yH); fsTopH = fsTop(fsLP.x, fsK, fsHv) * fsMask(az); fsHit = yH < fsTopH; }
   bool gnear = uGnd.x > .5 && rd.y < 0. && gT < uGnd.y && !fsHit;
   bool gfar = uGnd.w > .5 && rd.y < 0. && !fsHit && !gnear;
+  bool gmarsh = false;
+  if (uMarsh.x > 0. && rd.y < 0. && !fsHit && !gnear && !gfar){ vec2 mxz = (rd * gT).xz;   // d28e: cordgrass flats with winding tidal creeks between the river and the swamp treeline
+    float edge = uMarsh.x + 35. * fbm(mxz * .01, 0., 3), cr = abs(fbm(mxz * vec2(.0035, .006) + 3.1, 0., 4) - .5), cr2 = abs(fbm(mxz * .011 + 9.4, 0., 3) - .5);
+    float far = smoothstep(450., 900., gT); gmarsh = gT > edge && (cr > .028 * (1. - far) || far > .99) && (cr2 > .012 * (1. - far) || far > .99); }   // creeks only where they're resolvable (far ones read as lit slabs)
 
   if (pier > .5){
     vec3 Tt; vec3 sk = skyRay(ro, normalize(vec3(rd.x, .02, rd.z)), pixA + HZB, false, Tt);
     col = sk * .03 + vec3(.0006,.0005,.0008);
-  } else if (fsHit || gnear || gfar){
+  } else if (fsHit || gnear || gfar || gmarsh){
     gGnd = 1.;
     vec3 Ta; vec3 hzS = antiTw(skyRay(ro, normalize(vec3(rd.x, .004, rd.z)), pixA + HZB, false, Ta), rd, .004);
     vec2 rh = normalize(rd.xz + 1e-5);
     vec3 Tb; vec3 amb = skyRay(ro, normalize(vec3(-rh.x * .8, .6, -rh.y * .8)), pixA * 4., false, Tb) * .45 + skyRay(ro, vec3(0., 1., 0.), pixA * 4., false, Tb) * .3 + hzS * .35;   // sky irradiance: sun-side sky (not the glare), zenith, horizon   // light from the sky the surface faces (the sun side)
     if (fsHit) col = shadeFacade(ro, rd, fsD, fsLP, fsTopH, fsK, fsHv, sunVis, hzS, amb, fsD * pixA);
     else {
-      vec2 xz = (rd * gT).xz; float fpG = gT * pixA / max(-rd.y, .002), typ = gnear ? uGnd.x : uGnd.z;
+      vec2 xz = (rd * gT).xz; float fpG = gT * pixA / max(-rd.y, .002), typ = gnear ? uGnd.x : gmarsh ? 2. : uGnd.z;
       float wet = (uWater > .5 && gnear && typ < 1.5) ? smoothstep(uGnd.y * .5, uGnd.y * .97, gT + 1.2 * fbm(xz * .25, fpG * .25, 3)) : 0.;
       vec3 Tr; vec3 skyR = wet > 0. ? skyRay(ro, normalize(vec3(rd.x, -rd.y, rd.z)), pixA * 2., false, Tr) : vec3(0.);
       col = shadeGround(ro, rd, gT, xz, typ, sunVis, amb, skyR, fpG, wet);
@@ -1017,7 +1023,7 @@ void main(){
     gl.uniform3f(U.uCov, P.high, P.mid, P.low);
     gl.uniform1f(U.uBlock, P.block); gl.uniform1f(U.uAod, P.aod); gl.uniform1f(U.uRH, P.rh);
 
-    gl.uniform1f(U.uWater, P.water ? 1 : 0); gl.uniform1f(U.uPier, P.pier ? 1 : 0); gl.uniform1f(U.uShore, P.shore || 0); gl.uniform1f(U.uHills, P.hills || 0); if (U.uCity) gl.uniform1f(U.uCity, P.city || 0); if (U.uBridge) gl.uniform1f(U.uBridge, P.bridge || 0); { const G = P.ground || {}; if (U.uGnd) gl.uniform4f(U.uGnd, G.near || 0, G.nearD || 0, G.far || 0, G.land ? 1 : 0); if (U.uFS) gl.uniform4f(U.uFS, G.d || 0, G.th || 0, G.town || 0, G.dune || 0); if (U.uFSv) gl.uniform4f(U.uFSv, G.dl != null ? G.dl : (G.d || 0), G.dr != null ? G.dr : (G.d || 0), G.a0 != null ? G.a0 : -9, G.a1 != null ? G.a1 : 9); }
+    gl.uniform1f(U.uWater, P.water ? 1 : 0); gl.uniform1f(U.uPier, P.pier ? 1 : 0); gl.uniform1f(U.uShore, P.shore || 0); gl.uniform1f(U.uHills, P.hills || 0); if (U.uCity) gl.uniform1f(U.uCity, P.city || 0); if (U.uBridge) gl.uniform1f(U.uBridge, P.bridge || 0); { const G = P.ground || {}; if (U.uGnd) gl.uniform4f(U.uGnd, G.near || 0, G.nearD || 0, G.far || 0, G.land ? 1 : 0); if (U.uFS) gl.uniform4f(U.uFS, G.d || 0, G.th || 0, G.town || 0, G.dune || 0); if (U.uMarsh) gl.uniform2f(U.uMarsh, G.marsh || 0, G.swamp ? 1 : 0); if (U.uFSv) gl.uniform4f(U.uFSv, G.dl != null ? G.dl : (G.d || 0), G.dr != null ? G.dr : (G.d || 0), G.a0 != null ? G.a0 : -9, G.a1 != null ? G.a1 : 9); }
     gl.uniform1f(U.uCamH, P.heroCam || P.camH || 0.002);
     const cam = camera(P, W, H), vfov = cam.vfov; P.hz = cam.hz; P.vfov = vfov;   // d24u: horizon line shared with the 2D overlays (storm towers)
     gl.uniform1f(U.uFov, vfov * d2r); gl.uniform1f(U.uPitch, cam.pitch);

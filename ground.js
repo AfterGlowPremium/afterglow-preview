@@ -25,6 +25,12 @@
              west: { land: true, near: SAND, nearD: 55, far: LAWN, d: 110, dl: 120, dr: 95, th: 48, town: 1, camH: 0.0017 },
              front: { west: { land: true, near: SAND, nearD: 55, far: LAWN, d: 110, dl: 120, dr: 95, th: 48, town: 1, camH: 0.0017 },
                      east: { near: SAND, nearD: 25, water: true, d: 450, dl: 450, dr: 300, th: 9, town: 0.6, a0: 0.38 } } },
+    // d28e Mattaponi (Melrose Landing, satellite-checked): west = the river (~150 m) then ~2 km of cordgrass tidal marsh cut by creeks,
+    // fading to a low ragged cypress/gum swamp treeline — no buildings. east = the landing's grass, then pine/hardwood woods (no houses in view).
+    melrose: { west: { near: LAWN, nearD: 6, water: true, d: 2100, dl: 2600, dr: 1700, th: 19, town: 0, marsh: 160, swamp: 1, lake: 0.3, camH: 0.003 },
+               east: { land: true, near: LAWN, nearD: 28, far: LAWN, d: 70, th: 21, town: 0, camH: 0.0017 },
+               front: { west: { near: LAWN, nearD: 6, water: true, d: 2100, dl: 2600, dr: 1700, th: 19, town: 0, marsh: 160, swamp: 1, lake: 0.3, camH: 0.003 },
+                        east: { land: true, near: LAWN, nearD: 28, far: LAWN, d: 70, th: 21, town: 0, camH: 0.0017 } } },
   };
   const NEAR = { Beach: SAND, Pier: 0, Boardwalk: SAND, Lighthouse: SAND, Dunes: SAND, Marsh: MARSH, Park: LAWN, Woods: LAWN, Town: LAWN, Harbor: 0, Waterfront: 0, Bluff: LAWN, Summit: 0 };
   const FAR_W = { open: { d: 0 }, lowshore: { d: 5000, th: 14, town: 0.3 }, trees: { d: 700, th: 20, town: 0.03 }, town: { d: 1500, th: 12, town: 0.7 },

@@ -42,7 +42,7 @@
 <body>
 <!-- Shell: owns the URL, the self-update and the background music; the app runs in the iframe so its page loads never stop the song -->
 <script>
-  window.AG_BUILD = "d28d";
+  window.AG_BUILD = "d28e";
   (function () { function chk() { try { fetch("version.json?ts=" + Date.now(), { cache: "no-store" }).then(function (r) { return r.ok ? r.json() : null; }).then(function (v) {
     if (!v || !v.build || v.build === window.AG_BUILD) return; var k = "agUpd:" + v.build, n = +(sessionStorage.getItem(k) || 0); if (n >= 2) return; sessionStorage.setItem(k, n + 1);
     var u = new URL(location.href); u.searchParams.set("b", v.build); u.searchParams.set("r", Date.now().toString(36)); location.replace(u.toString()); }).catch(function () {}); } catch (e) {} }
@@ -53,7 +53,7 @@
 <script>
   (function () {
     var f = document.getElementById("app"), probe = document.getElementById("sa-probe");
-    var q = new URLSearchParams(location.search); q.delete("b"); q.delete("r"); var qs = q.toString(); f.src = "app.html?b=d28d" + (qs ? "&" + qs : "") + location.hash;   // build param: busts Safari's cached app.html
+    var q = new URLSearchParams(location.search); q.delete("b"); q.delete("r"); var qs = q.toString(); f.src = "app.html?b=d28e" + (qs ? "&" + qs : "") + location.hash;   // build param: busts Safari's cached app.html
     function insets() { try { var d = f.contentDocument; if (d) d.documentElement.style.setProperty("--ag-sat", probe.getBoundingClientRect().height + "px"); } catch (e) {} }
     var last = "";
     function sync() {   // mirror the app's address (mode, spot, …) and title into the real address bar so links stay shareable
