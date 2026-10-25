@@ -131,18 +131,28 @@
     const frac = (1 + Math.cos(inc)) / 2, phase = 0.5 + 0.5 * inc * (ang < 0 ? -1 : 1) / Math.PI;
     return { alt: alt / RAD, az: (az / RAD + 180 + 360) % 360, frac, phase, limb: ang - pa }; }
   function phaseName(p) { return p < 0.03 || p > 0.97 ? "New moon" : p < 0.22 ? "Waxing crescent" : p < 0.28 ? "First quarter" : p < 0.47 ? "Waxing gibbous" : p < 0.53 ? "Full moon" : p < 0.72 ? "Waning gibbous" : p < 0.78 ? "Last quarter" : "Waning crescent"; }
-  function moon(x, W, H, hz0, C) { const m = C.moonPos; if (!m || m.alt < -0.6 || m.frac < 0.02) return;
+  function moon(x, W, H, hz0, C) { const m = C.moonPos; if (!m || m.alt < -1.2 || m.frac < 0.02) return;
     const base = W / H < 1 ? 62 : W / H < 1.5 ? 50 : 40, ppd = H / base, dAz = ((m.az - C.faceAz + 540) % 360) - 180;
-    const cx = W / 2 + dAz * ppd, cy = hz0 - m.alt * ppd, r = Math.max(8.8, 1.04 * ppd);   // d28i: Sean — drawn 4x the true 0.52°
-    if (cx < -3 * r || cx > W + 3 * r || cy < -3 * r) return;
-    const se = C.sunElev != null ? C.sunElev : -10, day = clamp((se + 4) / 10), cl = clamp(((C.cloud || 0) - 35) / 60);
-    const a = clamp(1 - 0.6 * day) * (1 - 0.85 * cl) * clamp((m.alt + 0.6) / 2.5); if (a <= 0.02) return;
-    x.save(); x.beginPath(); x.rect(0, 0, W, hz0); x.clip();   // never below the horizon
-    if (day < 0.8) { const gw = x.createRadialGradient(cx, cy, r, cx, cy, r * 6); gw.addColorStop(0, `rgba(235,232,215,${0.28 * a * (1 - day) * (0.4 + 0.6 * m.frac)})`); gw.addColorStop(1, "rgba(235,232,215,0)"); x.fillStyle = gw; x.beginPath(); x.arc(cx, cy, r * 6, 0, 6.283); x.fill(); }
-    const lowTint = clamp(1 - m.alt / 8), col = `rgba(${245},${Math.round(240 - 50 * lowTint)},${Math.round(220 - 110 * lowTint)},`;
-    x.translate(cx, cy); x.rotate(-m.limb + Math.PI / 2);   // bright limb toward the sun; limb angle measured from north (screen up), eastward = screen left
+    const r = Math.max(8.8, 1.04 * ppd), lowF = clamp(1 - (m.alt - 0.5) / 2.5), flat = 1 - 0.16 * lowF;   // d28i: Sean — drawn 4x the true 0.52°; d28o: refraction flattening near the horizon
+    const cx = W / 2 + dAz * ppd, cy = hz0 - m.alt * ppd, ridgeY = hz0 - (C.ridge || 0) * ppd;
+    if (cx < -3 * r || cx > W + 3 * r || cy < -3 * r || cy - r * flat > ridgeY) return;
+    // d28o: cloud transmittance by layer — thick low overcast hides it fully, mid dims strongly, thin cirrus barely (was: total cloud > 35 % incl. cirrus)
+    const se = C.sunElev != null ? C.sunElev : -10, day = clamp((se + 4) / 10), L3 = C.cloudL || [C.cloud || 0, 0, 0];
+    const tr = (1 - 0.95 * clamp((L3[0] - 20) / 75)) * (1 - 0.7 * clamp((L3[1] - 30) / 65)) * (1 - 0.25 * clamp(L3[2] / 100));
+    const ext = 0.45 + 0.55 * clamp((m.alt + 1) / 4);   // extinction dims it right at the horizon
+    const a = clamp(1 - 0.6 * day) * tr * ext * (0.25 + 0.75 * clamp(m.frac / 0.3)) * (1 - 0.5 * day * clamp(1 - m.frac / 0.15));   // d28o: thin crescent near the sun is dim, near-invisible in bright twilight if (a <= 0.02) return;
+    const tint = clamp(1 - m.alt / 9), col = `rgba(${Math.round(250 - 5 * tint)},${Math.round(240 - 85 * tint)},${Math.round(222 - 165 * tint)},`;   // yellow-white aloft → deep orange at the horizon
+    g.__agMoon = { cx, cy, r, a: +a.toFixed(3), alt: m.alt, frac: m.frac };
+    if (C.moonWater && day < 0.85 && m.alt < 30) {   // reflection: a soft broken glitter path of short horizontal ripples, widening toward you, fading with depth
+      let sd = 3; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647, T = (g.performance ? performance.now() : 0) / 1000, A0 = 0.55 * a * (1 - day) * (0.4 + 0.6 * m.frac), dep = (H - hz0) * 0.55;
+      x.save(); for (let i = 0; i < 70; i++) { const f = Math.pow(rnd(), 1.6), yy = hz0 + 1 + f * dep, w = r * (0.35 + 1.4 * f) * (0.4 + rnd()), sx = (rnd() - 0.5) * r * (0.6 + 2.2 * f) + Math.sin(T * 0.8 + i) * r * 0.08;
+        const al = A0 * (1 - f) * (0.35 + 0.65 * (0.5 + 0.5 * Math.sin(T * 1.3 + i * 2.1))); if (al < 0.01) continue;
+        const q = x.createLinearGradient(cx + sx - w, 0, cx + sx + w, 0); q.addColorStop(0, col + "0)"); q.addColorStop(0.5, col + al.toFixed(3) + ")"); q.addColorStop(1, col + "0)"); x.fillStyle = q; x.fillRect(cx + sx - w, yy, w * 2, 0.8 + 2.2 * f); } x.restore(); }
+    x.save(); x.beginPath(); x.rect(-W, -H, W * 3, ridgeY + H); x.clip();   // sinks behind the far shore's tree line / horizon
+    if (day < 0.8) { const gw = x.createRadialGradient(cx, cy, r, cx, cy, r * 6); gw.addColorStop(0, col + (0.28 * a * (1 - day) * (0.4 + 0.6 * m.frac)).toFixed(3) + ")"); gw.addColorStop(1, col + "0)"); x.fillStyle = gw; x.beginPath(); x.arc(cx, cy, r * 6, 0, 6.283); x.fill(); }
+    x.translate(cx, cy); x.scale(1, flat); x.rotate(-m.limb - Math.PI / 2);   // d28o: was 180° off (lit limb faced AWAY from the sun) — bright limb toward the sun; limb angle measured from north (screen up), eastward = screen left
     x.fillStyle = `rgba(40,44,60,${0.18 * a * (1 - day)})`; x.beginPath(); x.arc(0, 0, r, 0, 6.283); x.fill();   // earthshine on the dark part
-    const k = 1 - 2 * m.frac; x.fillStyle = col + a + ")"; x.beginPath(); x.arc(0, 0, r, -Math.PI / 2, Math.PI / 2, false); x.ellipse(0, 0, Math.abs(k) * r, r, 0, Math.PI / 2, -Math.PI / 2, k > 0); x.fill();
+    const k = 1 - 2 * m.frac; x.fillStyle = col + a.toFixed(3) + ")"; x.beginPath(); x.arc(0, 0, r, -Math.PI / 2, Math.PI / 2, false); x.ellipse(0, 0, Math.abs(k) * r, r, 0, Math.PI / 2, -Math.PI / 2, k > 0); x.fill();
     x.restore(); }
   function draw(cv, C, t, now) {
     const W = cv.clientWidth, H = cv.clientHeight, dpr = Math.min(2, g.devicePixelRatio || 1);
@@ -163,6 +173,7 @@
     { const hzF = C.hz != null ? C.hz : 0.6, a = W / H, base = a < 1 ? 62 : a < 1.5 ? 50 : 40, k = C.vfov && C.vfov !== 20 ? Math.tan(base * Math.PI / 360) / Math.tan(C.vfov * Math.PI / 360) : 1;
       const hz0 = (0.5 + (hzF - 0.5) / k) * H; g.__agPropK = k;
       if (C.moonPos && C.faceAz != null) { x.save(); x.translate(W / 2, H / 2); x.scale(k, k); x.translate(-W / 2, -H / 2); moon(x, W, H, hz0, C); x.restore(); }
+      if (C.steam) { x.save(); x.translate(W / 2, H / 2); x.scale(k, k); x.translate(-W / 2, -H / 2); steam(x, W, H, hz0, C, now); x.restore(); }   // d28j: river steam fog, world-locked
       if (C.house) { x.save(); x.translate(W / 2, H / 2); x.scale(k, k); x.translate(-W / 2, -H / 2); house(x, W, H, hz0, C); x.restore(); }   // d28g: 558 Plantation Pl across the lawn (Mattaponi land side)
       if (C.carrier || C.chinook || C.ghost) { x.save(); x.translate(W / 2, H / 2); x.scale(k, k); x.translate(-W / 2, -H / 2);
         if (C.carrier) { carrier(x, W, H, hz0, C, now); heli(x, W, H, hz0, C, now); } if (C.chinook) chinook(x, W, H, hz0, C, now); if (C.ghost) ghostTree(x, W, H, hz, C, now); x.restore(); } }
@@ -323,6 +334,31 @@
   // d28g: the cream two-storey farmhouse at 558 Plantation Pl (Sean's Zillow photo): dark gray roof, two front gables + entry gable,
   // black shutters, full-width white-railed wraparound porch, brick stair, round shrubs, trees around it. ~32 m wide, ~11 m to the ridge,
   // ~95 m across the lawn (camera 1.7 m). Front-lit by the low sun behind you at sunset; backlit (sun behind the house) at sunrise.
+  // d28j: steam fog — soft wisps hugging the water: densest along the far tree line, a second thinner band near shore, thinning upward,
+  // drifting slowly; lit sunrise pink/orange when the sun is near the horizon, cool gray-blue before dawn. Density ∝ chance.
+  function steam(x, W, H, hz, C, now) {   // d28m: Sean's pot-steam refs — dense soft billowy layer at the water breaking into long thin curling filaments
+    // that twist upward (curl-noise ribbons, features travel up the strand), translucent with bright backlit pink/orange edges, fading with height.
+    g.__agSteam = C.steam; const e = C.elev != null ? C.elev : 0, burn = 1 - (u => u * u * (3 - 2 * u))(clamp(e / 5));   // d28n: burns off as the sun climbs: full ≤ 0°, gone by 5°
+    if (burn <= 0.01) return; const d = (0.3 + 0.7 * clamp(C.steam.p / 85)) * (0.35 + 0.65 * burn), warm = clamp((e + 6) / 6) * clamp((10 - e) / 8), lit = clamp((e + 9) / 10);
+    const r = Math.round(180 + 75 * lit), gC = Math.round(182 + 50 * lit - 25 * warm), b = Math.round(192 + 40 * lit - 65 * warm), col = a => `rgba(${r},${gC},${b},${a.toFixed(3)})`;
+    const er = 255, eg = Math.round(200 + 30 * (1 - warm)), eb = Math.round(170 + 60 * (1 - warm)), ecol = a => `rgba(${er},${eg},${eb},${a.toFixed(3)})`, T = now / 1000;
+    // billowy base: overlapping soft puffs sitting on the water, slowly breathing
+    let sd = 5; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+    for (let i = 0; i < 46; i++) { const u = rnd(), v = rnd(), near = i >= 30, z = near ? 1.6 + 2.4 * v : 1, y0 = near ? hz + H * (0.03 + 0.16 * v * v) : hz + H * 0.003;
+      if (rnd() > burn * 1.15) continue; const cx = ((u * W * 1.3 + T * 1.5 * z) % (W * 1.3)) - W * 0.15, rw = W * 0.05 * z * (0.4 + 0.6 * burn) * (0.7 + 0.6 * rnd()), rh = rw * (0.28 + 0.08 * Math.sin(T * 0.5 + i)), a = d * (near ? 0.22 : 0.38);
+      x.save(); x.translate(cx, y0 - rh * 0.4); x.scale(1, rh / rw); const q = x.createRadialGradient(0, 0, 0, 0, 0, rw); q.addColorStop(0, col(a)); q.addColorStop(0.6, col(a * 0.4)); q.addColorStop(1, col(0)); x.fillStyle = q; x.beginPath(); x.arc(0, 0, rw, 0, 6.283); x.fill(); x.restore(); }
+    // rising filaments: many plumes side by side; each strand is a ribbon whose sideways curl pattern scrolls upward (rise ~15 s)
+    const NP = Math.round((30 + 36 * d) * (0.3 + 0.7 * burn)); x.lineCap = "round"; x.lineJoin = "round";
+    for (let i = 0; i < NP; i++) { const u = rnd(), v = rnd(), near = i % 5 === 4, z = near ? 1.4 + 1.2 * v : 0.8 + 0.5 * v, base = near ? hz + H * (0.03 + 0.12 * v * v) : hz + H * 0.004;
+      const bx = ((u * W * 1.3 + T * 1.2 * z) % (W * 1.3)) - W * 0.15, Hh = H * 0.09 * z * (0.3 + 0.7 * burn) * (0.7 + 0.6 * rnd()), sp = 0.9 + 0.4 * rnd(), s1 = rnd() * 50;
+      for (let k = 0; k < 3; k++) { const sk = s1 + k * 2.7, N = 16, pts = [];
+        for (let n = 0; n <= N; n++) { const f = n / N, y = base - Hh * f, ph = f * 3.4 - T * 0.4 * sp + sk;   // phase travels up the strand
+          const amp = W * 0.026 * z * (0.2 + 1.4 * f), xo = amp * (Math.sin(ph) + 0.55 * Math.sin(ph * 2.3 + sk) + 0.3 * Math.sin(ph * 4.1 - T * 0.3)) + W * 0.008 * z * (k - 1) * (1 + 4 * f);
+          pts.push([bx + xo, y, f]); }
+        for (let n = 0; n < N; n++) { const [x1, y1, f] = pts[n], [x2, y2] = pts[n + 1], fade = burn * d * Math.pow(1 - f, 1.4) * (0.6 + 0.4 * Math.sin(T * 0.35 + sk + f * 3));
+          x.strokeStyle = col(0.09 * fade); x.lineWidth = W * 0.032 * z * (0.35 + 0.65 * burn) * (1.3 - 0.5 * f); x.beginPath(); x.moveTo(x1, y1); x.lineTo(x2, y2); x.stroke();   // soft translucent body
+          x.strokeStyle = ecol(0.2 * fade); x.lineWidth = Math.max(0.6, W * 0.0022 * z * (1 - 0.5 * f)); x.beginPath(); x.moveTo(x1, y1); x.lineTo(x2, y2); x.stroke(); } } }   // bright backlit edge filament
+  }
   function house(x, W, H, hz, C) {
     const a = W / H, vf = a < 1 ? 62 : a < 1.5 ? 50 : 40, ppd = H / vf, D = 95, m = ppd * 180 / Math.PI / D;   // px per metre at D
     const cx = W * 0.6, gy = hz + 1.7 * m, e = C.elev != null ? C.elev : 3, front = !!C.house.front;
