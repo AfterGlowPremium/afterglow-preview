@@ -326,17 +326,19 @@
   // ~95 m across the lawn (camera 1.7 m). Front-lit by the low sun behind you at sunset; backlit (sun behind the house) at sunrise.
   // d28j: steam fog — soft wisps hugging the water: densest along the far tree line, a second thinner band near shore, thinning upward,
   // drifting slowly; lit sunrise pink/orange when the sun is near the horizon, cool gray-blue before dawn. Density ∝ chance.
-  function steam(x, W, H, hz, C, now) {
-    g.__agSteam = C.steam; const d = 0.25 + 0.75 * clamp(C.steam.p / 85), e = C.elev != null ? C.elev : 0, warm = clamp((e + 6) / 6) * clamp((10 - e) / 8), lit = clamp((e + 9) / 10);
-    const r = Math.round(150 + 105 * lit), gC = Math.round(155 + 60 * lit - 25 * warm), b = Math.round(170 + 40 * lit - 70 * warm);
-    let sd = 7; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647, T = now / 1000;
-    for (let i = 0; i < 70; i++) { const band = i < 46 ? 0 : 1, u = rnd(), v = rnd(), sp = 6 + 10 * rnd();
-      const xx = ((u * W * 1.4 + T * sp * (band ? 1.6 : 1)) % (W * 1.4)) - W * 0.2, wob = Math.sin(T * 0.3 + i) * 2;
-      const yy = band ? hz + H * (0.06 + 0.12 * v) : hz - H * 0.012 + H * 0.022 * v + wob * 0.3, rw = W * (band ? 0.12 : 0.09) * (0.6 + rnd()), rh = H * (band ? 0.014 : 0.022) * (0.6 + rnd()) * (1 + (band ? 0 : 0.6 * (1 - v)));
-      const a = d * (band ? 0.22 : 0.5) * (0.5 + 0.5 * Math.sin(T * 0.4 + i * 1.7)) + d * (band ? 0.08 : 0.2);
-      x.save(); x.translate(xx, yy); x.scale(1, rh / rw); const gr = x.createRadialGradient(0, 0, 0, 0, 0, rw);
-      gr.addColorStop(0, `rgba(${r},${gC},${b},${a.toFixed(3)})`); gr.addColorStop(1, `rgba(${r},${gC},${b},0)`); x.fillStyle = gr; x.beginPath(); x.arc(0, 0, rw, 0, 6.283); x.fill(); x.restore(); }
-    const gr = x.createLinearGradient(0, hz - H * 0.035, 0, hz + H * 0.02); gr.addColorStop(0, `rgba(${r},${gC},${b},0)`); gr.addColorStop(0.6, `rgba(${r},${gC},${b},${(0.4 * d).toFixed(3)})`); gr.addColorStop(1, `rgba(${r},${gC},${b},0)`); x.fillStyle = gr; x.fillRect(-W, hz - H * 0.035, W * 3, H * 0.055); }
+  function steam(x, W, H, hz, C, now) {   // d28k: rising, swirling wisps that respawn at the water (10–20 s rise), curl and thin as they climb
+    g.__agSteam = C.steam; const d = 0.3 + 0.7 * clamp(C.steam.p / 85), e = C.elev != null ? C.elev : 0, warm = clamp((e + 6) / 6) * clamp((10 - e) / 8), lit = clamp((e + 9) / 10);
+    const r = Math.round(175 + 80 * lit), gC = Math.round(178 + 55 * lit - 22 * warm), b = Math.round(190 + 40 * lit - 60 * warm), T = now / 1000, N = Math.round(60 + 60 * d);
+    const gr = x.createLinearGradient(0, hz - H * 0.04, 0, hz + H * 0.025); gr.addColorStop(0, `rgba(${r},${gC},${b},0)`); gr.addColorStop(0.65, `rgba(${r},${gC},${b},${(0.62 * d).toFixed(3)})`); gr.addColorStop(1, `rgba(${r},${gC},${b},0)`); x.fillStyle = gr; x.fillRect(-W, hz - H * 0.04, W * 3, H * 0.065);
+    let sd = 11; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+    for (let i = 0; i < N; i++) { const u = rnd(), v = rnd(), P = 10 + 10 * rnd(), ph = rnd(), sw = rnd() * 6.283, far = i < N * 0.65;
+      const a = ((T / P + ph) % 1), z = far ? 1 : 0.35 + 0.65 * (1 - v);   // z: depth scale (1 = far tree line, smaller = nearer… wisps nearer the shore are bigger)
+      const s0 = far ? 1 : 1 / z, y0 = far ? hz + H * 0.004 * v : hz + H * (0.03 + 0.2 * v * v), rise = H * (far ? 0.055 : 0.07 * s0) * a;
+      const cx = ((u * W * 1.3 + T * (1.2 + 0.8 * rnd()) * s0) % (W * 1.3)) - W * 0.15, curl = Math.sin(a * 5.5 + sw) * W * 0.012 * s0 * a + Math.sin(a * 2.1 + sw * 2) * W * 0.006 * s0;
+      const rw = W * 0.026 * s0 * (0.7 + 1.6 * a) * (0.7 + 0.6 * rnd()), rh = rw * (0.45 + 0.9 * a), alpha = d * (far ? 0.85 : 0.6) * Math.sin(Math.PI * Math.min(1, a * 1.25)) * (1 - a) ** 0.6;
+      if (alpha < 0.01) continue;
+      x.save(); x.translate(cx + curl, y0 - rise); x.rotate(Math.sin(a * 4 + sw) * 0.7); x.scale(1, rh / rw); const q = x.createRadialGradient(0, 0, 0, 0, 0, rw);
+      q.addColorStop(0, `rgba(${r},${gC},${b},${alpha.toFixed(3)})`); q.addColorStop(0.55, `rgba(${r},${gC},${b},${(alpha * 0.45).toFixed(3)})`); q.addColorStop(1, `rgba(${r},${gC},${b},0)`); x.fillStyle = q; x.beginPath(); x.arc(0, 0, rw, 0, 6.283); x.fill(); x.restore(); } }
   function house(x, W, H, hz, C) {
     const a = W / H, vf = a < 1 ? 62 : a < 1.5 ? 50 : 40, ppd = H / vf, D = 95, m = ppd * 180 / Math.PI / D;   // px per metre at D
     const cx = W * 0.6, gy = hz + 1.7 * m, e = C.elev != null ? C.elev : 3, front = !!C.house.front;
