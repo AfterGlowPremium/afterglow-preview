@@ -448,28 +448,39 @@
   }
   // d26n: hero "movie" — the top spot's forecast scene playing golden hour → afterglow (sunrise: blue hour → golden), looped, ~12 fps,
   // low resolution; starts after the forecast is ready, pauses off-screen, in a hidden tab or while a spot is open.
-  let HM = { raf: 0, io: null, vis: true, b: null };
+  let HM = { raf: 0, io: null, vis: true, b: null, off: null, fails: 0, twoD: false };
+  // d26y: the movie owns NO persistent WebGL context. Frames are rendered into an offscreen WebGL canvas that exists only while the movie is visible
+  // and no spot is open, then copied into a plain 2D <canvas> in the card (2D never loses its context; the last good frame stays). The offscreen
+  // renderer is destroyed when a spot opens and rebuilt ~300 ms after it closes; black output is detected and retried 3x, then a 2D sky fallback.
+  function hmDrop() { if (HM.off) { relGL(HM.off); HM.off = null; } }
   function heroMovie(b) {
-    HM.b = b; let cv = document.getElementById("hero-cv"); if (!cv || !window.PhotoStage) return;
-    // d26x: iOS caps live WebGL contexts — the spot view's canvases can evict the movie's. Release the previous movie context, and if this one is
-    // lost (or was evicted while a spot was open) swap in a fresh canvas so rendering resumes after closing a spot.
-    if (HM.cv && HM.cv !== cv) relGL(HM.cv); HM.cv = cv;
-    const fresh = () => { const n = document.createElement("canvas"); n.id = "hero-cv"; const o = document.getElementById("hero-cv"); if (o) { relGL(o); o.replaceWith(n); } cv = HM.cv = n; if (HM.io) { HM.io.disconnect(); HM.io.observe(n); } hook(n); };
-    const hook = c => c.addEventListener("webglcontextlost", e => { e.preventDefault(); setTimeout(() => { if (HM.b === b) { fresh(); go(); } }, 50); }, { once: true }); hook(cv);
-    if (HM.io) HM.io.disconnect(); if ("IntersectionObserver" in window) { HM.io = new IntersectionObserver(es => { HM.vis = es[0].isIntersecting; if (HM.vis) go(); }); HM.io.observe(cv); }
+    HM.b = b; const cv = document.getElementById("hero-cv"); if (!cv || !window.PhotoStage) return; HM.fails = 0; HM.twoD = false; hmDrop();
+    if (HM.io) HM.io.disconnect(); if ("IntersectionObserver" in window) { HM.io = new IntersectionObserver(es => { HM.vis = es[0].isIntersecting; if (HM.vis) go(); else hmDrop(); }); HM.io.observe(cv); }
     const T = b.ev.timing, a0 = RISE ? (T.civilEnd || T.sunset - 1800) : (T.golden || T.sunset - 2700), a1 = RISE ? (T.golden || T.sunset + 2700) : (T.civilEnd || T.glowEnd || T.sunset + 1800);
-    const t0 = Math.min(a0, a1), t1 = Math.max(a0, a1), DUR = 14000; let last = 0, start = performance.now();
-    const fr = now => { HM.raf = 0; if (HM.b !== b || !document.body.contains(cv)) return; if (cv._pr && cv._pr.gl && cv._pr.gl.isContextLost()) fresh(); if (!HM.vis || document.hidden || document.body.classList.contains("detail-open")) return;
+    const t0 = Math.min(a0, a1), t1 = Math.max(a0, a1), DUR = 14000; let last = 0, n = 0; const start = performance.now();
+    const fr = now => { HM.raf = 0; if (HM.b !== b || !document.body.contains(cv)) return;
+      if (document.body.classList.contains("detail-open")) { hmDrop(); return; }
+      if (!HM.vis || document.hidden) return;
       HM.raf = requestAnimationFrame(fr); if (now - last < 80) return; last = now;
-      const f = ((now - start) % DUR) / DUR;
-      const tt = t0 + (t1 - t0) * f;
-      try { PhotoStage.draw(cv, b.spot, b.ev, tt, { scale: 0.8, dprCap: 1.5, fast: 1 }); } catch (e) { return; }
+      const f = ((now - start) % DUR) / DUR, tt = t0 + (t1 - t0) * f, dpr = Math.min(1.5, window.devicePixelRatio || 1), W = Math.max(64, Math.round(cv.clientWidth * dpr)), H = Math.max(40, Math.round(cv.clientHeight * dpr));
+      if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+      const c2 = cv.getContext("2d");
+      try {
+        if (HM.twoD || !PhotoStage.live()) { const tmp = HM.tmp || (HM.tmp = document.createElement("canvas")); tmp.width = W; tmp.height = H; Preview.draw(tmp, b.spot, b.ev, tt); c2.drawImage(tmp, 0, 0, W, H); }
+        else {
+          if (!HM.off) { HM.off = document.createElement("canvas"); }
+          const off = HM.off; PhotoStage.draw(off, b.spot, b.ev, tt, { w: Math.round(W / 1.2), h: Math.round(H / 1.2), fast: 1 });
+          const g = off._pr && off._pr.gl; if (!g || g.isContextLost()) throw new Error("ctx");
+          c2.drawImage(off, 0, 0, W, H);
+          if (++n % 25 === 1) { const d = c2.getImageData(W >> 1, H >> 2, 4, 4).data; let s = 0; for (let i = 0; i < d.length; i += 4) s += d[i] + d[i + 1] + d[i + 2]; if (s / 48 < 4) throw new Error("black"); else HM.fails = 0; }
+        }
+      } catch (e) { hmDrop(); if (++HM.fails >= 3) HM.twoD = true; }
       const el = document.getElementById("hero-t"); if (el) el.textContent = fmtTime(tt, b.tz); };
     const go = () => { if (!HM.raf) HM.raf = requestAnimationFrame(fr); };
     HM.go = go; setTimeout(go, 600);
   }
   function relGL(c) { try { const g = c && c._pr && c._pr.gl; const x = g && g.getExtension("WEBGL_lose_context"); if (x && !g.isContextLost()) x.loseContext(); } catch (e) {} }
-  window.__agRelGL = relGL;
+  window.__agRelGL = relGL; window.__agHM = HM;
   document.addEventListener("visibilitychange", () => HM.go && HM.go());
   new MutationObserver(() => HM.go && HM.go()).observe(document.body, { attributes: true, attributeFilter: ["class"] });
   function renderList(list) {
@@ -957,7 +968,7 @@
     const box = $("#satread"); if (!box) return;
     box.innerHTML = res.error ? `<p>${res.error}</p>` : `<ul>${res.text.map(t => `<li>${t}</li>`).join("")}</ul><div class="fine">Sampled from GOES-19 (GOES-East) ABI band 2 (visible, 0.64 µm), band 4 (cirrus, 1.37 µm) and band 13 (clean IR, 10.3 µm) at ${new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZoneName: "short" }).format(res.when)}. Pixel-color heuristics, not calibrated retrievals.</div>`;
   }
-  function closeDetail() { try { document.querySelectorAll("#detail canvas").forEach(c => relGL(c)); } catch (e) {} setTimeout(() => HM.go && HM.go(), 60); { let AW = window.AGWind; try { AW = AW || (window.parent !== window && window.parent.AGWind); } catch (e) {} if (AW) AW.set(0, false); } if (window.__agAnim && window.__agAnim.id) { cancelAnimationFrame(window.__agAnim.id); window.__agAnim.id = 0; } state.spot = null; $("#detail").classList.remove("open"); document.body.classList.remove("detail-open"); Object.keys(markers).forEach(k => { const ic = markers[k]._icon; if (ic) ic.classList.remove("sel"); }); if (isDesk()) setTimeout(() => map.invalidateSize({ pan: false }), 480); }
+  function closeDetail() { try { document.querySelectorAll("#detail canvas").forEach(c => relGL(c)); } catch (e) {} hmDrop(); HM.fails = 0; HM.twoD = false; setTimeout(() => HM.go && HM.go(), 300); { let AW = window.AGWind; try { AW = AW || (window.parent !== window && window.parent.AGWind); } catch (e) {} if (AW) AW.set(0, false); } if (window.__agAnim && window.__agAnim.id) { cancelAnimationFrame(window.__agAnim.id); window.__agAnim.id = 0; } state.spot = null; $("#detail").classList.remove("open"); document.body.classList.remove("detail-open"); Object.keys(markers).forEach(k => { const ic = markers[k]._icon; if (ic) ic.classList.remove("sel"); }); if (isDesk()) setTimeout(() => map.invalidateSize({ pan: false }), 480); }
   $("#detail-close").addEventListener("click", closeDetail);
   $("#scrim").addEventListener("click", closeDetail);
   document.addEventListener("keydown", e => { if (e.key !== "Escape") return; 
