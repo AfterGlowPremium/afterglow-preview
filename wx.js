@@ -172,6 +172,22 @@
       for (const [sc, al, op] of [[1.03, 0.35], [1, 1], [1, 0.22 + 0.18 * (1 - day), "lighter"]]) { x.save(); x.rotate(rot); lit(sc); x.clip(); x.rotate(pa - rot); x.globalAlpha = clamp(a * al); if (op) x.globalCompositeOperation = op; x.drawImage(oc, -r, -r, r * 2, r * 2); x.restore(); }   // soft terminator: faint wider pass + main pass
     } else { x.rotate(-m.limb - Math.PI / 2); const k = 1 - 2 * m.frac; x.fillStyle = col + a.toFixed(3) + ")"; x.beginPath(); x.arc(0, 0, r, -Math.PI / 2, Math.PI / 2, false); x.ellipse(0, 0, Math.abs(k) * r, r, 0, Math.PI / 2, -Math.PI / 2, k > 0); x.fill(); }
     x.restore(); }
+  // d28y: stars — fixed seeded field (420) locked to sky bearing/altitude (correct through the Face East/West turn); fade in from sun -6° to full
+  // below -12°; count and brightness ∝ clear-sky fraction (none under overcast); dim near the horizon and in a bright moon's glow;
+  // only the ~8 brightest twinkle (cheap sin alpha). Cool white with a faint lavender cast to sit in the purple night sky.
+  function stars(x, W, H, hz0, C, now, dk, clr) {
+    let S = stars.f; if (!S) { let sd = 11; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647; S = stars.f = [];
+      for (let i = 0; i < 420; i++) { const m = Math.pow(rnd(), 3.4); S.push([rnd() * 360, Math.asin(rnd()) * 57.2958, i < 8 ? 0.85 + 0.15 * rnd() : m, rnd() * 6.28, rnd()]); } }
+    const base = W / H < 1 ? 62 : W / H < 1.5 ? 50 : 40, ppd = H / base, M = g.__agMoon, mp = C.moonPos, mf = mp && mp.alt > 0 ? mp.frac : 0, T = (now || 0) / 1000, ridge = C.ridge || 0;
+    const n = Math.floor(S.length * clr); x.save();
+    for (let i = 0; i < n; i++) { const s = S[i]; if (s[1] < 1 + ridge) continue; const dAz = ((s[0] - C.faceAz + 540) % 360) - 180, sx = W / 2 + dAz * ppd, sy = hz0 - s[1] * ppd; if (sx < -2 || sx > W + 2 || sy < 0) continue;
+      let a = dk * clr * (0.35 + 0.65 * s[2]) * Math.min(1, (s[1] - 1 - ridge) / 12);
+      if (i < 8) a *= 0.6 + 0.4 * Math.sin(T * (2.3 + s[4] * 3) + s[3]) * Math.sin(T * 1.7 + s[3] * 2);
+      if (M && mf > 0) a *= 1 - mf * (0.95 - 0.5 * s[2]) * Math.exp(-Math.hypot(sx - M.cx, sy - M.cy) / (14 * (M.r || 10)));
+      if (a < 0.03) continue; const r = i < 8 ? 2.2 : 0.6 + 1.1 * s[2];
+      x.fillStyle = s[4] < 0.15 ? `rgba(255,228,210,${a.toFixed(3)})` : s[4] > 0.85 ? `rgba(210,218,255,${a.toFixed(3)})` : `rgba(240,236,255,${a.toFixed(3)})`; x.fillRect(sx - r / 2, sy - r / 2, r, r);
+      if (i < 8) { x.fillStyle = `rgba(235,230,255,${(a * 0.35).toFixed(3)})`; x.fillRect(sx - 3.5, sy - 0.4, 7, 0.8); x.fillRect(sx - 0.4, sy - 3.5, 0.8, 7); } }
+    x.restore(); }
   function draw(cv, C, t, now) {
     const W = cv.clientWidth, H = cv.clientHeight, dpr = Math.min(2, g.devicePixelRatio || 1);
     if (!W || !H) return;
@@ -190,6 +206,8 @@
     // centre — the horizon lands exactly on the scene's current horizon (C.hz) and position/size track the sky and sun.
     { const hzF = C.hz != null ? C.hz : 0.6, a = W / H, base = a < 1 ? 62 : a < 1.5 ? 50 : 40, k = C.vfov && C.vfov !== 20 ? Math.tan(base * Math.PI / 360) / Math.tan(C.vfov * Math.PI / 360) : 1;
       const hz0 = (0.5 + (hzF - 0.5) / k) * H; g.__agPropK = k;
+      { const se = C.sunElev != null ? C.sunElev : 0, dk = Math.max(0, Math.min(1, (-6 - se) / 6)), L3 = C.cloudL || [C.cloud || 0, 0, 0], clr = Math.max(0, Math.min(1, 1 - Math.max(L3[0], L3[1], 0.6 * L3[2]) / 100));
+        if (dk > 0.02 && clr > 0.05 && C.faceAz != null) { x.save(); x.translate(W / 2, H / 2); x.scale(k, k); x.translate(-W / 2, -H / 2); stars(x, W, H, hz0, C, now, dk, clr); x.restore(); } }   // d28y: stars (before the moon, so it sits on top)
       if (C.moonPos && C.faceAz != null) { x.save(); x.translate(W / 2, H / 2); x.scale(k, k); x.translate(-W / 2, -H / 2); moon(x, W, H, hz0, C); x.restore(); }
       if (C.steam) { x.save(); x.translate(W / 2, H / 2); x.scale(k, k); x.translate(-W / 2, -H / 2); steam(x, W, H, hz0, C, now); x.restore(); }   // d28j: river steam fog, world-locked
       if (C.house) { x.save(); x.translate(W / 2, H / 2); x.scale(k, k); x.translate(-W / 2, -H / 2); house(x, W, H, hz0, C); x.restore(); }   // d28g: 558 Plantation Pl across the lawn (Mattaponi land side)
