@@ -892,5 +892,5 @@ html.show-home #home-cv{top:0;height:100%}
 /* d27a: slimmer map layer bar (~23px) that fits all labels at 390 */
 @media (max-width:900px){
   .overlay-ctl{top:6px;left:6px;right:6px;gap:0;padding:2px;justify-content:space-between}
-  .overlay-ctl button{padding:3px 6px;font-size:11px;line-height:1.2;letter-spacing:-.01em}
+  .overlay-ctl button{padding:2px 6px;font-size:11px;line-height:1.15;letter-spacing:-.01em}
 }
