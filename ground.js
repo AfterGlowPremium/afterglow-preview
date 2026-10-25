@@ -49,15 +49,8 @@
   R("laketrail", [5, 5, 0.4]); R("miamibeach", [5, 5, 0.75]); R("keywest", [6, 5, 0]); R("bahiahonda", [6, 7, 0]);
   R("naples siesta", [5, 5, 0.35]); R("clearwater", [5, 5, 0.6]); R("sanibel fortdesoto", [9, 7, 0]); R("cedarkey", [4, 4, 0]);
   R("stgeorge", [9, 3, 0]); R("pcb", [9, 3, 0.75]); R("pensacola", [9, 3, 0.5]);
-  // d28v: Preview toggle between the classic generic facade and the new local houses/trees — ?houses=old|new persists for the tab (like ?steam)
-  const HKEY = "agHouses"; try { const m = /[?&]houses=(old|new)/i.exec(location.search); if (m) sessionStorage.setItem(HKEY, m[1].toLowerCase()); } catch (e) {}
-  const housesOld = () => { try { return sessionStorage.getItem(HKEY) === "old"; } catch (e) { return false; } };
-  const regOf = id => housesOld() ? [0, 0, 0] : (REG[id] || [0, 0, 0]);
-  if (g.document) setInterval(() => { const rc = g.document.querySelector(".rail-ctl"); if (!rc || rc.querySelector("#pv-houses")) return;
-    const b = g.document.createElement("button"); b.id = "pv-houses"; b.className = "play"; b.style.cssText = "width:auto;padding:0 10px;font-size:12px;border-radius:14px;white-space:nowrap";
-    b.textContent = housesOld() ? "Houses: Classic" : "Houses: Local"; b.title = "Switch between the classic generic houses/trees and the location-accurate ones";
-    b.onclick = () => { try { sessionStorage.setItem(HKEY, housesOld() ? "new" : "old"); } catch (e) {} const u = new URL(location.href); u.searchParams.delete("houses"); location.replace(u.toString()); };
-    rc.appendChild(b); }, 1000);
+  try { sessionStorage.removeItem("agHouses"); } catch (e) {}   // d28w: Houses toggle removed — clear any stale "old" choice
+  const regOf = id => REG[id] || [0, 0, 0];
   const NEAR = { Beach: SAND, Pier: 0, Boardwalk: SAND, Lighthouse: SAND, Dunes: SAND, Marsh: MARSH, Park: LAWN, Woods: LAWN, Town: LAWN, Harbor: 0, Waterfront: 0, Bluff: LAWN, Summit: 0 };
   const FAR_W = { open: { d: 0 }, lowshore: { d: 5000, th: 14, town: 0.3 }, trees: { d: 700, th: 20, town: 0.03 }, town: { d: 1500, th: 12, town: 0.7 },
     islands: { d: 7000, th: 12, town: 0.15 }, bridge: { d: 3500, th: 12, town: 0.3 }, skyline: { d: 0 }, hills: { d: 0 } };
