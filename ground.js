@@ -31,6 +31,9 @@
                east: { land: true, near: LAWN, nearD: 28, far: LAWN, d: 70, th: 21, town: 0, camH: 0.0017 },
                front: { west: { near: LAWN, nearD: 6, water: true, d: 2100, dl: 2600, dr: 1700, th: 19, town: 0, marsh: 160, swamp: 1, lake: 0.3, camH: 0.003 },
                         east: { land: true, near: LAWN, nearD: 28, far: LAWN, d: 70, th: 21, town: 0, camH: 0.0017 } } },
+    // d28f Grandview (Sean): facing west = the back of the beach, then wide Grandview Preserve / Back River marsh cut by tidal creeks,
+    // to a distant low ragged tree line ~2.6 km out, no buildings. East (the open Chesapeake Bay) keeps the generic/surveyed view.
+    grandview: { west: { near: MARSH, nearD: 2450, water: true, d: 2600, dl: 3000, dr: 2300, th: 18, town: 0, marsh: 1, swamp: 1, lake: 0.05, camH: 0.0019 }, front: { west: { near: MARSH, nearD: 2450, water: true, d: 2600, dl: 3000, dr: 2300, th: 18, town: 0, marsh: 1, swamp: 1, lake: 0.05, camH: 0.0019 } } },
   };
   const NEAR = { Beach: SAND, Pier: 0, Boardwalk: SAND, Lighthouse: SAND, Dunes: SAND, Marsh: MARSH, Park: LAWN, Woods: LAWN, Town: LAWN, Harbor: 0, Waterfront: 0, Bluff: LAWN, Summit: 0 };
   const FAR_W = { open: { d: 0 }, lowshore: { d: 5000, th: 14, town: 0.3 }, trees: { d: 700, th: 20, town: 0.03 }, town: { d: 1500, th: 12, town: 0.7 },
