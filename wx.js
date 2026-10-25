@@ -148,10 +148,12 @@
       let sd = 3; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647, T = (g.performance ? performance.now() : 0) / 1000, A0 = 0.55 * a * (1 - day) * (0.4 + 0.6 * m.frac), dep = (H - hz0) * 0.55;
       x.save(); for (let i = 0; i < 70; i++) { const f = Math.pow(rnd(), 1.6), yy = hz0 + 1 + f * dep, w = r * (0.35 + 1.4 * f) * (0.4 + rnd()), sx = (rnd() - 0.5) * r * (0.6 + 2.2 * f) + Math.sin(T * 0.8 + i) * r * 0.08;
         const al = A0 * (1 - f) * (0.35 + 0.65 * (0.5 + 0.5 * Math.sin(T * 1.3 + i * 2.1))); if (al < 0.01) continue;
-        const q = x.createLinearGradient(cx + sx - w, 0, cx + sx + w, 0), rc = m.alt > 6 ? "rgba(215,224,240," : col; q.addColorStop(0, rc + "0)"); q.addColorStop(0.5, rc + (al * 0.75).toFixed(3) + ")"); q.addColorStop(1, rc + "0)"); x.fillStyle = q; x.fillRect(cx + sx - w, yy, w * 2, 0.8 + 2.2 * f); } x.restore(); }
+        const q = x.createLinearGradient(cx + sx - w, 0, cx + sx + w, 0), rc = m.alt > 6 ? "rgba(215,224,240," : col; q.addColorStop(0, rc + "0)"); q.addColorStop(0.5, rc + (al * 0.95).toFixed(3) + ")"); q.addColorStop(1, rc + "0)"); x.fillStyle = q; x.fillRect(cx + sx - w, yy, w * 2, 0.8 + 2.2 * f); } x.restore(); }
     x.save(); x.beginPath(); x.rect(-W, -H, W * 3, ridgeY + H); x.clip();   // sinks behind the far shore's tree line / horizon
     // d28p: small, soft, cool halo (much smaller than the sun's) so it reads as the moon
-    if (day < 0.8) { const gw = x.createRadialGradient(cx, cy, r * 0.9, cx, cy, r * 2.4); gw.addColorStop(0, `rgba(200,212,235,${(0.16 * a * (1 - day) * (0.3 + 0.7 * m.frac)).toFixed(3)})`); gw.addColorStop(1, "rgba(200,212,235,0)"); x.fillStyle = gw; x.beginPath(); x.arc(cx, cy, r * 2.4, 0, 6.283); x.fill(); }
+    { const dk = 1 - day, wm = clamp(1 - m.alt / 12), hc = `${Math.round(205 + 45 * wm)},${Math.round(215 - 15 * wm)},${Math.round(238 - 90 * wm)}`, fa = a * (0.3 + 0.7 * m.frac);   // d28q: Sean "glow a bit more" — halo ~3.8r + faint wide aureole, scaled by sky darkness, warmer low
+      if (dk > 0.05) { const au = x.createRadialGradient(cx, cy, r, cx, cy, r * 9); au.addColorStop(0, `rgba(${hc},${(0.1 * fa * dk * dk).toFixed(3)})`); au.addColorStop(1, `rgba(${hc},0)`); x.fillStyle = au; x.beginPath(); x.arc(cx, cy, r * 9, 0, 6.283); x.fill(); }
+      const gw = x.createRadialGradient(cx, cy, r * 0.9, cx, cy, r * 3.8); gw.addColorStop(0, `rgba(${hc},${(fa * (0.08 + 0.26 * dk)).toFixed(3)})`); gw.addColorStop(0.4, `rgba(${hc},${(fa * (0.03 + 0.09 * dk)).toFixed(3)})`); gw.addColorStop(1, `rgba(${hc},0)`); x.fillStyle = gw; x.beginPath(); x.arc(cx, cy, r * 3.8, 0, 6.283); x.fill(); }
     // d28p: real near-side albedo (NASA SVS CGI Moon Kit / LRO, public domain) — maria, highlands, Tycho, Copernicus — north rotated by the
     // parallactic angle, tinted cool silver aloft → orange low; phase terminator on top (soft edge), faint earthshine maria on the dark side
     const T = moonTex(); x.translate(cx, cy); x.scale(1, flat);
@@ -162,7 +164,7 @@
       const pa = m.pa || 0, rot = -m.limb - Math.PI / 2, kk = 1 - 2 * m.frac;
       x.save(); x.rotate(pa); x.globalAlpha = clamp(0.1 * a * (1 - day)); x.drawImage(oc, -r, -r, r * 2, r * 2); x.restore();   // earthshine
       const lit = sc => { x.beginPath(); x.arc(0, 0, r * sc, -Math.PI / 2, Math.PI / 2, false); x.ellipse(0, 0, Math.abs(kk) * r * sc, r * sc, 0, Math.PI / 2, -Math.PI / 2, kk > 0); };
-      for (const [sc, al] of [[1.03, 0.35], [1, 1]]) { x.save(); x.rotate(rot); lit(sc); x.clip(); x.rotate(pa - rot); x.globalAlpha = clamp(a * al); x.drawImage(oc, -r, -r, r * 2, r * 2); x.restore(); }   // soft terminator: faint wider pass + main pass
+      for (const [sc, al, op] of [[1.03, 0.35], [1, 1], [1, 0.22 + 0.18 * (1 - day), "lighter"]]) { x.save(); x.rotate(rot); lit(sc); x.clip(); x.rotate(pa - rot); x.globalAlpha = clamp(a * al); if (op) x.globalCompositeOperation = op; x.drawImage(oc, -r, -r, r * 2, r * 2); x.restore(); }   // soft terminator: faint wider pass + main pass
     } else { x.rotate(-m.limb - Math.PI / 2); const k = 1 - 2 * m.frac; x.fillStyle = col + a.toFixed(3) + ")"; x.beginPath(); x.arc(0, 0, r, -Math.PI / 2, Math.PI / 2, false); x.ellipse(0, 0, Math.abs(k) * r, r, 0, Math.PI / 2, -Math.PI / 2, k > 0); x.fill(); }
     x.restore(); }
   function draw(cv, C, t, now) {
