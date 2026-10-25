@@ -163,6 +163,7 @@
     { const hzF = C.hz != null ? C.hz : 0.6, a = W / H, base = a < 1 ? 62 : a < 1.5 ? 50 : 40, k = C.vfov && C.vfov !== 20 ? Math.tan(base * Math.PI / 360) / Math.tan(C.vfov * Math.PI / 360) : 1;
       const hz0 = (0.5 + (hzF - 0.5) / k) * H; g.__agPropK = k;
       if (C.moonPos && C.faceAz != null) { x.save(); x.translate(W / 2, H / 2); x.scale(k, k); x.translate(-W / 2, -H / 2); moon(x, W, H, hz0, C); x.restore(); }
+      if (C.house) { x.save(); x.translate(W / 2, H / 2); x.scale(k, k); x.translate(-W / 2, -H / 2); house(x, W, H, hz0, C); x.restore(); }   // d28g: 558 Plantation Pl across the lawn (Mattaponi land side)
       if (C.carrier || C.chinook || C.ghost) { x.save(); x.translate(W / 2, H / 2); x.scale(k, k); x.translate(-W / 2, -H / 2);
         if (C.carrier) { carrier(x, W, H, hz0, C, now); heli(x, W, H, hz0, C, now); } if (C.chinook) chinook(x, W, H, hz0, C, now); if (C.ghost) ghostTree(x, W, H, hz, C, now); x.restore(); } }
     if (C.torn) tornado(x, W, H, hz, now);
@@ -319,6 +320,52 @@
   // d26e: Mattaponi Meditation — a CH-47 Chinook flying LOW over the river, just above the treeline (real-time pass every 15 s, like the
   // Fort Monroe CH-53K). Long boxy fuselage, tandem 3-blade rotors (front low on the cockpit, rear on the tall aft pylon) as blurred discs,
   // fixed gear, rear ramp; a faint rotor-wash ripple on the water beneath it.
+  // d28g: the cream two-storey farmhouse at 558 Plantation Pl (Sean's Zillow photo): dark gray roof, two front gables + entry gable,
+  // black shutters, full-width white-railed wraparound porch, brick stair, round shrubs, trees around it. ~32 m wide, ~11 m to the ridge,
+  // ~95 m across the lawn (camera 1.7 m). Front-lit by the low sun behind you at sunset; backlit (sun behind the house) at sunrise.
+  function house(x, W, H, hz, C) {
+    const a = W / H, vf = a < 1 ? 62 : a < 1.5 ? 50 : 40, ppd = H / vf, D = 95, m = ppd * 180 / Math.PI / D;   // px per metre at D
+    const cx = W * 0.6, gy = hz + 1.7 * m, e = C.elev != null ? C.elev : 3, front = !!C.house.front;
+    const L = Math.max(0.12, Math.min(1, (e + 6) / 14)), sun = front ? Math.max(0, Math.min(1, (e + 1.5) / 6)) : 0;
+    const sh = (r, g, b, k) => `rgb(${Math.round(r * k)},${Math.round(g * k)},${Math.round(b * k)})`;
+    const lit = (r, g, b) => { const k = L * (front ? 0.75 + 0.5 * sun : 0.45); return `rgb(${Math.min(255, Math.round(r * k * (1 + 0.18 * sun)))},${Math.min(255, Math.round(g * k * (1 + 0.04 * sun)))},${Math.min(255, Math.round(b * k * (1 - 0.12 * sun)))})`; };
+    const X = v => cx + v * m, Y = v => gy - v * m;
+    // trees behind/around the house
+    x.fillStyle = sh(32, 44, 30, L * 0.9 + 0.1);
+    for (let i = -9; i <= 9; i++) { const tx = X(i * 3.4 + (i % 3) * 0.8), th = (i < -4 || i > 5 ? 14 : 12.5) + ((i * 37) % 5); x.beginPath(); x.ellipse(tx, Y(th * 0.62), 3.2 * m, th * 0.42 * m, 0, 0, 6.283); x.fill(); }
+    x.beginPath(); x.ellipse(X(-21), Y(7), 5 * m, 8 * m, 0, 0, 6.283); x.ellipse(X(21), Y(6.5), 4.5 * m, 7.5 * m, 0, 0, 6.283); x.fill();
+    const wall = lit(236, 226, 186), roof = sh(70, 72, 76, L * 0.75 + 0.1), trim = lit(250, 248, 240), shut = sh(18, 18, 20, 1), win = sh(40, 46, 54, L * 0.8 + 0.2);
+    // side wings (lower roofs left/right) + main block
+    x.fillStyle = wall; x.fillRect(X(-16), Y(5.5), 32 * m, 5.5 * m);
+    x.fillStyle = roof; x.beginPath(); x.moveTo(X(-16.5), Y(5.5)); x.lineTo(X(-13), Y(8.6)); x.lineTo(X(13), Y(8.6)); x.lineTo(X(16.5), Y(5.5)); x.fill();
+    x.fillStyle = wall; x.fillRect(X(-9), Y(8.8), 18 * m, 4.6 * m);
+    x.fillStyle = roof; x.beginPath(); x.moveTo(X(-10), Y(8.8)); x.lineTo(X(-7), Y(12.4)); x.lineTo(X(7), Y(12.4)); x.lineTo(X(10), Y(8.8)); x.fill();
+    for (const gx of [-5.2, 5.2]) {   // two front gables
+      x.fillStyle = wall; x.beginPath(); x.moveTo(X(gx - 3.3), Y(8.8)); x.lineTo(X(gx), Y(12.2)); x.lineTo(X(gx + 3.3), Y(8.8)); x.fill();
+      x.strokeStyle = trim; x.lineWidth = Math.max(1, 0.25 * m); x.beginPath(); x.moveTo(X(gx - 3.6), Y(8.6)); x.lineTo(X(gx), Y(12.4)); x.lineTo(X(gx + 3.6), Y(8.6)); x.stroke();
+      x.fillStyle = win; x.beginPath(); x.arc(X(gx), Y(10.2), 0.45 * m, Math.PI, 0); x.fillRect(X(gx - 0.45), Y(10.2), 0.9 * m, 0.6 * m); x.fill(); }
+    // upper windows with black shutters
+    for (const wx of [-7.3, -5.9, -3.1, 3.1, 5.9, 7.3]) { x.fillStyle = win; x.fillRect(X(wx - 0.5), Y(8.4), 1 * m, 1.5 * m); x.fillStyle = shut; x.fillRect(X(wx - 0.85), Y(8.4), 0.32 * m, 1.5 * m); x.fillRect(X(wx + 0.53), Y(8.4), 0.32 * m, 1.5 * m); }
+    // porch roof (full width) + entry gable
+    x.fillStyle = roof; x.fillRect(X(-16.5), Y(5.1), 33 * m, 0.9 * m);
+    x.fillStyle = wall; x.beginPath(); x.moveTo(X(-2.4), Y(5.6)); x.lineTo(X(0), Y(7.3)); x.lineTo(X(2.4), Y(5.6)); x.fill();
+    x.strokeStyle = trim; x.beginPath(); x.moveTo(X(-2.7), Y(5.4)); x.lineTo(X(0), Y(7.5)); x.lineTo(X(2.7), Y(5.4)); x.stroke();
+    // porch: shade under the roof, ground-floor windows + shutters, door, white columns and railing
+    x.fillStyle = sh(150, 140, 112, L * (front ? 0.7 : 0.45)); x.fillRect(X(-16), Y(4.2), 32 * m, 3.0 * m);
+    for (const wx of [-13, -10.5, -7, -4, 4, 7, 10.5, 13]) { x.fillStyle = win; x.fillRect(X(wx - 0.55), Y(3.4), 1.1 * m, 2 * m); x.fillStyle = shut; x.fillRect(X(wx - 0.95), Y(3.4), 0.35 * m, 2 * m); x.fillRect(X(wx + 0.6), Y(3.4), 0.35 * m, 2 * m); }
+    x.fillStyle = sh(40, 30, 26, L * 0.8 + 0.1); x.fillRect(X(-0.7), Y(3.6), 1.4 * m, 2.4 * m);
+    x.fillStyle = trim; for (let c = -16; c <= 16; c += 3.2) x.fillRect(X(c - 0.15), Y(4.2), Math.max(1, 0.3 * m), 3.0 * m);
+    x.fillRect(X(-16), Y(2.15), 14.5 * m, Math.max(1, 0.18 * m)); x.fillRect(X(1.5), Y(2.15), 14.5 * m, Math.max(1, 0.18 * m));
+    for (let c = -16; c <= 16; c += 0.55) if (Math.abs(c) > 1.5) x.fillRect(X(c), Y(2.15), Math.max(0.6, 0.07 * m), 0.95 * m);
+    // brick foundation + stair
+    x.fillStyle = sh(120, 62, 48, L * 0.85 + 0.05); x.fillRect(X(-16), Y(1.2), 32 * m, 1.2 * m);
+    for (let i = 0; i < 4; i++) x.fillRect(X(-1.6 - i * 0.25), Y(1.2 - i * 0.3), (3.2 + i * 0.5) * m, 0.3 * m);
+    // round shrubs
+    x.fillStyle = sh(46, 72, 38, L * 0.9 + 0.1); for (const bx of [-14, -11, -7.5, 7.5, 11, 14]) { x.beginPath(); x.ellipse(X(bx), Y(0.75), 1.4 * m, 0.95 * m, 0, 0, 6.283); x.fill(); }
+    // gravel drive toward you
+    x.fillStyle = sh(170, 160, 140, L * 0.7 + 0.1); x.beginPath(); x.moveTo(X(-1.5), gy); x.lineTo(X(1.5), gy); x.lineTo(X(-6), H); x.lineTo(X(-30), H); x.closePath(); x.globalAlpha = 0.55; x.fill(); x.globalAlpha = 1;
+    if (!front) { x.fillStyle = `rgba(20,24,34,${(0.35 * (1 - L)).toFixed(2)})`; x.fillRect(X(-24), Y(16), 48 * m, 16 * m); }   // dawn: backlit, in shadow
+  }
   function chinook(x, W, H, hz, C, now) { const P = 15000, D = 13000, ph = (now + 6000) % P; if (ph > D) return; const f = ph / D, e = C.elev != null ? C.elev : 5;
     const u = Math.max(0.55, W / 760), cx = W + 70 * u - f * (W + 140 * u), cy = hz - H * 0.075 - 10 * u + Math.sin(now / 650) * 0.8;   // right → left, low
     const lt = clamp((e + 2) / 12), col = `rgba(${Math.round(36 + 58 * lt)},${Math.round(40 + 60 * lt)},${Math.round(38 + 56 * lt)},${(0.85 - 0.12 * lt).toFixed(2)})`;
