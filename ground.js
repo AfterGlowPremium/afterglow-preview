@@ -25,6 +25,12 @@
              west: { land: true, near: SAND, nearD: 55, far: LAWN, d: 110, dl: 120, dr: 95, th: 48, town: 1, camH: 0.0017 },
              front: { west: { land: true, near: SAND, nearD: 55, far: LAWN, d: 110, dl: 120, dr: 95, th: 48, town: 1, camH: 0.0017 },
                      east: { near: SAND, nearD: 25, water: true, d: 450, dl: 450, dr: 300, th: 9, town: 0.6, a0: 0.38 } } },
+    // d28e Mattaponi (Melrose Landing, satellite-checked): west = the river (~150 m) then ~2 km of cordgrass tidal marsh cut by creeks,
+    // fading to a low ragged cypress/gum swamp treeline — no buildings. east = the landing's grass, then pine/hardwood woods (no houses in view).
+    melrose: { west: { near: LAWN, nearD: 6, water: true, d: 2100, dl: 2600, dr: 1700, th: 19, town: 0, marsh: 160, swamp: 1, lake: 0.3, camH: 0.003 },
+               east: { land: true, near: LAWN, nearD: 28, far: LAWN, d: 70, th: 21, town: 0, camH: 0.0017 },
+               front: { west: { near: LAWN, nearD: 6, water: true, d: 2100, dl: 2600, dr: 1700, th: 19, town: 0, marsh: 160, swamp: 1, lake: 0.3, camH: 0.003 },
+                        east: { land: true, near: LAWN, nearD: 28, far: LAWN, d: 70, th: 21, town: 0, camH: 0.0017 } } },
   };
   const NEAR = { Beach: SAND, Pier: 0, Boardwalk: SAND, Lighthouse: SAND, Dunes: SAND, Marsh: MARSH, Park: LAWN, Woods: LAWN, Town: LAWN, Harbor: 0, Waterfront: 0, Bluff: LAWN, Summit: 0 };
   const FAR_W = { open: { d: 0 }, lowshore: { d: 5000, th: 14, town: 0.3 }, trees: { d: 700, th: 20, town: 0.03 }, town: { d: 1500, th: 12, town: 0.7 },
@@ -43,10 +49,11 @@
   // sp = the app's spot (with .behind = { type, far, water }); rise = sunrise mode (behind = west)
   function behind(sp, rise) {
     const B = Object.assign({ type: "Beach", far: "lowshore", water: true }, sp.behind || {});
-    const o = Object.assign({}, (GEO[sp.id] || {})[rise ? "west" : "east"] || generic(B));
+    const G1 = ((window.GEO180 || {})[sp.id] || {})[rise ? "rise" : "set"];   // d28d: surveyed per-direction geography (no more mirrored copy of the forward view)
+    const o = Object.assign({}, (GEO[sp.id] || {})[rise ? "west" : "east"] || (G1 && G1.behind) || generic(B));
     o.water = !o.land; return o;
   }
   // d24: what you face when the spot's own view is land (e.g. 1st Street Jetty at sunset = the hotels) — null = the usual horizon
-  function front(sp, rise) { const F = (GEO[sp.id] || {}).front; const o = F && F[rise ? "east" : "west"]; return o ? Object.assign({}, o, { water: !o.land }) : null; }
+  function front(sp, rise) { const F = (GEO[sp.id] || {}).front; const G1 = ((window.GEO180 || {})[sp.id] || {})[rise ? "rise" : "set"]; const o = F ? F[rise ? "east" : "west"] : G1 && G1.front && G1.front.land ? G1.front : null; return o ? Object.assign({}, o, { water: !o.land }) : null; }
   g.Ground = { behind, front, GEO };
 })(window);

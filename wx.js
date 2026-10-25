@@ -251,7 +251,7 @@
       const ph = ((now / (per * 1000)) + r / 3) % 1, d = 0.12 + ph * 0.75, y = hz + (H - hz) * d * 0.9, a = Math.sin(ph * Math.PI) * clamp(ft / 8, 0.25, 0.8);
       const thick = (S.off ? 1.2 : 3) * (1 + d * 3) * (ft / 4), blur = 1.5 + d * 3;
       x.filter = `blur(${blur.toFixed(1)}px)`;
-      // d28c: surf lines drawn as smooth tapered runs (was 90 hard-edged rectangles → stair steps on phones)
+      // d28e: surf lines drawn as smooth tapered runs (was 90 hard-edged rectangles → stair steps on phones)
       const N = 90, pts = [];
       for (let k = 0; k <= N; k++) {
         const u = k / N, peak = S.combo ? Math.pow(Math.abs(Math.sin(u * Math.PI * 3 + r * 1.7)), 2) : 1, n = Math.sin(u * 37 + r * 5 + now * 0.0007) * 0.5 + 0.5;
