@@ -35,6 +35,29 @@
     // to a distant low ragged tree line ~2.6 km out, no buildings. East (the open Chesapeake Bay) keeps the generic/surveyed view.
     grandview: { west: { near: MARSH, nearD: 2450, water: true, d: 2600, dl: 3000, dr: 2300, th: 18, town: 0, marsh: 1, swamp: 1, lake: 0.05, camH: 0.0019 }, front: { west: { near: MARSH, nearD: 2450, water: true, d: 2600, dl: 3000, dr: 2300, th: 18, town: 0, marsh: 1, swamp: 1, lake: 0.05, camH: 0.0019 } } },
   };
+  // d28v (VA / NC / FL only — other regions keep the d23 generic facade): regional architecture + native trees (research: /workspace/research/regional_architecture.md) — [house style, tree species, tower share]
+  // styles 1 New England shingle/Cape, 2 Tidewater brick colonial & ranch, 3 Outer Banks raised shake on pilings, 4 Lowcountry raised + tin hip roof,
+  // 5 Florida stucco + barrel tile, 6 Key West conch, 7 Victorian, 8 urban brick, 9 Gulf raised pastel on stilts.
+  // trees 0 eastern hardwood, 1 spruce/fir/white pine, 2 pitch pine + scrub oak, 3 loblolly + sweetgum/oak, 4 live oak + Spanish moss + sabal, 5 palms + sea grape, 6 maritime forest, 7 mangrove
+  const REG = {}; const R = (ids, v) => ids.split(" ").forEach(k => { REG[k] = v; });
+  R("chincoteague", [3, 3, 0]); R("capecharles", [7, 3, 0]); R("fisherman", [3, 3, 0]);
+  R("yorktown jamestown melrose huntington lionsbridge hoffler bennettscreek wickham windmillpt grandview plumtree northlanding backbay capehenry littlecreek", [2, 3, 0]);
+  R("oldpoint", [2, 4, 0]); R("saltponds oceanview willoughby lesner", [2, 3, 0.15]); R("vb1st", [2, 3, 0.95]); R("sandbridge", [3, 6, 0]);
+  R("duck jockeys avon buxton ocracoke hatteraslh avalonpier jennettes frisco sturns rodanthe", [3, 6, 0]);
+  R("wrightsville sunsetbeach", [9, 4, 0.1]); R("fernandina", [7, 4, 0]);
+  R("jaxpier", [5, 5, 0.45]); R("newsmyrna", [5, 5, 0.3]); R("titusville", [5, 5, 0.05]); R("cocoa", [5, 5, 0.3]); R("sebastian", [5, 5, 0]);
+  R("laketrail", [5, 5, 0.4]); R("miamibeach", [5, 5, 0.75]); R("keywest", [6, 5, 0]); R("bahiahonda", [6, 7, 0]);
+  R("naples siesta", [5, 5, 0.35]); R("clearwater", [5, 5, 0.6]); R("sanibel fortdesoto", [9, 7, 0]); R("cedarkey", [4, 4, 0]);
+  R("stgeorge", [9, 3, 0]); R("pcb", [9, 3, 0.75]); R("pensacola", [9, 3, 0.5]);
+  // d28v: Preview toggle between the classic generic facade and the new local houses/trees — ?houses=old|new persists for the tab (like ?steam)
+  const HKEY = "agHouses"; try { const m = /[?&]houses=(old|new)/i.exec(location.search); if (m) sessionStorage.setItem(HKEY, m[1].toLowerCase()); } catch (e) {}
+  const housesOld = () => { try { return sessionStorage.getItem(HKEY) === "old"; } catch (e) { return false; } };
+  const regOf = id => housesOld() ? [0, 0, 0] : (REG[id] || [0, 0, 0]);
+  if (g.document) setInterval(() => { const rc = g.document.querySelector(".rail-ctl"); if (!rc || rc.querySelector("#pv-houses")) return;
+    const b = g.document.createElement("button"); b.id = "pv-houses"; b.className = "play"; b.style.cssText = "width:auto;padding:0 10px;font-size:12px;border-radius:14px;white-space:nowrap";
+    b.textContent = housesOld() ? "Houses: Classic" : "Houses: Local"; b.title = "Switch between the classic generic houses/trees and the location-accurate ones";
+    b.onclick = () => { try { sessionStorage.setItem(HKEY, housesOld() ? "new" : "old"); } catch (e) {} const u = new URL(location.href); u.searchParams.delete("houses"); location.replace(u.toString()); };
+    rc.appendChild(b); }, 1000);
   const NEAR = { Beach: SAND, Pier: 0, Boardwalk: SAND, Lighthouse: SAND, Dunes: SAND, Marsh: MARSH, Park: LAWN, Woods: LAWN, Town: LAWN, Harbor: 0, Waterfront: 0, Bluff: LAWN, Summit: 0 };
   const FAR_W = { open: { d: 0 }, lowshore: { d: 5000, th: 14, town: 0.3 }, trees: { d: 700, th: 20, town: 0.03 }, town: { d: 1500, th: 12, town: 0.7 },
     islands: { d: 7000, th: 12, town: 0.15 }, bridge: { d: 3500, th: 12, town: 0.3 }, skyline: { d: 0 }, hills: { d: 0 } };
@@ -54,9 +77,9 @@
     const B = Object.assign({ type: "Beach", far: "lowshore", water: true }, sp.behind || {});
     const G1 = ((window.GEO180 || {})[sp.id] || {})[rise ? "rise" : "set"];   // d28d: surveyed per-direction geography (no more mirrored copy of the forward view)
     const o = Object.assign({}, (GEO[sp.id] || {})[rise ? "west" : "east"] || (G1 && G1.behind) || generic(B));
-    o.water = !o.land; return o;
+    o.water = !o.land; if (!o.reg) o.reg = regOf(sp.id); return o;
   }
   // d24: what you face when the spot's own view is land (e.g. 1st Street Jetty at sunset = the hotels) — null = the usual horizon
-  function front(sp, rise) { const F = (GEO[sp.id] || {}).front; const G1 = ((window.GEO180 || {})[sp.id] || {})[rise ? "rise" : "set"]; const o = F ? F[rise ? "east" : "west"] : G1 && G1.front && G1.front.land ? G1.front : null; return o ? Object.assign({}, o, { water: !o.land }) : null; }
-  g.Ground = { behind, front, GEO };
+  function front(sp, rise) { const F = (GEO[sp.id] || {}).front; const G1 = ((window.GEO180 || {})[sp.id] || {})[rise ? "rise" : "set"]; const o = F ? F[rise ? "east" : "west"] : G1 && G1.front && G1.front.land ? G1.front : null; return o ? Object.assign({ reg: regOf(sp.id) }, o, { water: !o.land }) : null; }
+  g.Ground = { behind, front, GEO, REG };
 })(window);

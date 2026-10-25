@@ -25,6 +25,7 @@ uniform float uCity, uBridge;
 uniform vec4 uGnd;   // d23 ground: x near-ground type (0 none, 1 sand beach, 2 marsh grass, 3 lawn/park), y near depth m, z far-ground type (land views), w 1 = land-only view
 uniform vec4 uFS;    // d23 lit shoreline/land facade: x distance m (0 = open water), y tree height m, z house fraction 0..1, w dune fraction 0..1
 uniform vec2 uMarsh;  // d28e: x = distance (m) where a tidal marsh plain starts across the water (0 = none), y = 1 swamp-forest treeline (low, ragged cypress/gum)
+uniform vec4 uReg;   // d28v regional architecture: x house style, y tree species, z tower share
 uniform vec4 uFSv;   // d23: x distance at the left edge (m), y at the right edge, z/w azimuth range (rad) where the shore exists
 uniform float uCamH;    // camera height km
 uniform float uPitch, uFov;
@@ -509,7 +510,7 @@ vec3 antiTw(vec3 col, vec3 rd, float e){
 float fsDist(float az){ float k = clamp(abs(az) / .6, 0., 1.); return mix(uFS.x, az < 0. ? uFSv.x : uFSv.y, k); }
 float fsMask(float az){ return smoothstep(uFSv.z - .05, uFSv.z + .05, az) * (1. - smoothstep(uFSv.w - .05, uFSv.w + .05, az)); }   // shore tapers off into open water
 // facade height (m above the water / ground) at shore coordinate x (m along the shore); kind: 0 trees, 1 house, 2 dune
-float fsTop(float x, out float kind, out float hv){
+float fsTopOld(float x, out float kind, out float hv){
   float c = floor(x / 16.), hc = h12(vec2(c, 7.3) + uSeed);
   float house = step(1. - uFS.z, hc) * (1. - uFS.w);
   float fx = fract(x / 16.);
@@ -524,7 +525,130 @@ float fsTop(float x, out float kind, out float hv){
   kind = house * roof >= tree && house > .5 ? 1. : dune > tree ? 2. : 0.; hv = house * hh;
   return top;
 }
-vec3 landAlb(float kind, vec2 lp, float hv, float fp){
+// ---------- d28v: regional houses + native trees on the lit facade (Sean: "make them look real") ----------
+// uReg.x house style: 1 New England shingle/Cape, 2 Tidewater brick colonial & ranch, 3 Outer Banks raised shake box on pilings,
+// 4 Lowcountry raised cottage + metal hip roof, 5 Florida stucco + barrel tile, 6 Key West conch, 7 Victorian (Cape May),
+// 8 urban rowhouse/brick, 9 Gulf raised pastel on stilts.  uReg.y trees: 0 eastern hardwood mix, 1 spruce/fir/white pine,
+// 2 pitch pine + scrub oak, 3 loblolly pine + sweetgum/oak, 4 live oak (Spanish moss) + sabal palmetto, 5 palms + sea grape,
+// 6 wind-sheared maritime forest, 7 mangrove.  uReg.z = share of condo/hotel towers.
+float gFP = 0.;   // facade pixel footprint (m): trunks never thinner than ~a pixel, so crowns don't float
+struct Hs { float on, tw, a, b, L, ph, hw, rh, rt, st, chim, tur, por, col; };
+float lotW(){ float s = uReg.x; return (s > 7.5 && s < 8.5) ? 11. : (s > 5.5 && s < 7.5) ? 15. : (s > 1.5 && s < 2.5) ? 26. : (s > 4.5 && s < 5.5) ? 24. : 21.; }
+Hs houseAt(float x){
+  Hs H; float s = floor(uReg.x + .5); H.L = lotW(); float c = floor(x / H.L);
+  float r1 = h12(vec2(c, 7.3) + uSeed), r2 = h12(vec2(c, 2.1)), r3 = h12(vec2(c, 4.7)), r4 = h12(vec2(c, 6.9)), r5 = h12(vec2(c, 8.3)), r6 = h12(vec2(c, 1.9));
+  H.on = step(1. - uFS.z, r1) * (1. - uFS.w);
+  H.tw = step(r3, uReg.z * .6) * H.on; H.col = r5;
+  float wf = H.tw > .5 ? mix(.6, .85, r2) : mix(.52, .8, r2);
+  H.a = .5 - wf * .5 + (r4 - .5) * (1. - wf) * .8; H.b = H.a + wf;
+  float hm = (H.b - H.a) * H.L * .5;   // half width m
+  H.ph = 0.; H.st = 2.; H.rt = 0.; H.rh = 3.; H.chim = 0.; H.tur = 0.; H.por = 0.;
+  if (s == 1.){ H.st = r6 < .35 ? 1. : r6 < .8 ? 1.5 : 2.; H.rt = r4 < .45 ? 0. : r4 < .8 ? 1. : 3.; H.rh = H.rt == 0. ? 3.6 : hm * .95; H.chim = step(.35, r5); H.por = step(.7, r2); }
+  else if (s == 2.){ H.st = r6 < .45 ? 1. : 2.; H.rt = r4 < .7 ? 0. : 2.; H.rh = H.st < 1.5 ? 2.2 : 3.; H.chim = step(.3, r5); H.por = step(.75, r2); }
+  else if (s == 3.){ H.ph = 2.6 + .8 * r6; H.st = r6 < .5 ? 2. : 3.; H.rt = r4 < .45 ? 2. : r4 < .8 ? 1. : 0.; H.rh = H.rt == 1. ? hm * .75 : 2.8; H.por = 1.; }
+  else if (s == 4.){ H.ph = 2.2 + .6 * r6; H.st = r6 < .6 ? 1. : 2.; H.rt = r4 < .7 ? 2. : 1.; H.rh = H.rt == 1. ? hm * .8 : 3.2; H.por = 1.; }
+  else if (s == 5.){ H.st = r6 < .55 ? 1. : 2.; H.rt = 2.; H.rh = 1.6; H.chim = 0.; H.por = step(.6, r2) * .5; }
+  else if (s == 6.){ H.ph = .7; H.st = r6 < .45 ? 1. : 2.; H.rt = 1.; H.rh = hm * .7; H.por = 1.; }
+  else if (s == 7.){ H.ph = .6; H.st = r6 < .4 ? 2. : 2.5; H.rt = 1.; H.rh = hm * 1.25; H.tur = step(.62, r4); H.chim = step(.5, r5); H.por = 1.; }
+  else if (s == 8.){ H.st = 3. + floor(r6 * 2.5); H.rt = 4.; H.rh = .7; }
+  else if (s == 9.){ H.ph = 3. + .9 * r6; H.st = r6 < .5 ? 2. : 3.; H.rt = r4 < .5 ? 1. : 2.; H.rh = H.rt == 1. ? hm * .55 : 2.4; H.por = 1.; }
+  if (H.tw > .5){ H.ph = 0.; H.st = floor(8. + (8. + 14. * uReg.z) * r6); H.rt = 4.; H.rh = 1.; H.por = 0.; H.chim = 0.; H.tur = 0.; }
+  H.hw = H.ph + H.st * 3.;
+  return H;
+}
+// roof top height (m) at lot fraction fx; e = 0 at the eave edge, 1 at the centre
+float roofTop(Hs H, float fx){
+  float hm = (H.b - H.a) * H.L * .5, u = (fx - (H.a + H.b) * .5) / ((H.b - H.a) * .5), e = 1. - abs(u), em = e * hm;
+  float t;
+  if (H.rt < .5) t = H.hw + min(H.rh, em * 3.5);                 // side gable: ridge along the shore
+  else if (H.rt < 1.5) t = H.hw + H.rh * e;                      // front gable
+  else if (H.rt < 2.5) t = H.hw + min(H.rh, em * .9);            // hip
+  else if (H.rt < 3.5) t = H.hw + H.rh * (e < .35 ? e / .35 * .7 : .7 + .3 * (e - .35) / .65);   // gambrel
+  else t = H.hw + H.rh * step(.04, e) + .5 * step(.94, h12(vec2(floor(fx * 40.), 3.)));         // flat roof: parapet + rooftop units
+  if (H.chim > .5){ float cx = u - (H.col < .5 ? -.55 : .55); if (abs(cx) * hm < .55) t = max(t, H.hw + (H.rt < .5 ? H.rh : H.rt < 1.5 ? H.rh * .45 : H.rh * .7) + 1.2); }
+  if (H.tur > .5){ float tu = abs(u - .7) / .2; if (tu < 1.) t = max(t, H.hw + 1.6 + 4.2 * (1. - tu)); }
+  return t;
+}
+// ---- trees ----
+float spSlot(float sp){ return sp < .5 ? 8. : sp < 1.5 ? 4.5 : sp < 2.5 ? 6. : sp < 3.5 ? 7. : sp < 4.5 ? 11. : sp < 5.5 ? 6.5 : sp < 6.5 ? 6. : 4.; }
+// one tree: returns 1 = foliage, 2 = trunk, 3 = moss / palm-skirt, 0 = miss. dx m from the trunk, y m, hT height, sub variant 0..1
+float treeOcc(float sp, float dx, float y, float hT, float sub, float sd){
+  if (y < 0. || y > hT * 1.35) return 0.;
+  if (sp > .5 && sp < 1.5){   // spruce / fir spire, white pine with tufted tiers when sub > .65
+    if (abs(dx) < max(.22, gFP * .6) && y < hT) return 2.;
+    float t = (y - 1.2) / (hT - 1.2); if (t < 0. || t > 1.) return 0.;
+    float w = sub > .65 ? .34 * hT * (1. - .55 * t) * (.35 + .65 * step(.42, fract(t * 4.3 + sd))) : .27 * hT * pow(1. - t, .9) * (.78 + .32 * fract(t * 9. + sd));
+    return abs(dx) < w * (.85 + .3 * vn(vec2(y * 1.3, sd * 9.))) ? 1. : 0.; }
+  if (sp > 4.5 && sp < 5.5 || (sp > 3.5 && sp < 4.5 && sub > .66)){   // palms: coconut (leaning, long drooping fronds) / sabal (straight, round head)
+    bool coco = sp > 4.5 && sub > .45; float lean = coco ? (sd - .5) * 3. : (sd - .5) * .6, k = y / hT;
+    float tx = dx - lean * k * k; if (abs(tx) < max((coco ? .17 : .22) * (1.15 - .3 * k), gFP * .6) && y < hT) return 2.;
+    vec2 q = vec2(dx - lean, y - hT); float R = coco ? 4.2 : 2.8, r = length(q); if (r > R) return 0.;
+    if (!coco && r < 1.15) return 1.;
+    vec2 qq = vec2(q.x, q.y + (coco ? .55 : .3) * q.x * q.x / R); float a = atan(qq.y, qq.x);
+    float f = abs(fract(a / 6.2832 * (coco ? 9. : 13.) + sd * 3.) - .5) * 2.;
+    if (!coco && q.y < -.6 && abs(q.x) < .9 && q.y > -2.2) return 3.;   // sabal boot / dead-frond skirt
+    return f < .55 * (1. - r / R) + .14 ? 1. : 0.; }
+  if (sp > 2.5 && sp < 3.5 && sub < .62){   // loblolly / slash pine: tall bare trunk, flat irregular puffs at the top
+    if (abs(dx - .2 * sin(y * .15 + sd * 6.)) < max(.25, gFP * .6) && y < hT * .9) return 2.;
+    for (int i = 0; i < 3 + int(uReg.w); i++){ float fi = float(i); vec2 c = vec2((fi - 1.) * .17 * hT + (h12(vec2(sd, fi)) - .5) * 1.5, hT * (.8 + .1 * h12(vec2(fi, sd)))); vec2 d = (vec2(dx, y) - c) / vec2(.15 * hT, .085 * hT);
+      if (dot(d, d) < .85 + .6 * vn(vec2(dx, y) * .9 + sd * 7.)) return 1.; }
+    return 0.; }
+  if (sp > 1.5 && sp < 2.5){   // pitch pine (crooked trunk, irregular flat crown) / scrub oak (low dome) — Cape Cod
+    if (sub < .5){ if (abs(dx - .5 * sin(y * .35 + sd * 6.)) < .2 && y < hT * .75) return 2.;
+      vec2 d = (vec2(dx, y) - vec2((sd - .5) * 2., hT * .74)) / vec2(.42 * hT, .24 * hT); return dot(d, d) < .8 + .7 * vn(vec2(dx, y) * .6 + sd * 5.) ? 1. : 0.; }
+    vec2 d = vec2(dx, y) / vec2(.6 * hT, .55 * hT); return dot(d, d) < .9 + .4 * vn(vec2(dx, y) * .8 + sd) ? 1. : 0.; }
+  if (sp > 3.5 && sp < 4.5 || sp > 5.5 && sp < 6.5){   // live oak: low, very wide spreading crown; maritime: same, wind-sheared flat top
+    bool mar = sp > 5.5; if (abs(dx) < .45 && y < hT * .45) return 2.;
+    if (abs(dx - sign(dx) * y * .9) < .25 && y > hT * .25 && y < hT * .55) return 2.;   // limbs reaching out
+    float cy = hT * .62, ry = hT * (mar ? .3 : .36), rx = hT * (mar ? .85 : 1.15); vec2 d = (vec2(dx, y) - vec2(0., cy)) / vec2(rx, ry);
+    float n = vn(vec2(dx, y) * .45 + sd * 7.), cut = mar ? 1. - step(hT * (.82 + .1 * dx / rx), y) : 1.;   // seaward side lower (salt pruning)
+    float o = dot(d, d) < .78 + .55 * n ? cut : 0.;
+    if (o > .5 && !mar && y < cy - ry * .35 && vn(vec2(dx * 2.5, sd)) > .45) return 3.;   // Spanish moss hanging from the lower crown
+    if (o < .5 && !mar && y < cy - ry * .5 && y > cy - ry * 1.15 && abs(d.x) < .8 && vn(vec2(dx * 3., sd * 3.)) > .62) return 3.;
+    return o; }
+  if (sp > 6.5){   // red mangrove: dense low dome on arching prop roots
+    if (y < 1.2) return step(.55, fract(dx * 1.1 + sd)) * 2.;
+    vec2 d = (vec2(dx, y) - vec2(0., hT * .6)) / vec2(.85 * hT, .45 * hT); return dot(d, d) < .85 + .4 * vn(vec2(dx, y) * .9 + sd) ? 1. : 0.; }
+  // eastern hardwood (oak / maple / sweetgum dome) or a loblolly-region hardwood
+  if (abs(dx) < .3 && y < hT * .5) return 2.;
+  vec2 d = (vec2(dx, y) - vec2(0., hT * .6)) / vec2(.36 * hT, .42 * hT); return dot(d, d) < .82 + .5 * vn(vec2(dx, y) * .55 + sd * 3.) ? 1. : 0.;
+}
+float gTreeV = 0., gTreeP = 0.;   // last tree hit: species variant, part
+// background canopy height (continuous woods behind the individual trees)
+float canopy(float x, float sp){
+  float th = uFS.y, n = fbm(vec2(x * .05, 1.3) + uSeed, 0., 4), cx = fract(x / 5.) - .5, b = sqrt(max(0., 1. - 4. * cx * cx));
+  if (sp > .5 && sp < 1.5) return th * (.45 + .25 * n) + th * .3 * pow(abs(fract(x / 3.7 + .37 * vn(vec2(x * .2, 2.))) - .5) * 2., 2.);   // spiky spruce skyline
+  if (sp > 4.5 && sp < 5.5) return 2.2 + 2.2 * n + .6 * b;                       // sea grape / saw palmetto scrub under the palms
+  if (sp > 6.5) return 3.2 + 2.6 * n + .5 * b;                                    // mangrove wall
+  if (sp > 5.5 && sp < 6.5) return th * (.32 + .22 * n) + .6 * b;                 // sheared maritime thicket
+  if (sp > 1.5 && sp < 2.5) return th * (.38 + .2 * n) + .5 * b;                  // Cape scrub
+  return th * (.4 + .25 * n) + .8 * b;
+}
+// facade occupancy at lp = (x along the shore m, y m); kind 0 tree, 1 house, 2 dune, 3 tower; hv = wall-top height; top = column top
+float fsOcc(vec2 lp, float msk, out float kind, out float hv, out float top){
+  kind = 0.; hv = 0.; top = 0.; if (msk < .02) return 0.;
+  float x = lp.x, y = lp.y / msk;
+  if (uMarsh.y > .5 || uReg.x < .5){ gTreeP = 1.; gTreeV = -1.; float t = fsTopOld(x, kind, hv); top = t * msk; return y < t ? 1. : 0.; }
+  float dune = uFS.w * (2.2 + 3.2 * fbm(vec2(x * .02, 9.) + uSeed, 0., 4) + .5 * vn(vec2(x * .9, 3.)));
+  Hs H = houseAt(x); float fx = fract(x / H.L);
+  if (H.on > .5 && fx > H.a - .02 && fx < H.b + .02){
+    float rt = roofTop(H, clamp(fx, H.a, H.b)), ov = .5 / H.L;   // eaves overhang the walls
+    bool inWall = fx > H.a + ov && fx < H.b - ov;
+    if (y < rt && (y > H.hw - .2 || inWall)){
+      bool post = y > H.ph || abs(fract((x - (H.a + ov) * H.L) / 3.) - .5) > .44 || (uReg.x > 3.5 && uReg.x < 4.5);   // open pilings, lattice in the Lowcountry
+      if (post){ kind = H.tw > .5 ? 3. : 1.; hv = H.hw; top = rt * msk; return 1.; } } }
+  if (y < dune){ kind = 2.; top = dune * msk; return 1.; }
+  float sp = uReg.y, S = spSlot(sp), i0 = floor(x / S), th = uFS.y * (sp > 4.5 && sp < 5.5 ? .85 : sp > 6.5 ? .38 : sp > 3.5 && sp < 4.5 ? .75 : 1.);
+  float bg = canopy(x, sp) * (1. - .55 * H.on) * (1. - uFS.w);
+  for (int k = -1; k <= 1 + int(uReg.w); k++){ float i = i0 + float(k), r = h12(vec2(i, 3.7) + uSeed), sub = h12(vec2(i, 5.1)), sd = h12(vec2(i, 9.3));
+    if (r < mix(.12, .5, uFS.z) || uFS.w > .5) continue;
+    float cxT = (i + .5 + .7 * (sd - .5)) * S, hT = th * (.7 + .55 * r) * (sp > 3.5 && sp < 4.5 && sub > .66 ? 1.25 : 1.);
+    float o = treeOcc(sp, x - cxT, y, hT, sub, sd); if (o > .5){ gTreeV = sub; gTreeP = o; top = max(top, hT * msk); kind = 0.; return 1.; } }
+  if (y < bg){ gTreeV = -1.; gTreeP = 1.; top = bg * msk; return 1.; }
+  return 0.;
+}
+// d23 generic facade, kept unchanged for regions outside VA / NC / FL
+vec3 landAlbOld(float kind, vec2 lp, float hv, float fp){
   if (kind > 1.5){ float g = smoothstep(.45, .7, fbm(lp * vec2(.9, 2.6), fp, 4)) * smoothstep(.6, 2.5, lp.y);
     return mix(vec3(.40, .35, .26), vec3(.20, .19, .09), g); }
   if (kind > .5){ float c = floor(lp.x / 16.); vec3 wall = mix(mix(vec3(.62,.60,.56), vec3(.55,.50,.42), h12(vec2(c,3.))), vec3(.42,.50,.58), step(.75, h12(vec2(c,5.))));
@@ -537,8 +661,8 @@ vec3 landAlb(float kind, vec2 lp, float hv, float fp){
   return mix(mix(g0, g1, n), au, smoothstep(.6, .85, n2) * .45);
 }
 // shade a vertical land facade point seen along rd at distance d (m); lp = (x along shore, y height) m
-vec3 shadeFacade(vec3 ro, vec3 rd, float d, vec2 lp, float top, float kind, float hv, float sunVis, vec3 hzS, vec3 amb, float fp){
-  vec3 alb = landAlb(kind, lp, hv, fp);
+vec3 shadeFacadeOld(vec3 ro, vec3 rd, float d, vec2 lp, float top, float kind, float hv, float sunVis, vec3 hzS, vec3 amb, float fp){
+  vec3 alb = landAlbOld(kind, lp, hv, fp);
   vec2 rh = normalize(rd.xz + 1e-5), sh = normalize(uSunA.xz + 1e-5);
   float front = max(dot(-rh, sh), 0.), ce = sqrt(max(1. - uSunA.y * uSunA.y, 0.));
   vec3 sunL = ESUN * sunT(ro, uSunA) * sunVis * smoothstep(-.012, .012, uSunA.y) / PI;
@@ -549,6 +673,109 @@ vec3 shadeFacade(vec3 ro, vec3 rd, float d, vec2 lp, float top, float kind, floa
   float fog = 1. - exp(-d * .001 * (BMe * 1.3 + BR.g));
   return mix(c, hzS * .95, clamp(fog, 0., 1.));
 }
+// wall / roof palettes per region
+vec3 wallCol(float s, float r, float r2){
+  if (s == 1.) return r < .55 ? mix(vec3(.30,.28,.25), vec3(.40,.37,.32), r2) : r < .85 ? vec3(.70,.70,.67) : r < .93 ? vec3(.40,.11,.08) : vec3(.55,.52,.40);   // weathered cedar / white clapboard / barn red / butter
+  if (s == 2.) return r < .5 ? mix(vec3(.36,.14,.09), vec3(.46,.22,.15), r2) : r < .75 ? vec3(.66,.64,.58) : r < .9 ? vec3(.52,.55,.55) : vec3(.60,.55,.43);   // red brick / white-cream siding / gray / tan
+  if (s == 3.) return r < .55 ? mix(vec3(.32,.29,.25), vec3(.44,.40,.34), r2) : r < .7 ? vec3(.48,.60,.66) : r < .82 ? vec3(.60,.68,.58) : r < .92 ? vec3(.72,.66,.46) : vec3(.70,.70,.68);   // gray shake / blue / sea green / yellow / white
+  if (s == 4.) return r < .45 ? vec3(.74,.74,.70) : r < .62 ? vec3(.70,.66,.52) : r < .76 ? vec3(.56,.66,.68) : r < .88 ? vec3(.62,.70,.60) : vec3(.70,.58,.52);
+  if (s == 5.) return r < .4 ? vec3(.80,.78,.72) : r < .62 ? vec3(.78,.70,.55) : r < .78 ? vec3(.80,.62,.50) : r < .9 ? vec3(.70,.72,.62) : vec3(.66,.70,.74);   // white / sand / peach-coral / sage / pale blue stucco
+  if (s == 6.) return r < .45 ? vec3(.82,.82,.79) : r < .58 ? vec3(.82,.62,.64) : r < .7 ? vec3(.60,.78,.70) : r < .82 ? vec3(.84,.78,.52) : vec3(.56,.70,.82);   // conch whites & Caribbean pastels
+  if (s == 7.) return r < .25 ? vec3(.78,.74,.58) : r < .45 ? vec3(.58,.70,.74) : r < .6 ? vec3(.80,.62,.64) : r < .75 ? vec3(.62,.70,.56) : r < .88 ? vec3(.78,.78,.76) : vec3(.62,.52,.66);   // painted ladies
+  if (s == 8.) return r < .5 ? mix(vec3(.30,.13,.09), vec3(.40,.20,.14), r2) : r < .8 ? vec3(.26,.19,.15) : vec3(.55,.52,.47);   // brick / brownstone / limestone
+  return r < .3 ? vec3(.84,.66,.56) : r < .5 ? vec3(.52,.72,.72) : r < .66 ? vec3(.86,.80,.54) : r < .8 ? vec3(.64,.74,.86) : vec3(.84,.84,.80);   // Gulf: coral, teal, yellow, sky blue, white
+}
+// roof material: 0 asphalt shingle, 1 cedar shake, 2 metal standing seam, 3 barrel tile, 4 flat/membrane, 5 slate
+vec3 roofAlb(float s, float r, vec2 lp, float fp, out float mat){
+  mat = s == 1. ? (r < .4 ? 1. : 0.) : s == 3. ? (r < .45 ? 1. : 0.) : s == 4. || s == 6. || s == 9. ? 2. : s == 5. ? 3. : s == 7. ? 5. : s == 8. ? 4. : 0.;
+  float d = 1. - smoothstep(.3, 1.2, fp);   // fine courses fade out with distance
+  if (mat < .5) return vec3(.075, .075, .078) * (.75 + .5 * h12(vec2(r, 1.))) * (1. - .15 * d * step(.5, fract(lp.y * 3.)));
+  if (mat < 1.5) return mix(vec3(.24,.21,.18), vec3(.30,.28,.25), r) * (1. - .2 * d * step(.6, fract(lp.y * 3.)));
+  if (mat < 2.5){ vec3 m = r < .6 ? vec3(.40,.42,.43) : r < .75 ? vec3(.12,.22,.16) : r < .88 ? vec3(.32,.09,.07) : vec3(.62,.62,.60); return m * (1. + .25 * d * step(.85, fract(lp.x * 2.))); }   // galvalume / green / red / white tin
+  if (mat < 3.5) return mix(vec3(.50,.24,.13), vec3(.58,.33,.18), r) * (1. - .3 * d * (.5 + .5 * sin(lp.x * 25.))) * (1. - .2 * d * step(.75, fract(lp.y * 2.6)));   // terracotta barrel tile
+  if (mat < 4.5) return vec3(.18, .17, .16);
+  return vec3(.10, .10, .12) * (.8 + .4 * r);
+}
+vec3 landAlb(float kind, vec2 lp, float hv, float fp, out float emis, out float metal){
+  emis = 0.; metal = 0.;
+  if (kind > 1.5 && kind < 2.5){ float g = smoothstep(.45, .7, fbm(lp * vec2(.9, 2.6), fp, 4)) * smoothstep(.6, 2.5, lp.y);
+    return mix(vec3(.40, .35, .26), vec3(.20, .19, .09), g); }
+  float night = smoothstep(.02, -.07, uSunA.y), dF = 1. - smoothstep(.5, 1.6, fp);
+  if (kind > .5){ Hs H = houseAt(lp.x); float s = floor(uReg.x + .5), fx = fract(lp.x / H.L), xm = (fx - H.a) * H.L, c = floor(lp.x / H.L);
+    float r = H.col, r2 = h12(vec2(c, 11.));
+    if (lp.y > H.hw - .05 || (H.tw < .5 && (fx < H.a + .5 / H.L || fx > H.b - .5 / H.L))){ float m; vec3 ra = roofAlb(s, h12(vec2(c, 13.)), lp, fp, m); metal = m > 1.5 && m < 2.5 ? 1. : 0.;
+      if (H.chim > .5 && lp.y > roofTop(H, fx) - 1.25 && abs((fx - (H.a + H.b) * .5) / ((H.b - H.a) * .5) - (H.col < .5 ? -.55 : .55)) * (H.b - H.a) * H.L * .5 < .55) return s == 2. || s == 7. ? vec3(.38,.16,.10) : vec3(.30,.27,.24);   // brick / stone chimney
+      if (H.tw > .5) return vec3(.55, .54, .52);
+      return lp.y < H.hw + .25 ? vec3(.75, .74, .70) * (s == 5. ? .9 : 1.) : ra; }   // white fascia board, then the roof
+    if (lp.y < H.ph){   // under the house: open pilings / lattice, deep shade
+      if (s == 4.){ return mix(vec3(.04,.04,.04), vec3(.55,.55,.52), step(.5, fract(xm * 4.)) * dF + .3 * (1. - dF)); }
+      return vec3(.22, .20, .17); }
+    vec3 wall = wallCol(s, r, r2);
+    if (H.tw > .5){   // condo / hotel tower: slab edges, glass, balconies; many windows lit after dusk
+      float fl = fract((lp.y - H.ph) / 3.), bay = fract(xm / 3.2), glass = step(.22, fl) * step(fl, .9);
+      wall = mix(vec3(.62,.61,.58) * (r < .5 ? 1. : .85), mix(vec3(.05,.07,.09), vec3(.10,.12,.14), r2), glass * (.75 + .25 * dF));
+      wall = mix(wall, vec3(.75,.75,.73), step(fl, .1) * dF);   // balcony slab
+      float lit = step(h12(vec2(floor(xm / 3.2) + c * 31., floor(lp.y / 3.))), .38) * glass;
+      emis = night * mix(lit * step(.15, bay) * step(bay, .85), .3, 1. - dF) * .9; metal = glass * .6; return wall; }
+    float sh = s == 8. ? 3.2 : 3., ly = lp.y - H.ph, fl = fract(ly / sh), wcol = fract(xm / 2.4);
+    float win = step(.33, fl) * step(fl, .78) * step(.3, wcol) * step(wcol, .7) * step(1.2, xm) * step(xm, (H.b - H.a) * H.L - 1.2);
+    float shut = (s == 1. || s == 2. || s == 6. || s == 7.) ? step(.33, fl) * step(fl, .78) * (step(.18, wcol) * step(wcol, .3) + step(.7, wcol) * step(wcol, .82)) * step(1.2, xm) * step(xm, (H.b - H.a) * H.L - 1.2) : 0.;
+    vec3 shutC = s == 6. ? vec3(.12,.30,.22) : s == 7. ? vec3(.20,.14,.20) : r2 < .5 ? vec3(.04,.04,.045) : vec3(.10,.16,.24);
+    if (s == 1. || s == 3.){ if (r < .55 || s == 3.) wall *= .85 + .3 * vn(vec2(xm * 3., floor(lp.y * 3.))); }   // cedar shake mottling
+    else if (s == 2. && r < .5) wall *= .88 + .2 * step(.5, fract(lp.y * 6. + .5 * step(.5, fract(lp.y * 3.)) + xm * 2.));   // brick courses
+    else if (s != 5.) wall *= .92 + .1 * step(.5, fract(lp.y * 3.3));   // lap siding
+    wall *= 1. - .4 * smoothstep(H.hw - .8, H.hw, lp.y);   // shadow under the eaves
+    vec3 trim = vec3(.78, .78, .75);
+    float edge = step(xm, .45) + step((H.b - H.a) * H.L - .45, xm); if (s != 5. && s != 8.) wall = mix(wall, trim, edge * dF);
+    float porchZ = H.por > .5 ? step(ly, 2.8) + (s == 6. && H.st > 1.5 ? step(3., ly) * step(ly, 5.8) : 0.) + (s == 3. || s == 9. ? step(fract(ly / sh), .4) * .6 : 0.) : 0.;
+    vec3 c0 = mix(wall, shutC, shut * dF);
+    vec3 g = mix(vec3(.04,.045,.055), vec3(.025,.03,.04), r2);
+    c0 = mix(c0, g, win * (.4 + .6 * dF));
+    float wl = win * step(h12(vec2(floor(xm / 2.4) + c * 17., floor(ly / sh))), s == 8. ? .35 : .24);
+    emis = night * mix(wl, .2 * .24, 1. - dF);
+    metal = win * .5;
+    if (porchZ > .5){   // porch / deck: shaded recess, white posts and railing
+      float pfl = fract(ly / sh), post = step(fract(xm / 2.4), .09), rail = step(.28, pfl) * step(pfl, .34) + step(.92, pfl);
+      c0 = mix(c0 * .45, trim, clamp(post + rail, 0., 1.) * dF + .25 * (1. - dF)); }
+    return c0; }
+  // trees: species colours (late October)
+  float sp = uReg.y, n = fbm(lp * vec2(.12, .15), fp * .12, 4), n2 = vn(lp * vec2(.25, .3));
+  if (gTreeP > 1.5 && gTreeP < 2.5) return (sp > 4.5 && sp < 5.5) || (sp > 3.5 && sp < 4.5 && gTreeV > .66) ? vec3(.22,.20,.17) : vec3(.10,.085,.07);   // palm trunks pale, others dark bark
+  if (gTreeP > 2.5) return (sp > 3.5 && sp < 4.5 && gTreeV <= .66) ? vec3(.16,.17,.14) * (.8 + .4 * n2) : vec3(.16,.13,.08);   // Spanish moss / palmetto boot
+  vec3 g0, g1, au; float auK = .3;
+  if (sp > .5 && sp < 1.5){ g0 = vec3(.022,.042,.032); g1 = vec3(.035,.058,.04); au = vec3(.05,.06,.04); auK = .1; }       // spruce / fir / white pine
+  else if (sp > 1.5 && sp < 2.5){ g0 = vec3(.045,.06,.032); g1 = vec3(.065,.075,.04); au = vec3(.13,.085,.045); auK = gTreeV > .5 ? .8 : .25; }   // pitch pine olive, scrub oak bronze
+  else if (sp > 2.5 && sp < 3.5){ g0 = vec3(.045,.06,.03); g1 = vec3(.07,.085,.04); au = gTreeV > .8 ? vec3(.20,.07,.03) : vec3(.17,.12,.035); auK = gTreeV > .62 ? .85 : .15; }   // loblolly + sweetgum red / tulip-poplar gold
+  else if (sp > 3.5 && sp < 4.5){ g0 = vec3(.03,.045,.025); g1 = vec3(.05,.065,.032); au = vec3(.06,.07,.035); auK = .1; }   // live oak dark olive
+  else if (sp > 4.5 && sp < 5.5){ g0 = vec3(.06,.08,.035); g1 = vec3(.09,.11,.045); au = vec3(.12,.11,.05); auK = .25; }    // palms & sea grape, yellow-green
+  else if (sp > 6.5){ g0 = vec3(.025,.045,.02); g1 = vec3(.04,.06,.028); au = vec3(.06,.065,.03); auK = .1; }               // mangrove
+  else if (sp > 5.5){ g0 = vec3(.035,.05,.028); g1 = vec3(.055,.068,.035); au = vec3(.09,.08,.045); auK = .2; }              // maritime thicket
+  else { g0 = vec3(.04,.062,.032); g1 = vec3(.075,.095,.047); au = vec3(.13,.08,.04); auK = .55; }
+  if (gTreeV < 0.) auK *= .6;
+  return mix(mix(g0, g1, n), au, smoothstep(.55, .85, n2) * auK);
+}
+// shade a vertical land facade point seen along rd at distance d (m); lp = (x along shore, y height) m
+vec3 shadeFacade(vec3 ro, vec3 rd, float d, vec2 lp, float top, float kind, float hv, float sunVis, vec3 hzS, vec3 amb, float fp){
+  if (uReg.x < .5) return shadeFacadeOld(ro, rd, d, lp, top, kind, hv, sunVis, hzS, amb, fp);
+  float emis, metal; vec3 alb = landAlb(kind, lp, hv, fp, emis, metal);
+  vec2 rh = normalize(rd.xz + 1e-5), sh = normalize(uSunA.xz + 1e-5);
+  float front = max(dot(-rh, sh), 0.), back = max(dot(rh, sh), 0.), ce = sqrt(max(1. - uSunA.y * uSunA.y, 0.));
+  vec3 sunL = ESUN * sunT(ro, uSunA) * sunVis * smoothstep(-.012, .012, uSunA.y) / PI;
+  bool bld = kind > .5 && kind < 1.5 || kind > 2.5;
+  bool roof = bld && lp.y > hv + .2;
+  float relief = kind < .5 ? mix(1.08, .5, smoothstep(.2, .9, worley(lp * vec2(.24, .3) + 3. + 1.6 * vec2(fbm(lp * .08, fp * .08, 3), fbm(lp * .08 + 7., fp * .08, 3))))) * mix(.72, 1.12, fbm(lp * vec2(1.1, 1.4), fp * 1.2, 4)) : kind > 1.5 && kind < 2.5 ? mix(.6, 1.1, fbm(lp * vec2(.3, 1.), fp, 3)) : 1.;
+  float ao = mix(.45, 1., clamp(lp.y / max(top, 1.), 0., 1.));
+  float rim = kind < .5 ? smoothstep(top - 1.6, top, lp.y) * (.35 + .5 * back) : 0.;   // sunlit crown tops; backlit leaves glow at the edge
+  // walls: Lambert on the face toward you; roofs: tilted ~35° up, so they also catch the high sun and more sky
+  float sunTerm = roof ? (front * ce * .6 + max(uSunA.y, 0.) * .8 + back * ce * .08) : front * ce * relief + rim * front + (kind < .5 ? rim * back * .4 : 0.);
+  float skyK = roof ? 1.25 : bld ? 1. : mix(.7, 1.05, relief);
+  vec3 c = alb * (sunL * sunTerm + amb * ao * skyK);
+  if (bld) c += metal * hzS * .18 * (roof ? 1.6 : 1.) + (roof ? metal * sunL * .5 * pow(back * ce, 6.) * smoothstep(.0, .05, uSunA.y) : vec3(0.));   // glass / tin reflect the bright horizon; tin roofs flare when backlit
+  c += emis * vec3(1., .58, .26) * .55;   // warm lit windows after sunset
+  float fog = 1. - exp(-d * .001 * (BMe * 1.3 + BR.g));
+  return mix(c, hzS * .95, clamp(fog, 0., 1.));
+}
+
 // ground plane (y = 0) at world xz; type 1 sand, 2 marsh grass, 3 lawn; wet = 0..1 wet sand near the water line
 vec3 shadeGround(vec3 ro, vec3 rd, float t, vec2 xz, float type, float sunVis, vec3 amb, vec3 skyR, float fp, float wet){
   vec2 rh = normalize(rd.xz + 1e-5), sh = normalize(uSunA.xz + 1e-5);
@@ -637,7 +864,7 @@ void main(){
   float gT = rd.y < 0. ? camM0 / -rd.y : 1e9;
   float fsD = uFS.x > 0. ? fsDist(az) : 0.;
   float fsK = 0., fsHv = 0., fsTopH = 0.; vec2 fsLP = vec2(0.); bool fsHit = false;
-  if (fsD > 1. && gT > fsD){ float yH = camM0 + rd.y * fsD; fsLP = vec2(az * fsD + uSeed.x * 3., yH); fsTopH = fsTop(fsLP.x, fsK, fsHv) * fsMask(az); fsHit = yH < fsTopH; }
+  if (fsD > 1. && gT > fsD){ float yH = camM0 + rd.y * fsD; fsLP = vec2(az * fsD + uSeed.x * 3., yH); gFP = fsD * pixA; fsHit = fsOcc(fsLP, fsMask(az), fsK, fsHv, fsTopH) > .5; }
   bool gnear = uGnd.x > .5 && rd.y < 0. && gT < uGnd.y && !fsHit;
   bool gfar = uGnd.w > .5 && rd.y < 0. && !fsHit && !gnear;
   bool gmarsh = false;
@@ -737,9 +964,10 @@ void main(){
     if (uFS.x > 0.){   // d23: the lit shoreline mirrored in the water
       vec3 rL = reflect(rd, normalize(mix(vec3(0., 1., 0.), n, .45))); rL.y = max(rL.y, .0005);   // rough water smears the land's reflection vertically, it doesn't shred it
       float azr = atan(rL.x, -rL.z), Ds = fsDist(azr), Dr = Ds - tW;
-      if (Dr > 1.){ float yr = rL.y * Dr, kk, hv2; vec2 lp2 = vec2(azr * Ds + uSeed.x * 3., yr); float tp2 = fsTop(lp2.x, kk, hv2) * fsMask(azr);
-        if (yr < tp2){ vec3 Ta2; vec3 hz2 = antiTw(skyRay(ro, normalize(vec3(rr.x, .004, rr.z)), pixA * 2. + HZB, false, Ta2), rr, .004);
-          refl = shadeFacade(ro, rL, Ds, lp2, tp2, kk, hv2, sunVis, hz2, hz2 * 1.15, Ds * pixA * 3.); } } }
+      if (Dr > 1.){ float yr = rL.y * Dr, kk, hv2; vec2 lp2 = vec2(azr * Ds + uSeed.x * 3., yr); float tp2;
+        if (fsOcc(lp2, fsMask(azr), kk, hv2, tp2) > .5){ if (kk > 2.5) kk = 1.; vec3 Ta2; vec3 hz2 = antiTw(skyRay(ro, normalize(vec3(rr.x, .004, rr.z)), pixA * 2. + HZB, false, Ta2), rr, .004);
+          refl = shadeFacadeOld(ro, rL, Ds, lp2, tp2, kk, hv2, sunVis, hz2, hz2 * 1.15, Ds * pixA * 3.);   // d28v: blurred reflection uses the cheap generic shading (non-constant loop bounds above keep compile time down: uReg.w = 0)
+        } } }
     // reflected sun: microfacet glitter
     vec3 sa = uSunA;
     float sunUp = smoothstep(-.006, .004, sa.y);
@@ -1070,7 +1298,7 @@ void main(){
     gl.uniform3f(U.uCov, P.high, P.mid, P.low);
     gl.uniform1f(U.uBlock, P.block); gl.uniform1f(U.uAod, P.aod); gl.uniform1f(U.uRH, P.rh);
 
-    gl.uniform1f(U.uWater, P.water ? 1 : 0); gl.uniform1f(U.uPier, P.pier ? 1 : 0); gl.uniform1f(U.uShore, P.shore || 0); gl.uniform1f(U.uHills, P.hills || 0); if (U.uCity) gl.uniform1f(U.uCity, P.city || 0); if (U.uBridge) gl.uniform1f(U.uBridge, P.bridge || 0); { const G = P.ground || {}; if (U.uGnd) gl.uniform4f(U.uGnd, G.near || 0, G.nearD || 0, G.far || 0, G.land ? 1 : 0); if (U.uFS) gl.uniform4f(U.uFS, G.d || 0, G.th || 0, G.town || 0, G.dune || 0); if (U.uMarsh) gl.uniform2f(U.uMarsh, G.marsh || 0, G.swamp ? 1 : 0); if (U.uFSv) gl.uniform4f(U.uFSv, G.dl != null ? G.dl : (G.d || 0), G.dr != null ? G.dr : (G.d || 0), G.a0 != null ? G.a0 : -9, G.a1 != null ? G.a1 : 9); }
+    gl.uniform1f(U.uWater, P.water ? 1 : 0); gl.uniform1f(U.uPier, P.pier ? 1 : 0); gl.uniform1f(U.uShore, P.shore || 0); gl.uniform1f(U.uHills, P.hills || 0); if (U.uCity) gl.uniform1f(U.uCity, P.city || 0); if (U.uBridge) gl.uniform1f(U.uBridge, P.bridge || 0); { const G = P.ground || {}; if (U.uGnd) gl.uniform4f(U.uGnd, G.near || 0, G.nearD || 0, G.far || 0, G.land ? 1 : 0); if (U.uFS) gl.uniform4f(U.uFS, G.d || 0, G.th || 0, G.town || 0, G.dune || 0); if (U.uMarsh) gl.uniform2f(U.uMarsh, G.marsh || 0, G.swamp ? 1 : 0); if (U.uReg) { const R = G.reg || [0, 0, 0]; gl.uniform4f(U.uReg, R[0], R[1], R[2] || 0, 0); } if (U.uFSv) gl.uniform4f(U.uFSv, G.dl != null ? G.dl : (G.d || 0), G.dr != null ? G.dr : (G.d || 0), G.a0 != null ? G.a0 : -9, G.a1 != null ? G.a1 : 9); }
     gl.uniform1f(U.uCamH, P.heroCam || P.camH || 0.002);
     const cam = camera(P, W, H), vfov = cam.vfov; P.hz = cam.hz; P.vfov = vfov;   // d24u: horizon line shared with the 2D overlays (storm towers)
     gl.uniform1f(U.uFov, vfov * d2r); gl.uniform1f(U.uPitch, cam.pitch);
