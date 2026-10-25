@@ -640,9 +640,9 @@ void main(){
     vec3 dd = rd - sa;
     float sq = 1. + .25*smoothstep(.03, 0., sel);
     float ang = length(vec2(dot(dd, normalize(cross(sa, vec3(0,1,0)))), dot(dd, vec3(0,1,0))*sq));
-    float disc = (1. - smoothstep(.0044, .0049, ang)) * step(0., dot(rd, sa));   // only toward the sun (fixes mirrored dot)
-    float limb = .45 + .55*sqrt(max(0., 1. - (ang/.0047)*(ang/.0047)));
-    col += T * disc * limb * ESUN * 9000.;
+    float disc = (1. - smoothstep(.0176, .0196, ang))   /* d28i: Sean — sun drawn 4x its true size (r 0.27° → 1.08°) */ * step(0., dot(rd, sa));   // only toward the sun (fixes mirrored dot)
+    float limb = .45 + .55*sqrt(max(0., 1. - (ang/.0188)*(ang/.0188)));
+    col += T * disc * limb * ESUN * 3000.;   // d28i: 16x the disc area → lower per-pixel radiance so the bigger disc doesn't flood the exposure
     col = antiTw(col, rd, elevR - dip);
     // sun dogs (parhelia) ~22° either side of a low sun, in thin ice cloud
     if (uDog > .01){
@@ -701,7 +701,7 @@ void main(){
     float sunUp = smoothstep(-.006, .004, sa.y);
     vec3 hv = normalize(-rd + sa);
     float nh = max(dot(n, hv), 0.);
-    float m = mix(.007, .06, uChop) + mix(.012, .07, uChop)*far;   // mirror-sharp sun reflection when slick, wide glitter when rough
+    float m = mix(.02, .07, uChop) + mix(.012, .07, uChop)*far;   // mirror-sharp sun reflection when slick, wide glitter when rough
     float c2 = max(nh*nh, 1e-3); float D = min(exp((c2-1.)/(c2*m*m)) / (PI*m*m*c2*c2), 400.);
     float cosI = max(dot(-rd, n), .01);
     float F = .02 + .98*pow(1.-cosI, 5.);
@@ -950,7 +950,7 @@ void main(){
   vec3 sa = uSunA;
   float ca = acos(clamp(dot(rd, sa), -1., 1.));
   vec3 sunRad = ESUN * sunAtm * sunVis * smoothstep(-.012, .003, sa.y);
-  col += sunRad * (2.5e-3 / (1. + pow(ca/.004, 2.)) + 4e-4 / (1. + pow(ca/.05, 2.)) + 6e-5*exp(-ca*4.));
+  col += sunRad * (2.5e-3 / (1. + pow(ca/.016, 2.)) + 4e-4 / (1. + pow(ca/.1, 2.)) + 6e-5*exp(-ca*4.));
 
   if (uMeter > 1.5){ o = vec4(sqrt(clamp(col * uExpo / 4., 0., 1.)), 1.); return; }
   if (uMeter > .5){ float L = max(max(col.r, max(col.g, col.b)) * .8 + dot(col, vec3(.2126,.7152,.0722)) * .2, 1e-6); o = vec4(clamp((log2(L) + 16.) / 24., 0., 1.), 0., 0., 1.); return; }

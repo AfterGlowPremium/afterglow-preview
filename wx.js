@@ -133,7 +133,7 @@
   function phaseName(p) { return p < 0.03 || p > 0.97 ? "New moon" : p < 0.22 ? "Waxing crescent" : p < 0.28 ? "First quarter" : p < 0.47 ? "Waxing gibbous" : p < 0.53 ? "Full moon" : p < 0.72 ? "Waning gibbous" : p < 0.78 ? "Last quarter" : "Waning crescent"; }
   function moon(x, W, H, hz0, C) { const m = C.moonPos; if (!m || m.alt < -0.6 || m.frac < 0.02) return;
     const base = W / H < 1 ? 62 : W / H < 1.5 ? 50 : 40, ppd = H / base, dAz = ((m.az - C.faceAz + 540) % 360) - 180;
-    const cx = W / 2 + dAz * ppd, cy = hz0 - m.alt * ppd, r = Math.max(2.2, 0.26 * ppd);   // true angular size 0.52°
+    const cx = W / 2 + dAz * ppd, cy = hz0 - m.alt * ppd, r = Math.max(8.8, 1.04 * ppd);   // d28i: Sean — drawn 4x the true 0.52°
     if (cx < -3 * r || cx > W + 3 * r || cy < -3 * r) return;
     const se = C.sunElev != null ? C.sunElev : -10, day = clamp((se + 4) / 10), cl = clamp(((C.cloud || 0) - 35) / 60);
     const a = clamp(1 - 0.6 * day) * (1 - 0.85 * cl) * clamp((m.alt + 0.6) / 2.5); if (a <= 0.02) return;
