@@ -17,4 +17,4 @@ jobs:
       - run: |
           git config user.name afterglow-bot; git config user.email actions@users.noreply.github.com
           git add data/snap-base.json data/snap-sunset.json data/snap-sunrise.json data/forecast-latest.json
-          git diff --cached --quiet || (git commit -m "forecast prefetch $(TZ=America/New_York date +%H:%M)" && (git push || (git pull --rebase && git push)))
+          git diff --cached --quiet || (git commit -m "forecast prefetch $(TZ=America/New_York date +%H:%M)" && (for i in 1 2 3 4 5; do git pull --rebase -X theirs origin main && git push origin HEAD:main && exit 0; git rebase --abort 2>/dev/null; sleep $((RANDOM % 15 + 5)); done; echo "push failed after 5 tries"; exit 1))

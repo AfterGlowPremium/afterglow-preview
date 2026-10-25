@@ -22,4 +22,4 @@ jobs:
           git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
           git add data/satcv-sunset.json data/buoys.json data/buoys
           git commit -m "satcv auto-refresh $(TZ=America/New_York date +%H:%M)"
-          git pull --rebase origin main && git push origin HEAD:main
+          for i in 1 2 3 4 5; do git pull --rebase -X theirs origin main && git push origin HEAD:main && exit 0; git rebase --abort 2>/dev/null; sleep $((RANDOM % 15 + 5)); done; echo "push failed after 5 tries"; exit 1

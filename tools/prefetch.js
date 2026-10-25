@@ -3,6 +3,10 @@
 // every client reads first (CDN-cached, no Open-Meteo quota per user). Validates: same spot list, first day = today (America/New_York),
 // full (not lite) data; never overwrites good files with a failure.
 const { JSDOM, VirtualConsole } = require("jsdom"), fs = require("fs");
+// fix: after a failed attempt the jsdom window is closed but the app's pending timers/fetches still fire and throw
+// ("reading 'querySelector'" / "'_location'") — those page-code errors must not crash the whole run (validation still guards the output).
+const pageErr = e => { const st = String(e && e.stack || e); if (/afterglow-preview\/|jsdom|_location|querySelector/.test(st)) { console.log("ignored page error after window close:", String(e && e.message || e).slice(0, 160)); return; } console.error(e); process.exit(1); };
+process.on("uncaughtException", pageErr); process.on("unhandledRejection", pageErr);
 const ymd = t => new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(t));
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 async function grab(mode, LS) {
