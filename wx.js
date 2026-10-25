@@ -131,18 +131,28 @@
     const frac = (1 + Math.cos(inc)) / 2, phase = 0.5 + 0.5 * inc * (ang < 0 ? -1 : 1) / Math.PI;
     return { alt: alt / RAD, az: (az / RAD + 180 + 360) % 360, frac, phase, limb: ang - pa }; }
   function phaseName(p) { return p < 0.03 || p > 0.97 ? "New moon" : p < 0.22 ? "Waxing crescent" : p < 0.28 ? "First quarter" : p < 0.47 ? "Waxing gibbous" : p < 0.53 ? "Full moon" : p < 0.72 ? "Waning gibbous" : p < 0.78 ? "Last quarter" : "Waning crescent"; }
-  function moon(x, W, H, hz0, C) { const m = C.moonPos; if (!m || m.alt < -0.6 || m.frac < 0.02) return;
+  function moon(x, W, H, hz0, C) { const m = C.moonPos; if (!m || m.alt < -1.2 || m.frac < 0.02) return;
     const base = W / H < 1 ? 62 : W / H < 1.5 ? 50 : 40, ppd = H / base, dAz = ((m.az - C.faceAz + 540) % 360) - 180;
-    const cx = W / 2 + dAz * ppd, cy = hz0 - m.alt * ppd, r = Math.max(8.8, 1.04 * ppd);   // d28i: Sean — drawn 4x the true 0.52°
-    if (cx < -3 * r || cx > W + 3 * r || cy < -3 * r) return;
-    const se = C.sunElev != null ? C.sunElev : -10, day = clamp((se + 4) / 10), cl = clamp(((C.cloud || 0) - 35) / 60);
-    const a = clamp(1 - 0.6 * day) * (1 - 0.85 * cl) * clamp((m.alt + 0.6) / 2.5); if (a <= 0.02) return;
-    x.save(); x.beginPath(); x.rect(0, 0, W, hz0); x.clip();   // never below the horizon
-    if (day < 0.8) { const gw = x.createRadialGradient(cx, cy, r, cx, cy, r * 6); gw.addColorStop(0, `rgba(235,232,215,${0.28 * a * (1 - day) * (0.4 + 0.6 * m.frac)})`); gw.addColorStop(1, "rgba(235,232,215,0)"); x.fillStyle = gw; x.beginPath(); x.arc(cx, cy, r * 6, 0, 6.283); x.fill(); }
-    const lowTint = clamp(1 - m.alt / 8), col = `rgba(${245},${Math.round(240 - 50 * lowTint)},${Math.round(220 - 110 * lowTint)},`;
-    x.translate(cx, cy); x.rotate(-m.limb + Math.PI / 2);   // bright limb toward the sun; limb angle measured from north (screen up), eastward = screen left
+    const r = Math.max(8.8, 1.04 * ppd), lowF = clamp(1 - (m.alt - 0.5) / 2.5), flat = 1 - 0.16 * lowF;   // d28i: Sean — drawn 4x the true 0.52°; d28o: refraction flattening near the horizon
+    const cx = W / 2 + dAz * ppd, cy = hz0 - m.alt * ppd, ridgeY = hz0 - (C.ridge || 0) * ppd;
+    if (cx < -3 * r || cx > W + 3 * r || cy < -3 * r || cy - r * flat > ridgeY) return;
+    // d28o: cloud transmittance by layer — thick low overcast hides it fully, mid dims strongly, thin cirrus barely (was: total cloud > 35 % incl. cirrus)
+    const se = C.sunElev != null ? C.sunElev : -10, day = clamp((se + 4) / 10), L3 = C.cloudL || [C.cloud || 0, 0, 0];
+    const tr = (1 - 0.95 * clamp((L3[0] - 20) / 75)) * (1 - 0.7 * clamp((L3[1] - 30) / 65)) * (1 - 0.25 * clamp(L3[2] / 100));
+    const ext = 0.45 + 0.55 * clamp((m.alt + 1) / 4);   // extinction dims it right at the horizon
+    const a = clamp(1 - 0.6 * day) * tr * ext * (0.25 + 0.75 * clamp(m.frac / 0.3)) * (1 - 0.5 * day * clamp(1 - m.frac / 0.15));   // d28o: thin crescent near the sun is dim, near-invisible in bright twilight if (a <= 0.02) return;
+    const tint = clamp(1 - m.alt / 9), col = `rgba(${Math.round(250 - 5 * tint)},${Math.round(240 - 85 * tint)},${Math.round(222 - 165 * tint)},`;   // yellow-white aloft → deep orange at the horizon
+    g.__agMoon = { cx, cy, r, a: +a.toFixed(3), alt: m.alt, frac: m.frac };
+    if (C.moonWater && day < 0.85 && m.alt < 30) {   // reflection: a soft broken glitter path of short horizontal ripples, widening toward you, fading with depth
+      let sd = 3; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647, T = (g.performance ? performance.now() : 0) / 1000, A0 = 0.55 * a * (1 - day) * (0.4 + 0.6 * m.frac), dep = (H - hz0) * 0.55;
+      x.save(); for (let i = 0; i < 70; i++) { const f = Math.pow(rnd(), 1.6), yy = hz0 + 1 + f * dep, w = r * (0.35 + 1.4 * f) * (0.4 + rnd()), sx = (rnd() - 0.5) * r * (0.6 + 2.2 * f) + Math.sin(T * 0.8 + i) * r * 0.08;
+        const al = A0 * (1 - f) * (0.35 + 0.65 * (0.5 + 0.5 * Math.sin(T * 1.3 + i * 2.1))); if (al < 0.01) continue;
+        const q = x.createLinearGradient(cx + sx - w, 0, cx + sx + w, 0); q.addColorStop(0, col + "0)"); q.addColorStop(0.5, col + al.toFixed(3) + ")"); q.addColorStop(1, col + "0)"); x.fillStyle = q; x.fillRect(cx + sx - w, yy, w * 2, 0.8 + 2.2 * f); } x.restore(); }
+    x.save(); x.beginPath(); x.rect(-W, -H, W * 3, ridgeY + H); x.clip();   // sinks behind the far shore's tree line / horizon
+    if (day < 0.8) { const gw = x.createRadialGradient(cx, cy, r, cx, cy, r * 6); gw.addColorStop(0, col + (0.28 * a * (1 - day) * (0.4 + 0.6 * m.frac)).toFixed(3) + ")"); gw.addColorStop(1, col + "0)"); x.fillStyle = gw; x.beginPath(); x.arc(cx, cy, r * 6, 0, 6.283); x.fill(); }
+    x.translate(cx, cy); x.scale(1, flat); x.rotate(-m.limb - Math.PI / 2);   // d28o: was 180° off (lit limb faced AWAY from the sun) — bright limb toward the sun; limb angle measured from north (screen up), eastward = screen left
     x.fillStyle = `rgba(40,44,60,${0.18 * a * (1 - day)})`; x.beginPath(); x.arc(0, 0, r, 0, 6.283); x.fill();   // earthshine on the dark part
-    const k = 1 - 2 * m.frac; x.fillStyle = col + a + ")"; x.beginPath(); x.arc(0, 0, r, -Math.PI / 2, Math.PI / 2, false); x.ellipse(0, 0, Math.abs(k) * r, r, 0, Math.PI / 2, -Math.PI / 2, k > 0); x.fill();
+    const k = 1 - 2 * m.frac; x.fillStyle = col + a.toFixed(3) + ")"; x.beginPath(); x.arc(0, 0, r, -Math.PI / 2, Math.PI / 2, false); x.ellipse(0, 0, Math.abs(k) * r, r, 0, Math.PI / 2, -Math.PI / 2, k > 0); x.fill();
     x.restore(); }
   function draw(cv, C, t, now) {
     const W = cv.clientWidth, H = cv.clientHeight, dpr = Math.min(2, g.devicePixelRatio || 1);
