@@ -116,11 +116,16 @@
   // placed on the camera horizon like the other props (view centred on C.faceAz, ~H/base px per degree at zoom 1), dimmed by daylight and cloud.
   const RAD = Math.PI / 180, J2000 = 2451545;
   function moonCalc(t, lat, lng) { const d = t / 86400 + 2440587.5 - J2000, e = RAD * 23.4397;
-    const L = RAD * (218.316 + 13.176396 * d), M = RAD * (134.963 + 13.064993 * d), F = RAD * (93.272 + 13.22935 * d);
-    const l = L + RAD * 6.289 * Math.sin(M), b = RAD * 5.128 * Math.sin(F), dist = 385001 - 20905 * Math.cos(M);
+    // d28s: Meeus ch.47 main periodic terms (was SunCalc 1-term: up to 2° alt / 6° az / 14 min rise-set error) + topocentric parallax below
+    const Tc_ = d / 36525, Lp = 218.3164477 + 481267.88123421 * Tc_, Dm_ = 297.8501921 + 445267.1114034 * Tc_, Mm_ = 357.5291092 + 35999.0502909 * Tc_, Mp = 134.9633964 + 477198.8675055 * Tc_, Fm_ = 93.272095 + 483202.0175233 * Tc_, Ec_ = 1 - 0.002516 * Tc_;
+    const Sm_ = (tb, fn) => tb.reduce((z, [c, a, b2, cc, dd]) => z + c * (Math.abs(b2) === 1 ? Ec_ : 1) * fn(RAD * (a * Dm_ + b2 * Mm_ + cc * Mp + dd * Fm_)), 0);
+    const TL = [[6288774,0,0,1,0],[1274027,2,0,-1,0],[658314,2,0,0,0],[213618,0,0,2,0],[-185116,0,1,0,0],[-114332,0,0,0,2],[58793,2,0,-2,0],[57066,2,-1,-1,0],[53322,2,0,1,0],[45758,2,-1,0,0],[-40923,0,1,-1,0],[-34720,1,0,0,0],[-30383,0,1,1,0],[15327,2,0,0,-2],[-12528,0,0,1,2],[10980,0,0,1,-2],[10675,4,0,-1,0],[10034,0,0,3,0],[8548,4,0,-2,0],[-7888,2,1,-1,0],[-6766,2,1,0,0],[-5163,1,0,-1,0]];
+    const TR = [[-20905355,0,0,1,0],[-3699111,2,0,-1,0],[-2955968,2,0,0,0],[-569925,0,0,2,0],[48888,0,1,0,0],[-3149,0,0,0,2],[246158,2,0,-2,0],[-152138,2,-1,-1,0],[-170733,2,0,1,0],[-204586,2,-1,0,0],[-129620,0,1,-1,0],[108743,1,0,0,0],[104755,0,1,1,0]];
+    const TB = [[5128122,0,0,0,1],[280602,0,0,1,1],[277693,0,0,1,-1],[173237,2,0,0,-1],[55413,2,0,-1,1],[46271,2,0,-1,-1],[32573,2,0,0,1],[17198,0,0,2,1],[9266,2,0,1,-1],[8822,0,0,2,-1]];
+    const l = RAD * (Lp + Sm_(TL, Math.sin) / 1e6), b = RAD * Sm_(TB, Math.sin) / 1e6, dist = 385000.56 + Sm_(TR, Math.cos) / 1000;
     const ra = Math.atan2(Math.sin(l) * Math.cos(e) - Math.tan(b) * Math.sin(e), Math.cos(l)), dec = Math.asin(Math.sin(b) * Math.cos(e) + Math.cos(b) * Math.sin(e) * Math.sin(l));
-    const lw = RAD * -lng, ph = RAD * lat, H = RAD * (280.16 + 360.9856235 * d) - lw - ra;
-    let alt = Math.asin(Math.sin(ph) * Math.sin(dec) + Math.cos(ph) * Math.cos(dec) * Math.cos(H)); const az = Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(ph) - Math.tan(dec) * Math.cos(ph));
+    const lw = RAD * -lng, ph = RAD * lat, H = RAD * (280.46061837 + 360.98564736629 * d) - lw - ra;
+    let alt = Math.asin(Math.sin(ph) * Math.sin(dec) + Math.cos(ph) * Math.cos(dec) * Math.cos(H)); alt -= Math.asin(6378.14 / dist * Math.cos(alt)); /* d28s: topocentric parallax (~0.95°) */ const az = Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(ph) - Math.tan(dec) * Math.cos(ph));
     alt += RAD * 0.017 / Math.tan(alt + RAD * 10.26 / (alt / RAD + 5.10)) * (alt > -0.03 ? 1 : 0);   // refraction near the horizon
     // sun
     const Ms = RAD * (357.5291 + 0.98560028 * d), C0 = RAD * (1.9148 * Math.sin(Ms) + 0.02 * Math.sin(2 * Ms) + 0.0003 * Math.sin(3 * Ms)), ls = Ms + C0 + RAD * 102.9372 + Math.PI;
@@ -129,8 +134,9 @@
     const ang = Math.atan2(Math.cos(sdec) * Math.sin(sra - ra), Math.sin(sdec) * Math.cos(dec) - Math.cos(sdec) * Math.sin(dec) * Math.cos(sra - ra));
     const pa = Math.atan2(Math.sin(H), Math.tan(ph) * Math.cos(dec) - Math.sin(dec) * Math.cos(H));   // parallactic angle
     const frac = (1 + Math.cos(inc)) / 2, phase = 0.5 + 0.5 * inc * (ang < 0 ? -1 : 1) / Math.PI;
-    return { alt: alt / RAD, az: (az / RAD + 180 + 360) % 360, frac, phase, limb: ang - pa }; }
+    return { alt: alt / RAD, az: (az / RAD + 180 + 360) % 360, frac, phase, limb: ang - pa, pa }; }
   function phaseName(p) { return p < 0.03 || p > 0.97 ? "New moon" : p < 0.22 ? "Waxing crescent" : p < 0.28 ? "First quarter" : p < 0.47 ? "Waxing gibbous" : p < 0.53 ? "Full moon" : p < 0.72 ? "Waning gibbous" : p < 0.78 ? "Last quarter" : "Waning crescent"; }
+  function moonTex() { const I = moonTex.i || (moonTex.i = Object.assign(new Image(), { src: "img/moon-near.png?v=d28p" })); return I.complete && I.naturalWidth ? I : null; }
   function moon(x, W, H, hz0, C) { const m = C.moonPos; if (!m || m.alt < -1.2 || m.frac < 0.02) return;
     const base = W / H < 1 ? 62 : W / H < 1.5 ? 50 : 40, ppd = H / base, dAz = ((m.az - C.faceAz + 540) % 360) - 180;
     const r = Math.max(8.8, 1.04 * ppd), lowF = clamp(1 - (m.alt - 0.5) / 2.5), flat = 1 - 0.16 * lowF;   // d28i: Sean — drawn 4x the true 0.52°; d28o: refraction flattening near the horizon
@@ -147,12 +153,24 @@
       let sd = 3; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647, T = (g.performance ? performance.now() : 0) / 1000, A0 = 0.55 * a * (1 - day) * (0.4 + 0.6 * m.frac), dep = (H - hz0) * 0.55;
       x.save(); for (let i = 0; i < 70; i++) { const f = Math.pow(rnd(), 1.6), yy = hz0 + 1 + f * dep, w = r * (0.35 + 1.4 * f) * (0.4 + rnd()), sx = (rnd() - 0.5) * r * (0.6 + 2.2 * f) + Math.sin(T * 0.8 + i) * r * 0.08;
         const al = A0 * (1 - f) * (0.35 + 0.65 * (0.5 + 0.5 * Math.sin(T * 1.3 + i * 2.1))); if (al < 0.01) continue;
-        const q = x.createLinearGradient(cx + sx - w, 0, cx + sx + w, 0); q.addColorStop(0, col + "0)"); q.addColorStop(0.5, col + al.toFixed(3) + ")"); q.addColorStop(1, col + "0)"); x.fillStyle = q; x.fillRect(cx + sx - w, yy, w * 2, 0.8 + 2.2 * f); } x.restore(); }
+        const q = x.createLinearGradient(cx + sx - w, 0, cx + sx + w, 0), rc = m.alt > 6 ? "rgba(215,224,240," : col; q.addColorStop(0, rc + "0)"); q.addColorStop(0.5, rc + (al * 0.95).toFixed(3) + ")"); q.addColorStop(1, rc + "0)"); x.fillStyle = q; x.fillRect(cx + sx - w, yy, w * 2, 0.8 + 2.2 * f); } x.restore(); }
     x.save(); x.beginPath(); x.rect(-W, -H, W * 3, ridgeY + H); x.clip();   // sinks behind the far shore's tree line / horizon
-    if (day < 0.8) { const gw = x.createRadialGradient(cx, cy, r, cx, cy, r * 6); gw.addColorStop(0, col + (0.28 * a * (1 - day) * (0.4 + 0.6 * m.frac)).toFixed(3) + ")"); gw.addColorStop(1, col + "0)"); x.fillStyle = gw; x.beginPath(); x.arc(cx, cy, r * 6, 0, 6.283); x.fill(); }
-    x.translate(cx, cy); x.scale(1, flat); x.rotate(-m.limb - Math.PI / 2);   // d28o: was 180° off (lit limb faced AWAY from the sun) — bright limb toward the sun; limb angle measured from north (screen up), eastward = screen left
-    x.fillStyle = `rgba(40,44,60,${0.18 * a * (1 - day)})`; x.beginPath(); x.arc(0, 0, r, 0, 6.283); x.fill();   // earthshine on the dark part
-    const k = 1 - 2 * m.frac; x.fillStyle = col + a.toFixed(3) + ")"; x.beginPath(); x.arc(0, 0, r, -Math.PI / 2, Math.PI / 2, false); x.ellipse(0, 0, Math.abs(k) * r, r, 0, Math.PI / 2, -Math.PI / 2, k > 0); x.fill();
+    // d28p: small, soft, cool halo (much smaller than the sun's) so it reads as the moon
+    { const dk = 1 - day, wm = clamp(1 - m.alt / 12), hc = `${Math.round(205 + 45 * wm)},${Math.round(215 - 15 * wm)},${Math.round(238 - 90 * wm)}`, fa = a * (0.3 + 0.7 * m.frac);   // d28q: Sean "glow a bit more" — halo ~3.8r + faint wide aureole, scaled by sky darkness, warmer low
+      if (dk > 0.05) { const au = x.createRadialGradient(cx, cy, r, cx, cy, r * 9); au.addColorStop(0, `rgba(${hc},${(0.1 * fa * dk * dk).toFixed(3)})`); au.addColorStop(1, `rgba(${hc},0)`); x.fillStyle = au; x.beginPath(); x.arc(cx, cy, r * 9, 0, 6.283); x.fill(); }
+      const gw = x.createRadialGradient(cx, cy, r * 0.9, cx, cy, r * 3.8); gw.addColorStop(0, `rgba(${hc},${(fa * (0.08 + 0.26 * dk)).toFixed(3)})`); gw.addColorStop(0.4, `rgba(${hc},${(fa * (0.03 + 0.09 * dk)).toFixed(3)})`); gw.addColorStop(1, `rgba(${hc},0)`); x.fillStyle = gw; x.beginPath(); x.arc(cx, cy, r * 3.8, 0, 6.283); x.fill(); }
+    // d28p: real near-side albedo (NASA SVS CGI Moon Kit / LRO, public domain) — maria, highlands, Tycho, Copernicus — north rotated by the
+    // parallactic angle, tinted cool silver aloft → orange low; phase terminator on top (soft edge), faint earthshine maria on the dark side
+    const T = moonTex(); x.translate(cx, cy); x.scale(1, flat);
+    if (T) { const tint = clamp(1 - m.alt / 12), tc = [Math.round(232 + 20 * tint), Math.round(236 - 70 * tint), Math.round(245 - 150 * tint)], S = Math.ceil(r * 2 * (g.devicePixelRatio || 1));
+      let oc = moonTex.oc; if (!oc) oc = moonTex.oc = document.createElement("canvas"); if (oc.width !== S) { oc.width = oc.height = S; }
+      const o = oc.getContext("2d"); o.setTransform(1, 0, 0, 1, 0, 0); o.clearRect(0, 0, S, S); o.globalCompositeOperation = "source-over"; o.drawImage(T, 0, 0, S, S);
+      o.globalCompositeOperation = "multiply"; o.fillStyle = `rgb(${tc})`; o.fillRect(0, 0, S, S); o.globalCompositeOperation = "destination-in"; o.drawImage(T, 0, 0, S, S); o.globalCompositeOperation = "source-over";
+      const pa = m.pa || 0, rot = -m.limb - Math.PI / 2, kk = 1 - 2 * m.frac;
+      x.save(); x.rotate(pa); x.globalAlpha = clamp(0.1 * a * (1 - day)); x.drawImage(oc, -r, -r, r * 2, r * 2); x.restore();   // earthshine
+      const lit = sc => { x.beginPath(); x.arc(0, 0, r * sc, -Math.PI / 2, Math.PI / 2, false); x.ellipse(0, 0, Math.abs(kk) * r * sc, r * sc, 0, Math.PI / 2, -Math.PI / 2, kk > 0); };
+      for (const [sc, al, op] of [[1.03, 0.35], [1, 1], [1, 0.22 + 0.18 * (1 - day), "lighter"]]) { x.save(); x.rotate(rot); lit(sc); x.clip(); x.rotate(pa - rot); x.globalAlpha = clamp(a * al); if (op) x.globalCompositeOperation = op; x.drawImage(oc, -r, -r, r * 2, r * 2); x.restore(); }   // soft terminator: faint wider pass + main pass
+    } else { x.rotate(-m.limb - Math.PI / 2); const k = 1 - 2 * m.frac; x.fillStyle = col + a.toFixed(3) + ")"; x.beginPath(); x.arc(0, 0, r, -Math.PI / 2, Math.PI / 2, false); x.ellipse(0, 0, Math.abs(k) * r, r, 0, Math.PI / 2, -Math.PI / 2, k > 0); x.fill(); }
     x.restore(); }
   function draw(cv, C, t, now) {
     const W = cv.clientWidth, H = cv.clientHeight, dpr = Math.min(2, g.devicePixelRatio || 1);
