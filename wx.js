@@ -326,19 +326,28 @@
   // ~95 m across the lawn (camera 1.7 m). Front-lit by the low sun behind you at sunset; backlit (sun behind the house) at sunrise.
   // d28j: steam fog — soft wisps hugging the water: densest along the far tree line, a second thinner band near shore, thinning upward,
   // drifting slowly; lit sunrise pink/orange when the sun is near the horizon, cool gray-blue before dawn. Density ∝ chance.
-  function steam(x, W, H, hz, C, now) {   // d28k: rising, swirling wisps that respawn at the water (10–20 s rise), curl and thin as they climb
+  function steam(x, W, H, hz, C, now) {   // d28m: Sean's pot-steam refs — dense soft billowy layer at the water breaking into long thin curling filaments
+    // that twist upward (curl-noise ribbons, features travel up the strand), translucent with bright backlit pink/orange edges, fading with height.
     g.__agSteam = C.steam; const d = 0.3 + 0.7 * clamp(C.steam.p / 85), e = C.elev != null ? C.elev : 0, warm = clamp((e + 6) / 6) * clamp((10 - e) / 8), lit = clamp((e + 9) / 10);
-    const r = Math.round(175 + 80 * lit), gC = Math.round(178 + 55 * lit - 22 * warm), b = Math.round(190 + 40 * lit - 60 * warm), T = now / 1000, N = Math.round(60 + 60 * d);
-    const gr = x.createLinearGradient(0, hz - H * 0.04, 0, hz + H * 0.025); gr.addColorStop(0, `rgba(${r},${gC},${b},0)`); gr.addColorStop(0.65, `rgba(${r},${gC},${b},${(0.62 * d).toFixed(3)})`); gr.addColorStop(1, `rgba(${r},${gC},${b},0)`); x.fillStyle = gr; x.fillRect(-W, hz - H * 0.04, W * 3, H * 0.065);
-    let sd = 11; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
-    for (let i = 0; i < N; i++) { const u = rnd(), v = rnd(), P = 10 + 10 * rnd(), ph = rnd(), sw = rnd() * 6.283, far = i < N * 0.65;
-      const a = ((T / P + ph) % 1), z = far ? 1 : 0.35 + 0.65 * (1 - v);   // z: depth scale (1 = far tree line, smaller = nearer… wisps nearer the shore are bigger)
-      const s0 = far ? 1 : 1 / z, y0 = far ? hz + H * 0.004 * v : hz + H * (0.03 + 0.2 * v * v), rise = H * (far ? 0.055 : 0.07 * s0) * a;
-      const cx = ((u * W * 1.3 + T * (1.2 + 0.8 * rnd()) * s0) % (W * 1.3)) - W * 0.15, curl = Math.sin(a * 5.5 + sw) * W * 0.012 * s0 * a + Math.sin(a * 2.1 + sw * 2) * W * 0.006 * s0;
-      const rw = W * 0.026 * s0 * (0.7 + 1.6 * a) * (0.7 + 0.6 * rnd()), rh = rw * (0.45 + 0.9 * a), alpha = d * (far ? 0.85 : 0.6) * Math.sin(Math.PI * Math.min(1, a * 1.25)) * (1 - a) ** 0.6;
-      if (alpha < 0.01) continue;
-      x.save(); x.translate(cx + curl, y0 - rise); x.rotate(Math.sin(a * 4 + sw) * 0.7); x.scale(1, rh / rw); const q = x.createRadialGradient(0, 0, 0, 0, 0, rw);
-      q.addColorStop(0, `rgba(${r},${gC},${b},${alpha.toFixed(3)})`); q.addColorStop(0.55, `rgba(${r},${gC},${b},${(alpha * 0.45).toFixed(3)})`); q.addColorStop(1, `rgba(${r},${gC},${b},0)`); x.fillStyle = q; x.beginPath(); x.arc(0, 0, rw, 0, 6.283); x.fill(); x.restore(); } }
+    const r = Math.round(180 + 75 * lit), gC = Math.round(182 + 50 * lit - 25 * warm), b = Math.round(192 + 40 * lit - 65 * warm), col = a => `rgba(${r},${gC},${b},${a.toFixed(3)})`;
+    const er = 255, eg = Math.round(200 + 30 * (1 - warm)), eb = Math.round(170 + 60 * (1 - warm)), ecol = a => `rgba(${er},${eg},${eb},${a.toFixed(3)})`, T = now / 1000;
+    // billowy base: overlapping soft puffs sitting on the water, slowly breathing
+    let sd = 5; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+    for (let i = 0; i < 46; i++) { const u = rnd(), v = rnd(), near = i >= 30, z = near ? 1.6 + 2.4 * v : 1, y0 = near ? hz + H * (0.03 + 0.16 * v * v) : hz + H * 0.003;
+      const cx = ((u * W * 1.3 + T * 1.5 * z) % (W * 1.3)) - W * 0.15, rw = W * 0.05 * z * (0.7 + 0.6 * rnd()), rh = rw * (0.28 + 0.08 * Math.sin(T * 0.5 + i)), a = d * (near ? 0.22 : 0.38);
+      x.save(); x.translate(cx, y0 - rh * 0.4); x.scale(1, rh / rw); const q = x.createRadialGradient(0, 0, 0, 0, 0, rw); q.addColorStop(0, col(a)); q.addColorStop(0.6, col(a * 0.4)); q.addColorStop(1, col(0)); x.fillStyle = q; x.beginPath(); x.arc(0, 0, rw, 0, 6.283); x.fill(); x.restore(); }
+    // rising filaments: many plumes side by side; each strand is a ribbon whose sideways curl pattern scrolls upward (rise ~15 s)
+    const NP = Math.round(30 + 36 * d); x.lineCap = "round"; x.lineJoin = "round";
+    for (let i = 0; i < NP; i++) { const u = rnd(), v = rnd(), near = i % 5 === 4, z = near ? 1.4 + 1.2 * v : 0.8 + 0.5 * v, base = near ? hz + H * (0.03 + 0.12 * v * v) : hz + H * 0.004;
+      const bx = ((u * W * 1.3 + T * 1.2 * z) % (W * 1.3)) - W * 0.15, Hh = H * 0.09 * z * (0.7 + 0.6 * rnd()), sp = 0.9 + 0.4 * rnd(), s1 = rnd() * 50;
+      for (let k = 0; k < 3; k++) { const sk = s1 + k * 2.7, N = 16, pts = [];
+        for (let n = 0; n <= N; n++) { const f = n / N, y = base - Hh * f, ph = f * 3.4 - T * 0.4 * sp + sk;   // phase travels up the strand
+          const amp = W * 0.026 * z * (0.2 + 1.4 * f), xo = amp * (Math.sin(ph) + 0.55 * Math.sin(ph * 2.3 + sk) + 0.3 * Math.sin(ph * 4.1 - T * 0.3)) + W * 0.008 * z * (k - 1) * (1 + 4 * f);
+          pts.push([bx + xo, y, f]); }
+        for (let n = 0; n < N; n++) { const [x1, y1, f] = pts[n], [x2, y2] = pts[n + 1], fade = d * Math.pow(1 - f, 1.4) * (0.6 + 0.4 * Math.sin(T * 0.35 + sk + f * 3));
+          x.strokeStyle = col(0.09 * fade); x.lineWidth = W * 0.032 * z * (1.3 - 0.5 * f); x.beginPath(); x.moveTo(x1, y1); x.lineTo(x2, y2); x.stroke();   // soft translucent body
+          x.strokeStyle = ecol(0.2 * fade); x.lineWidth = Math.max(0.6, W * 0.0022 * z * (1 - 0.5 * f)); x.beginPath(); x.moveTo(x1, y1); x.lineTo(x2, y2); x.stroke(); } } }   // bright backlit edge filament
+  }
   function house(x, W, H, hz, C) {
     const a = W / H, vf = a < 1 ? 62 : a < 1.5 ? 50 : 40, ppd = H / vf, D = 95, m = ppd * 180 / Math.PI / D;   // px per metre at D
     const cx = W * 0.6, gy = hz + 1.7 * m, e = C.elev != null ? C.elev : 3, front = !!C.house.front;
