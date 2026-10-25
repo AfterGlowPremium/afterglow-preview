@@ -27,7 +27,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="styles.css?v=d26z">
+<link rel="stylesheet" href="styles.css?v=d27a">
 <style>/* inside the shell iframe: use the insets the shell measured */
 .top{padding-top:calc(18px + max(env(safe-area-inset-top,0px), var(--ag-sat,0px)))}
 @media (max-width:900px){
@@ -46,9 +46,9 @@
 </head>
 <body>
 <script>if (window.parent === window) location.replace("./" + location.search + location.hash);</script>
-<script>window.AG_BUILD = "d26z"; window.AG_SHELL = window.parent !== window;</script>
+<script>window.AG_BUILD = "d27a"; window.AG_SHELL = window.parent !== window;</script>
 <script>window.AG = { realistic: true };</script>
-<script src="config.js?v=d26z"></script>
+<script src="config.js?v=d27a"></script>
 <script>
   // No ?mode= → show the welcome homepage first (app.js stays idle until a choice is made)
   (function () { var m = new URLSearchParams(location.search).get("mode"); if (m !== "sunrise" && m !== "sunset") document.documentElement.classList.add("show-home"); })();
@@ -186,14 +186,14 @@ if(RM)fin();else{T.push(setTimeout(function(){st("hi-push")},1400));T.push(setTi
 <div id="loading" class="loading"><div class="ld-sun"></div><p>Reading the sky…</p></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="spots.js?v=d26z"></script>
-<script src="search.js?v=d26z"></script>
-<script src="model.js?v=d26z"></script>
-<script src="preview.js?v=d26z"></script>
-<script src="photoreal.js?v=d26z"></script>
-<script src="ground.js?v=d26z"></script>
-<script src="photostage.js?v=d26z"></script>
-<script src="satellite.js?v=d26z"></script>
+<script src="spots.js?v=d27a"></script>
+<script src="search.js?v=d27a"></script>
+<script src="model.js?v=d27a"></script>
+<script src="preview.js?v=d27a"></script>
+<script src="photoreal.js?v=d27a"></script>
+<script src="ground.js?v=d27a"></script>
+<script src="photostage.js?v=d27a"></script>
+<script src="satellite.js?v=d27a"></script>
 <script>
   (function () {
     var m = new URLSearchParams(location.search).get("mode"); if (m !== "sunrise" && m !== "sunset") return;
@@ -209,12 +209,12 @@ if(RM)fin();else{T.push(setTimeout(function(){st("hi-push")},1400));T.push(setTi
     }
   })();
 </script>
-<script src="obs.js?v=d26z"></script>
-<script src="wx.js?v=d26z"></script>
-<script src="agx.js?v=d26z"></script>
-<script src="looks.js?v=d26z"></script>
-<script src="app.js?v=d26z"></script>
-<script src="scene.js?v=d26z"></script>
-<script>/* d26z */(function(){function f(){var h=document.querySelector(".top"),c=h&&h.querySelector(".top-ctl");if(c)document.documentElement.style.setProperty("--brandH",Math.max(0,c.offsetTop-6)+"px");}addEventListener("load",f);addEventListener("resize",f);setTimeout(f,1500);})();</script>
+<script src="obs.js?v=d27a"></script>
+<script src="wx.js?v=d27a"></script>
+<script src="agx.js?v=d27a"></script>
+<script src="looks.js?v=d27a"></script>
+<script src="app.js?v=d27a"></script>
+<script src="scene.js?v=d27a"></script>
+<script>/* d27a */(function(){function f(){var h=document.querySelector(".top"),c=h&&h.querySelector(".top-ctl");if(c)document.documentElement.style.setProperty("--brandH",Math.max(0,c.offsetTop-6)+"px");}addEventListener("load",f);addEventListener("resize",f);setTimeout(f,1500);})();</script>
 </body>
 </html>
