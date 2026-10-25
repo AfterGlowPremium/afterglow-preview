@@ -475,7 +475,14 @@
   // d25a: nightly calibration (tools/calibrate-feedback.js → data/calib.json). Bounded score offsets learned from user photos+ratings; absent file = no change.
   g.AG_CAL = null; try { fetch("https://afterglowpremium.github.io/afterglow-preview/data/calib.json?_=" + Math.floor(Date.now() / 3600000), { cache: "no-store" }).then(r => r.ok ? r.json() : null).then(j => { g.AG_CAL = j; }).catch(() => {}); } catch (e) {}
   const evaluate0 = evaluate;
-  function evaluateCal(sp, ...rest) { const ev = evaluate0(sp, ...rest), C = g.AG_CAL; if (!C || !ev || typeof ev.score !== "number") return ev;
+  // d28o test hook: ?force=H,M,L,WL[,cape[,ct]] pins cloud cover (%) at the spot (H/M/L) and low cloud along the light path (WL) for every hour, so the score AND the render come from the same inputs (dev / cloud-type demos only)
+  const FORCE = (() => { try { const v = new URLSearchParams(location.search).get("force"); if (!v) return null; const a = v.split(",").map(Number); return { h: a[0] || 0, m: a[1] || 0, l: a[2] || 0, wl: a[3] != null && !isNaN(a[3]) ? a[3] : a[2] || 0, cape: a[4] || 0, ct: a[5] || 0 }; } catch (e) { return null; } })();
+  g.__agForce = FORCE;
+  function forced(H, F, path) { if (!H || !H.time) return H; const c = v => H.time.map(() => v), o = Object.assign({}, H);
+    o.cloud_cover_high = c(F.h); o.cloud_cover_mid = c(F.m); o.cloud_cover_low = c(path ? F.wl : F.l); o.cloud_cover = c(Math.min(100, Math.max(F.h, F.m, path ? F.wl : F.l)));
+    if (F.cape) { o.cape = c(F.cape); if (path) o.precipitation = c(1.5); o.precipitation_probability = c(70); } else { o.precipitation = c(0); o.precipitation_probability = c(0); } return o; }
+  function evaluateCal(sp, S, Wl, E, ...rest) { if (FORCE) { S = Object.assign({}, S, { hourly: forced(S.hourly, FORCE) }); Wl = Wl.map(w => w && Object.assign({}, w, { hourly: forced(w.hourly, FORCE, true) })); E = Object.assign({}, E, { hourly: forced(E.hourly, FORCE) }); }
+    const ev = evaluate0(sp, S, Wl, E, ...rest), C = g.AG_CAL; if (!C || !ev || typeof ev.score !== "number") return ev;
     const m = (C[g.AG_MODE === "sunrise" ? "sunrise" : "sunset"]) || {}, off = Math.max(-10, Math.min(10, (m.global || 0) + ((m.spots || {})[sp.id] || 0)));
     if (off) { ev.scoreRaw = ev.score; ev.score = Math.round(clamp(ev.score + off, 0, 100)); ev.calOff = off; } return ev; }
   g.Model = { sunPos, offset, evaluate: evaluateCal, label, likely, clamp, timeAtElev, EPIC, seaState, seaAt, windAt, at };

@@ -36,6 +36,7 @@ uniform float uDog;
 uniform float uMeter;
 uniform float uPixScale;
 uniform float uTwi;
+uniform float uCT;      // d28o cloud-type hint: 0 auto, 1 cirrocumulus (high fine cells), 3 post-storm clearing (breaking low deck + rays)
 uniform float uMidH;    // mid-deck base km (HRRR cloud base / GOES cloud-top height), default 4.5
 uniform float uBlockGap; // 0..1 clear slot on the far horizon toward the sun (from the 120/200 km path forecast)
 uniform float uChop;    // water surface roughness from forecast wind/gusts: 0 glassy mirror .. 1 rough
@@ -86,7 +87,7 @@ float fbm(vec2 p, float fp, int oct){
 // d24x: discrete fair-weather cumulus — a share of cells (≈ cover) each holds one puff, so 5–25 % cover draws separate small clouds
 float cuPuffs(vec2 p, float cov){ vec2 i = floor(p), f = fract(p); float best = 0.;
   for (int y=-1;y<=1;y++) for (int x=-1;x<=1;x++){ vec2 g = vec2(x,y), c = i + g, h = h22(c + 7.31);
-    if (h.x < cov * 1.35){ vec2 r = g + .25 + .5*h22(c) - f; float rad = .2 + .22*h.y; best = max(best, 1. - smoothstep(rad*.4, rad, length(r*vec2(1., 1.6) + vec2(0., .12)))); } }
+    if (h.x < cov * 1.35){ vec2 r = g + .25 + .5*h22(c) - f; float rad = .2 + .22*h.y; best = max(best, 1. - smoothstep(rad*.5, rad*1.1, length(r*vec2(1., 1.6) + vec2(0., .12)))); } }
   return best; }
 float worley(vec2 p){ vec2 i = floor(p), f = fract(p); float d = 9.;
   for (int y=-1;y<=1;y++) for (int x=-1;x<=1;x++){ vec2 g = vec2(x,y); vec2 r = g + .15 + .7*h22(i+g) - f; d = min(d, dot(r,r)); }
@@ -167,18 +168,27 @@ float dens(int L, vec2 p, float fp, float dist){
     float hair = fbm(vec2(q.x*.05, q.y*1.4) + warp*3. + n*2., fp*1.4, 4);
     d *= (.45 + .7*fib) * (.62 + .55*smoothstep(.2,.85,hair));
     d *= .8 + .4*fbm(q*.05 + 21., fp*.05, 4);   // patchy thickness, not uniform brush strokes
-    float veil = smoothstep(.45, .95, cov) * (.5 + .4*n);
+    float veil = smoothstep(.45, .95, cov) * (.1 + .45*n*n) * (.55 + .45*fib);   // d28o: cirrostratus veil keeps streaky texture (no flat sheet)
+    d = pow(d, 1.25);   // d28o: fibres thin and translucent at their edges, denser cores
+    if (uCT > .5 && uCT < 1.5){   // d28o: cirrocumulus — tiny rippled grains in patches (mackerel sky)
+      vec2 c = vec2(q.x*.55, q.y*1.05) + warp*1.5;
+      float w = worley(c) * .7 + worley(c*2.1 + 5.) * .3;
+      float rip = .55 + .45*sin(q.x*.45 + warp*6.);
+      d = smoothstep(thr - .1, thr + .15, n*.7 + macro*.3) * (1. - smoothstep(.12, .62, w)) * rip;
+      d = mix(d, .25*smoothstep(thr, thr+.3, n), smoothstep(.15, .6, fp*.5));
+      return clamp(d * 1.2, 0., 1.);
+    }
     return clamp(max(d, veil), 0., 1.);
   } else if (L == 1){ // altocumulus
     float cov = uCov.y;
     vec2 q = rot(uWind + .4) * p;
     float macro = fbm(q*.025, fp*.025, 4);
-    float thr = mix(.86, .30, cov) - smoothstep(.6, 1., cov) * .45;   // high cover: no clear holes in the macro field
+    float thr = mix(.74, .28, cov) - smoothstep(.6, 1., cov) * .45;   // high cover: no clear holes in the macro field
     float m = smoothstep(thr, thr+.14, macro);
     vec2 c = vec2(q.x*.8, q.y*1.25) / .5;
     vec2 wq = vec2(fbm(q*.8, fp*.8, 4), fbm(q*.8 + 5.2, fp*.8, 4));
     float w = worley(c + wq*1.6) * .65 + worley(c*2.3 + wq*2.5 + 3.) * .35;
-    float puff = 1. - smoothstep(.08, .85, w);
+    float puff = (1. - smoothstep(.1, .72, w)) * (.8 + .2*sin(q.x*1.1 + wq.x*4.));   // d28o: crisper cells, billow ripples
     float det = fbm(q*5.0, fp*5.0, 5);
     float fpp = smoothstep(.12, .7, fp); // far away the cells blur into a sheet
     puff = mix(puff, .45, fpp);
@@ -203,6 +213,9 @@ float dens(int L, vec2 p, float fp, float dist){
     float sheetW = smoothstep(.6, .95, cov);   // overcast stratus / stratocumulus
     float cu = cuPuffs(q*.45 + vec2(n, b)*.5, cov) * smoothstep(.0, .04, cov) * (1. - smoothstep(.45, .75, cov));
     cu = clamp(cu * (.75 + .5*er) - (1. - er) * .35 * (1. - cu), 0., 1.);
+    float rollS = .5 + .5*sin(dot(q, vec2(.32, .09)) + n*5.);   // d28o: stratocumulus organises into lumpy rolls with gaps between
+    lo *= mix(1., .45 + .8*rollS, smoothstep(.3, .6, cov) * (1. - uGray));
+    if (uCT > 2.5) lo *= smoothstep(.25, .6, fbm(q*.05 + 31., fp*.05, 3) + .15);   // d28o: post-storm — deck breaking into big ragged holes
     lo = max(lo, cu);
     float shv = mix(.25 + .45*b, .12 + .8*smoothstep(.3, .78, v*.6 + b*.4), .8*uGray);   // d22: overcast deck keeps stratocumulus cells (texture/depth), not a flat sheet
     return clamp(max(lo, shv * (.7 + .3*er) * sheetW), 0., 1.);
@@ -230,24 +243,40 @@ vec3 cloudShade(int L, vec3 P, vec3 rd, float t, float pixA, out float alpha){
   float tauS = lh.z * (side*.55*(1.-above) + d*above*1.2);
   float shadow = exp(-tauS) ;
   float ms = .35 * exp(-tauS*.25);          // multiple scattering keeps cores glowing
+  // d28o: sides/tops facing the sun bright, lee sides and cores dark (density falls toward the sun = sun-facing edge)
+  float face = clamp(.5 + (d - d1) * 2.4, 0., 1.);
+  float faceK = L == 0 ? mix(.85, 1.15, face) : mix(.5, 1.45, face);
+  // d28o: higher decks cast shadows on lower ones while the sun is above them
+  float upT = 1.;
+  if (L > 0 && uLQ < .5 && mu > .015){
+    for (int k = 0; k < 2; k++){
+      if (k >= L) break;
+      float ck = k == 0 ? uCov.x : uCov.y; if (ck < .08) continue;
+      float dh = layerH(k).x - lh.x, off = min(dh * sqrt(1. - mu*mu) / mu, 220.);
+      upT *= exp(-dens(k, xz + sh*off, fp*2. + 1., t) * layerH(k).z * .5 / max(mu, .08));
+    }
+    upT = mix(1., max(upT, .15), smoothstep(.015, .06, mu));
+  }
   vec3 Ts = sunT(P + up*lh.y*.5, sun);
   float bEff = uBlock * (1. - .6 * uBlockGap);   // d17: an open slot on the horizon lets light under the deck
   float lightIn = L == 2 ? 1. - .55*bEff : 1. - .9*bEff*bEff;
   float cs = dot(rd, sun);
   float ph = mix(phHG(cs, .65), phHG(cs, -.1), .45) ;
   float fwd = mix(1., .35, clamp(tauV*.25, 0., 1.)); // thick cores block the forward lobe
-  vec3 direct = ESUN * Ts * lightIn * (ph*fwd*4.*PI*.12 + .05) * (shadow + ms) ;
+  vec3 direct = ESUN * Ts * lightIn * (ph*fwd*4.*PI*.12 + .05) * (shadow + ms) * faceK * upT;
+  // d28o: clouds opposite the sun catch the low beam flat-on: soft pastel pink, no rim
+  direct += ESUN * Ts * lightIn * (shadow*.6 + ms) * smoothstep(0., -.7, cs) * .018 * vec3(1., .8, .9);
   // d17: (a) under-lit deck bases when the sun is below the deck and the horizon is open; (b) broken deck → lit edges/tops, higher layers lit from below
   direct *= uGlow * (1. + uUnder * 1.2 * (1. - above) * (L < 2 ? 1. : .5) + uTops * (L >= 1 ? .7 : .3));
   // ambient: blue skylight from above + warm horizon light
   vec3 hA = sunT(P + up*2.5, sun), hB = sunT(P + up*12., sun);
   float skyLit = dot(hA, vec3(.25,.45,.3))*.75 + dot(hB, vec3(.25,.45,.3))*.25;
   vec3 amb = ESUN * (vec3(.007,.013,.028) * (skyLit + .012) + .005*hA*vec3(1.,.75,.65));
-  amb *= mix(1., .45, d);
+  amb *= L == 2 ? mix(1., .3, d*d*(1. - .4*face)) : mix(1., .45, d);   // d28o: deep shadowed bases/cores in thick low cloud
   // once the deck is in Earth's shadow it is lit only by the dim twilight sky: let it sit just below the sky, not glow
   amb *= mix(L == 0 ? .6 : .8, 1., clamp(dot(Ts, vec3(.33)) * 25., 0., 1.));
   // internal texture: thin edges glow (silver lining), thick cores go darker when back-lit
-  float tex = L == 0 ? (.8 + .4*fbm(xz*.08 + 3., fp*.08, 4)) : (.55 + .9*fbm(xz*(L == 1 ? 5. : 1.3) + 17., fp*(L == 1 ? 5. : 1.3), 5));
+  float tex = L == 0 ? (.5 + 1.0*smoothstep(.25, .8, fbm(xz*.08 + 3., fp*.08, 4)) * (.6 + .4*d)) : (.55 + .9*fbm(xz*(L == 1 ? 5. : 1.3) + 17., fp*(L == 1 ? 5. : 1.3), 5));
   float rim = (1. - smoothstep(.0, .55, d)) * smoothstep(.2, 1., cs) * 2.5 * (1. + .8 * uTops);
   // d22: overcast diffuse light. Under a solid deck the sun still lights the cloud from above and that light diffuses
   // through: bases glow a soft silver-gray, thin parts between the cells luminous, thick cores darker blue-gray. No beam, no glow colour.
@@ -286,6 +315,20 @@ vec3 skyRay(vec3 ro, vec3 rd, float pixA, bool full, out vec3 Tout){
     }
   }
   seg(A, ro, rd, prev, tEnd, full ? 5 : 3, cs);
+  // d28o: crepuscular rays — air toward the sun under a broken low deck is lit only where the sun's ray slips through a gap
+  float covR = max(uCov.z, uBlock * .6);
+  if (full && uLQ < .5 && rd.y > .0045 && cs > .55 && covR > .15 && covR < .92 && uSunC.y > -.03 && uGray < .5){
+    float lit = 0.; vec2 sh = normalize(uSunC.xz + 1e-5); float muS = max(uSunC.y, .02);
+    for (int i = 0; i < 4; i++){
+      float tt = 4. + 7. * float(i) * (1. + .3*h12(gl_FragCoord.xy + float(i)));
+      vec3 Pp = ro + rd * tt; float hgt = max(length(Pp) - R0, 0.);
+      float off = min(max(1.4 - hgt, .1) / muS, 120.);
+      lit += exp(-dens(2, Pp.xz + sh * off, 1.5, 60.) * 3.);
+    }
+    lit *= .25;
+    float w = smoothstep(.55, .985, cs) * smoothstep(.15, .4, covR) * (1. - smoothstep(.75, .92, covR)) * (uCT > 2.5 ? 1. : .6);
+    A.L *= mix(1., .55 + .75 * lit, w);
+  }
   Tout = A.T;
   return A.L;
 }
@@ -1037,7 +1080,7 @@ void main(){
     gl.uniform1f(U.uChop, P.chop != null ? P.chop : 0.3); gl.uniform1f(U.uSwell, P.swell || 0); gl.uniform1f(U.uCaps, P.caps || 0); gl.uniform1f(U.uPhase, P.phase || 0);
     if (U.uSurf) { gl.uniform1f(U.uSurf, P.surf || 0); gl.uniform1f(U.uOff, P.off || 0); gl.uniform1f(U.uSurfT, P.surfT || 0); gl.uniform1f(U.uSurfL, P.surfL || 42); if (U.uSwAng) gl.uniform1f(U.uSwAng, P.swAng || 0); if (U.uTint) { const tn = P.tint || [0.15, 0.2, 0.12]; gl.uniform3f(U.uTint, tn[0], tn[1], tn[2]); gl.uniform1f(U.uBack, (P.back != null ? P.back : 1) * (1 - clamp(P.gray || 0))); }
     if (U.uHero) { gl.uniform1f(U.uHero, P.hero ? 1 : 0); if (U.uMess) gl.uniform1f(U.uMess, P.mess || 0); gl.uniform1f(U.uHeroD, P.heroD || 26); } if (U.uFaceK) gl.uniform1f(U.uFaceK, P.faceK || 1.15); }
-    gl.uniform1f(U.uMidH, clamp(P.midKm || 4.5, 2.5, 7.5));
+    gl.uniform1f(U.uMidH, clamp(P.midKm || 4.5, 2.5, 7.5)); if (U.uCT) gl.uniform1f(U.uCT, P.ctype != null ? P.ctype : (g.__agForce && g.__agForce.ct) || 0);
     gl.uniform1f(U.uMeter, 0);
     const ovc = clamp((Math.max(P.mid, P.low, P.high * 0.6) - 0.5) / 0.45), gy = clamp(P.gray || 0);
     if (U.uOvcT) gl.uniform3fv(U.uOvcT, ovcTint(P.elev));

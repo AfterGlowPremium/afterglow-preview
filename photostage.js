@@ -14,6 +14,7 @@
   // Rule: if the satellite/model says there is cloud at this spot/time, the render must show it (never thinner than the data).
   function cloudsAt(spot, ev, t) {
     const s = ev.s, N = g.AGNoaa, out = { high: (s.high || 0) / 100, mid: (s.mid || 0) / 100, low: (s.low || 0) / 100, midKm: 4.5, gap: 0, src: "model@event" };
+    if (g.__agForce) { out.src = "force"; out.gap = clamp(1 - g.__agForce.wl / 100); if (g.__agForce.ct === 1) out.midKm = 6.8; return out; }   // d28o test hook (model.js ?force=)
     if (!N) return out;
     const H = N.hrrr && N.hrrr.hours ? Object.keys(N.hrrr.hours).map(Number).sort((a, b) => a - b) : [];
     const pick = id => { let a = null, b = null; for (const k of H) { const x = N.hrrr.hours[k][id]; if (!x) continue; if (k <= t) a = [k, x]; if (k >= t && !b) b = [k, x]; }
