@@ -33,64 +33,68 @@
       [-2.5, [176, 98, 112], [98, 74, 92], [44, 40, 54]], [-5, [72, 56, 72], [44, 40, 52], [24, 23, 32]], [-8, [28, 27, 36], [22, 22, 30], [14, 14, 20]]];   // after sunset the towers go darker than the sky (silhouettes), tops only faintly pink
     if (e >= k[0][0]) return k[0].slice(1); for (let i = 1; i < k.length; i++) if (e >= k[i][0]) { const t = (e - k[i][0]) / (k[i - 1][0] - k[i][0]); return [1, 2, 3].map(j => k[i][j].map((v, n) => Math.round(v + (k[i - 1][j][n] - v) * t))); }
     return k[k.length - 1].slice(1); }
-  function towerBody(kind, h, e, seed) {
+  function towerBody(kind, h, e, seed) {   // d27f: soft distant thunderhead — big overlapping soft puffs, feathered anvil, soft rain shafts (no hard slabs/columns)
     const eb = Math.round(e * 2) / 2, key = kind + "|" + Math.round(h) + "|" + eb + "|" + seed; if (towerCache[key]) return towerCache[key];
     let r = (Math.abs(Math.round(seed)) % 2147483646) + 1; const rnd = () => (r = (r * 16807) % 2147483647) / 2147483647;
-    const [warm, mid, shade] = skyLight(eb), mix = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
-    const wF = 0.75 + rnd() * 0.6, lean = (rnd() - 0.5) * 0.3, rag = rnd(), anvL = kind === "cb" ? 0.45 + rnd() * 0.9 : 0, anvDir = rnd() < 0.75 ? 1 : -1, anvT = 0.06 + rnd() * 0.08,
-      over = kind === "cb" && rnd() < 0.45, cluster = 1 + Math.floor(rnd() * (kind === "cb" ? 3 : 4));
-    const w = Math.round(h * (kind === "cb" ? 0.9 + anvL * 1.1 : 0.5 + 0.25 * cluster) * wF + 8), c = document.createElement("canvas"); c.width = w; c.height = Math.round(h * 1.12) + 4; const x = c.getContext("2d");
-    const base = h * 1.0 + 2, topY = base - h;
-    const puff = (px, py, pr) => { const u = clamp((base - py) / h), lt = Math.min(1, Math.pow(u, 1.2) * 1.2), top = mix(shade, warm, lt), sh = mix(shade, mid, u * 0.45);
-      const g = x.createRadialGradient(px - pr * 0.15, py - pr * 0.25, pr * 0.15, px, py, pr); g.addColorStop(0, `rgba(${top},.9)`); g.addColorStop(0.6, `rgba(${mix(top, sh, 0.35)},.7)`); g.addColorStop(1, `rgba(${sh},0)`);
-      x.fillStyle = g; x.beginPath(); x.arc(px, py, pr, 0, 6.283); x.fill(); };
-    const cx0 = kind === "cb" ? (anvDir > 0 ? w * 0.32 : w * 0.68) : w * 0.5;
-    for (let m = 0; m < cluster; m++) {   // main cell + flanking cells (shorter, offset)
-      const main = m === 0, hh = main ? h : h * (0.35 + rnd() * 0.4), cx = cx0 + (main ? 0 : (rnd() - 0.5) * w * 0.7), tw = h * 0.16 * wF * (main ? 1 : 0.7);
-      const colTop = base - hh * (kind === "cb" && main ? 1 - anvT * 1.4 : 1), n = Math.round((main ? 180 : 70) * (0.6 + 0.4 * wF));
-      for (let i = 0; i < n; i++) { const u = Math.pow(rnd(), 0.85), y = base - u * (base - colTop), wd = tw * (1 + 0.35 * u) * (1 + 0.25 * Math.sin(u * 7 + m));
-        puff(cx + (rnd() - 0.5) * wd * 1.5 + lean * u * hh, y, h * (0.03 + rnd() * (0.03 + 0.05 * rag)) * (1.15 - 0.4 * u)); }
-      if (!main || kind !== "cb") { const tops = 2 + Math.floor(rnd() * 4); for (let t = 0; t < tops; t++) puff(cx + lean * hh + (rnd() - 0.5) * tw * 1.6, colTop + rnd() * hh * 0.08, h * (0.04 + rnd() * 0.05)); }   // cauliflower turrets
-    }
-    if (kind === "cb") {   // anvil: flat top at the tropopause, thin tapered underside, overhang downwind (direction varies by cell)
-      const ax = cx0 + lean * h, aY = topY + h * 0.02, uY = aY + h * anvT, L = h * anvL * anvDir, sgn = anvDir;
-      x.beginPath(); x.moveTo(ax - sgn * h * 0.22, uY); x.quadraticCurveTo(ax - sgn * h * 0.26, aY + h * 0.01, ax - sgn * h * 0.12, aY); x.lineTo(ax + L, aY + h * 0.012);
-      x.quadraticCurveTo(ax + L + sgn * h * 0.12, aY + h * 0.03, ax + L, aY + h * 0.05); x.quadraticCurveTo(ax + L * 0.45, uY, ax + sgn * h * 0.1, uY + h * 0.02); x.closePath();
-      const g = x.createLinearGradient(0, aY, 0, uY + h * 0.03); g.addColorStop(0, `rgba(${warm},.96)`); g.addColorStop(0.5, `rgba(${mix(warm, mid, 0.55)},.95)`); g.addColorStop(1, `rgba(${mix(mid, shade, 0.55)},.9)`); x.fillStyle = g; x.fill();
-      x.save(); x.clip(); for (let i = 0; i < 70; i++) { x.fillStyle = `rgba(${rnd() < 0.5 ? warm : shade},${0.05 + rnd() * 0.07})`; x.beginPath(); x.ellipse(ax - sgn * h * 0.2 + rnd() * (L + sgn * h * 0.3) * sgn * sgn, aY + rnd() * (uY - aY), h * (0.04 + rnd() * 0.1), h * 0.015, 0, 0, 6.283); x.fill(); } x.restore();
-      if (over) puff(ax + sgn * h * 0.02, aY - h * 0.02, h * (0.06 + rnd() * 0.04));   // overshooting top
-      for (let i = 0; i < 10 + rag * 8; i++) { const sx = cx0 - h * 0.2 + rnd() * h * 0.45, g2 = x.createLinearGradient(0, base - h * 0.03, 0, c.height); g2.addColorStop(0, `rgba(${shade},.5)`); g2.addColorStop(1, `rgba(${shade},0)`); x.fillStyle = g2; x.fillRect(sx, base - h * 0.03, h * (0.012 + rnd() * 0.035), c.height); }   // rain shafts
-    }
-    { const g = x.createLinearGradient(0, base - h * 0.3, 0, base); g.addColorStop(0, `rgba(${shade},0)`); g.addColorStop(1, `rgba(${mix(shade, [0, 0, 0], 0.25)},.95)`); x.globalCompositeOperation = "source-atop"; x.fillStyle = g; x.fillRect(0, base - h * 0.3, w, h * 0.3); x.globalCompositeOperation = "source-over"; }   // dark flat base
-    c.baseY = base; c.cx = cx0; return (towerCache[key] = c);   // no ctx.filter (iOS Safari / software GL ignore or box it); bodies are drawn >= 180 px and scaled down, which softens them
+    const [warm0, mid, shade0] = skyLight(eb), mix = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t)), warm = mix(warm0, mid, 0.2), shade = mix(shade0, mid, 0.45);
+    const cb = kind === "cb", wF = 0.8 + rnd() * 0.5, lean = (rnd() - 0.5) * 0.2, dir = rnd() < 0.7 ? 1 : -1, anvL = cb ? 0.5 + rnd() * 0.6 : 0;
+    const w = Math.round(h * (cb ? 1.3 + anvL : 0.9) * wF + 8), c = document.createElement("canvas"); c.width = w; c.height = Math.round(h * 1.15) + 4; const x = c.getContext("2d");
+    const base = h + 2, cx0 = cb ? (dir > 0 ? w * 0.36 : w * 0.64) : w * 0.5;
+    const puff = (px, py, rx, ry, a) => { const u = clamp((base - py) / h), top = mix(shade, warm, Math.min(1, Math.pow(u, 1.1) * 1.15)), sh = mix(shade, mid, u * 0.4);
+      x.save(); x.translate(px, py); x.scale(1, ry / rx); const g = x.createRadialGradient(-rx * 0.2, -rx * 0.3, 0, 0, 0, rx);
+      g.addColorStop(0, `rgba(${top},${a})`); g.addColorStop(0.55, `rgba(${mix(top, sh, 0.5)},${a * 0.75})`); g.addColorStop(1, `rgba(${sh},0)`); x.fillStyle = g; x.beginPath(); x.arc(0, 0, rx, 0, 6.283); x.fill(); x.restore(); };
+    const cells = cb ? 1 + Math.floor(rnd() * 2) : 1 + Math.floor(rnd() * 3);
+    for (let m = 0; m < cells; m++) { const main = m === 0, hh = main ? h * (cb ? 0.86 : 1) : h * (0.4 + rnd() * 0.3), cx = cx0 + (main ? 0 : (rnd() < 0.5 ? -1 : 1) * h * (0.25 + rnd() * 0.2)), bw = h * 0.22 * wF * (main ? 1 : 0.7);
+      for (let i = 0; i < (main ? 46 : 20); i++) { const u = Math.pow(rnd(), 0.8), wd = bw * (0.85 + 0.45 * u), rr = h * (0.09 + rnd() * 0.07) * (main ? 1 : 0.75);
+        puff(cx + (rnd() - 0.5) * wd * 1.6 + lean * u * hh, base - rr * 0.6 - u * (hh - rr * 1.2), rr, rr * 0.92, 0.55); } }
+    if (cb) { const ay = base - h * 0.88;   // anvil: feathered, thick near the core, thinning downwind
+      for (let i = 0; i < 34; i++) { const t = rnd(), ax = cx0 + lean * h + dir * (t * h * anvL - h * 0.2 * (1 - t)), th = h * (0.09 - 0.05 * t);
+        puff(ax, ay + (rnd() - 0.3) * th * 0.8 + t * h * 0.03, h * (0.16 + rnd() * 0.1), th, 0.5 - 0.2 * t); }
+      for (let i = 0; i < 6; i++) { const sx = cx0 + (rnd() - 0.5) * h * 0.45, rw = h * (0.06 + rnd() * 0.08), y0 = base - h * 0.06;   // soft rain shafts
+        const g = x.createLinearGradient(sx - rw, 0, sx + rw, 0); g.addColorStop(0, `rgba(${shade},0)`); g.addColorStop(0.5, `rgba(${shade},.22)`); g.addColorStop(1, `rgba(${shade},0)`);
+        x.save(); x.fillStyle = g; x.globalCompositeOperation = "destination-over"; x.beginPath(); x.moveTo(sx - rw, y0); x.lineTo(sx + rw, y0); x.lineTo(sx + rw * 1.3 + lean * h * 0.15, c.height); x.lineTo(sx - rw * 0.9 + lean * h * 0.15, c.height); x.closePath(); x.fill(); x.restore(); } }
+    { const g = x.createLinearGradient(0, base - h * 0.35, 0, base); g.addColorStop(0, `rgba(${shade},0)`); g.addColorStop(1, `rgba(${mix(shade, [0, 0, 0], 0.2)},.9)`); x.globalCompositeOperation = "source-atop"; x.fillStyle = g; x.fillRect(0, base - h * 0.35, w, h * 0.35); x.globalCompositeOperation = "source-over"; }   // darker base
+    c.baseY = base; c.cx = cx0; return (towerCache[key] = c);
   }
+
   // d24u: the horizon is the SCENE's horizon (C.hz = fraction from the top, from Photoreal.camera() for the WebGL stage, the canvas
   // preview's 0.66 otherwise) with its vertical field of view (C.vfov). Bases sit on that line, distant bases sink behind the earth's curve
   // (hidden height d²/2R), and everything is clipped to the sky above the horizon — towers never sit on the water.
   const towerGeo = (C, H) => ({ hzY: (C.hz != null ? C.hz : 0.6) * H, vf: C.vfov || 62 });
-  function radarTowers(x, W, H, hz0, C, now) {
+  // d27e: thunderheads are part of the distant sky — nearby radar cells merge into a few towers (no picket fence of columns), drawn on their own
+  // layer whose base dissolves into the horizon haze, and kept above the surf crest when a hero wave is in view (never over the waves).
+  let TL = null;
+  function towerLayer(x) { const cv = x.canvas; if (!TL) TL = document.createElement("canvas"); if (TL.width !== cv.width || TL.height !== cv.height) { TL.width = cv.width; TL.height = cv.height; } const t = TL.getContext("2d"); t.setTransform(x.getTransform()); t.clearRect(0, 0, cv.width, cv.height); return t; }
+  function towerFinish(x, t, W, H, hzY) { const L = g.PhotoStage && g.PhotoStage.last, hero = L && L.hero ? clamp(+L.hero) : 0, base = hzY + 1 - H * 0.03 * hero, fh = H * (0.018 + 0.025 * hero);
+    t.globalCompositeOperation = "destination-out"; const gr = t.createLinearGradient(0, base - fh, 0, base); gr.addColorStop(0, "rgba(0,0,0,0)"); gr.addColorStop(1, "rgba(0,0,0,.92)"); t.fillStyle = gr; t.fillRect(0, base - fh, W, fh); t.fillStyle = "#000"; t.fillRect(0, base, W, H); t.globalCompositeOperation = "source-over";
+    x.save(); x.setTransform(1, 0, 0, 1, 0, 0); x.drawImage(t.canvas, 0, 0); x.restore(); }
+  function radarTowers(x0, W, H, hz0, C, now) {
     const { hzY, vf } = towerGeo(C, H), hf = 2 * Math.atan(Math.tan(vf * Math.PI / 360) * W / H) * 180 / Math.PI, ppd = H / vf, e = C.elev != null ? C.elev : 3;
-    const cells = C.storms.cells.slice().sort((a, b) => b[1] - a[1]); let flash = null; C._towerBases = [];
-    x.save(); x.beginPath(); x.rect(0, 0, W, hzY); x.clip();
-    for (const c of cells) { const [db, d, z, tk0] = c; if (Math.abs(db) > hf / 2 + 8) continue;
+    const x = towerLayer(x0);
+    // merge cells within ~6° of bearing: strongest/tallest wins, nearest distance kept; at most 5 towers
+    const raw = C.storms.cells.filter(c => Math.abs(c[0]) <= hf / 2 + 8).sort((a, b) => a[0] - b[0]), grp = [];
+    for (const c of raw) { const L = grp[grp.length - 1]; if (L && Math.abs(c[0] - L[0]) < 6) { L[1] = Math.min(L[1], c[1]); L[2] = Math.max(L[2], c[2]); L[3] = Math.max(L[3] || 0, c[3] || 0); L[0] = (L[0] + c[0]) / 2; } else grp.push(c.slice()); }
+    const cells = grp.sort((a, b) => (b[2] + (b[3] || 0)) - (a[2] + (a[3] || 0))).slice(0, 5).sort((a, b) => b[1] - a[1]); let flash = null; C._towerBases = [];
+    for (const c of cells) { const [db, d, z, tk0] = c;
       const tk = tk0 != null && tk0 > 2 ? tk0 : z >= 50 ? 11 : 8, drop = d * d / 12742, ang = Math.atan((tk - drop) / d) * 180 / Math.PI; if (ang <= 0.05) continue;
-      const hid = Math.atan(drop / d) * 180 / Math.PI * ppd, h = Math.max(6, (ang * ppd) + hid), cb = z >= 45 || tk >= 8;
+      const hid = Math.atan(drop / d) * 180 / Math.PI * ppd, cb = z >= 45 || tk >= 8, h = Math.max(H * (cb ? 0.2 : 0.12) * clamp(1.25 - d / 300, 0.55, 1), (ang * ppd) + hid);   // d27f: distant cells still read as a thunderhead on the horizon
       const hb = Math.max(180, Math.round(h / 3) * 3), k = h / hb, B = towerBody(cb ? "cb" : "tcu", hb, e, Math.round(db * 131 + d * 17 + z * 7 + tk * 29)), cx = W / 2 + db / hf * W, baseY = hzY + hid;
-      x.globalAlpha = clamp(0.98 - d / 450, 0.55, 0.97); x.drawImage(B, cx - B.cx * k, baseY - B.baseY * k, B.width * k, B.height * k); x.globalAlpha = 1; C._towerBases.push({ baseY, clipY: hzY, hid });
+      x.globalAlpha = clamp(1 - d / 500, 0.62, 0.95); x.drawImage(B, cx - B.cx * k, baseY - B.baseY * k, B.width * k, B.height * k); x.globalAlpha = 1; C._towerBases.push({ baseY, clipY: hzY, hid });
       if (cb && z >= 50 && (!flash || d < flash.d)) flash = { cx, cy: baseY - h * 0.45, h, d, db }; }
-    if (flash) { const ph = (now + flash.db * 137) % 2700; if (ph < 140) { const a = (ph < 60 ? 0.55 : ph < 90 ? 0.12 : 0.4) * clamp((e + 9) / 6, 0.5, 1), g = x.createRadialGradient(flash.cx, flash.cy, 2, flash.cx, flash.cy, flash.h * 0.4);
-      g.addColorStop(0, `rgba(235,235,255,${a})`); g.addColorStop(1, "rgba(235,235,255,0)"); x.globalCompositeOperation = "lighter"; x.fillStyle = g; x.fillRect(flash.cx - flash.h * 0.4, flash.cy - flash.h * 0.4, flash.h * 0.8, flash.h * 0.8); } }
-    x.restore();
+    if (flash) { const ph = (now + flash.db * 137) % 2700; if (ph < 140) { const a = (ph < 60 ? 0.55 : ph < 90 ? 0.12 : 0.4) * clamp((e + 9) / 6, 0.5, 1), gg = x.createRadialGradient(flash.cx, flash.cy, 2, flash.cx, flash.cy, flash.h * 0.4);
+      gg.addColorStop(0, `rgba(235,235,255,${a})`); gg.addColorStop(1, "rgba(235,235,255,0)"); x.globalCompositeOperation = "lighter"; x.fillStyle = gg; x.fillRect(flash.cx - flash.h * 0.4, flash.cy - flash.h * 0.4, flash.h * 0.8, flash.h * 0.8); x.globalCompositeOperation = "source-over"; } }
+    towerFinish(x0, x, W, H, hzY);
   }
-  function towers(x, W, H, hz0, C, now) {
-    if (C.storms && C.storms.cells && C.storms.cells.length) return radarTowers(x, W, H, hz0, C, now);
+  function towers(x0, W, H, hz0, C, now) {
+    if (C.storms && C.storms.cells && C.storms.cells.length) return radarTowers(x0, W, H, hz0, C, now);
+    const x = towerLayer(x0);
     const { hzY, vf } = towerGeo(C, H), ppd = H / vf, e = C.elev != null ? C.elev : 3, side = C.cbSide != null ? C.cbSide : 0.2; C._towerBases = [];   // forecast-only: no radar position → off to one side of the sun
-    x.save(); x.beginPath(); x.rect(0, 0, W, hzY); x.clip();
+    x.save();
     if (C.cb && (!C.cb.behind || C.turned)) { const d = C.cb.near ? 25 : 70, ang = Math.atan((11 - d * d / 12742) / d) * 180 / Math.PI, hid = Math.atan(d / 12742) * 180 / Math.PI * ppd, h = ang * ppd + hid, B = towerBody("cb", Math.round(h / 3) * 3, e, 4242 + (C.cb.near ? 1 : 0));
       x.drawImage(B, W * side - B.cx, hzY + hid - B.baseY); C._towerBases.push({ baseY: hzY + hid, clipY: hzY, hid });
       const ph = now % 3100; if (ph < 140) { const a = (ph < 60 ? 0.55 : 0.3), cx = W * side, cy = hzY - h * 0.5, g = x.createRadialGradient(cx, cy, 2, cx, cy, h * 0.35); g.addColorStop(0, `rgba(235,235,255,${a})`); g.addColorStop(1, "rgba(235,235,255,0)"); x.globalCompositeOperation = "lighter"; x.fillStyle = g; x.fillRect(cx - h * 0.4, cy - h * 0.4, h * 0.8, h * 0.8); x.globalCompositeOperation = "source-over"; } }
     if (C.tcu) { const d = 40, ang = Math.atan((5 * C.tcu - d * d / 12742) / d) * 180 / Math.PI, hid = Math.atan(d / 12742) * 180 / Math.PI * ppd, h = ang * ppd + hid, B = towerBody("tcu", Math.round(h / 3) * 3, e, 999); x.globalAlpha = 0.92; x.drawImage(B, W * (1 - side) - B.cx, hzY + hid - B.baseY); x.globalAlpha = 1; C._towerBases.push({ baseY: hzY + hid, clipY: hzY, hid }); }
-    x.restore();
+    x.restore(); towerFinish(x0, x, W, H, hzY);
   }
 
   // d24n: snow — soft gray-white veil (hides the sun disk when heavy), haze thickening toward the horizon, three depth layers of flakes
