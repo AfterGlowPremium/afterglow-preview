@@ -1,3 +1,10 @@
+## 2026-10-26T07:39:16.038Z
+new rows: 2
+- yorktown sunset: rating 60, app 53, photo colour 87, cloud photo/forecast 58/23 → resid 15
+- grandview sunset: rating 60, app 54, photo colour 80, cloud photo/forecast 71/0 → resid 12
+sunset: n=5 global 0 spots {} cloudBias -2 (n=9, logged only)
+sunrise: n=0 global 0 spots {} cloudBias 0 (n=0, logged only)
+
 ## 2026-10-25T07:26:58.626Z
 new rows: 0
 sunset: n=3 global 0 spots {} cloudBias -30 (n=7, logged only)

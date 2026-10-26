@@ -476,5 +476,69 @@
   "ver": "d26j",
   "resid": 6,
   "cloudErr": -2
+ },
+ {
+  "group": "c929b242-af8d-4382-a755-bdc5f7ef566c",
+  "id": "b7ee0927-a646-441f-8597-7a9246a14d1f",
+  "at": "2026-10-24T18:06:00",
+  "shot": "2026-10-24T18:06:00",
+  "saved": "2026-10-25T12:53:57.823719+00:00",
+  "spot": "yorktown",
+  "mode": "sunset",
+  "rating": 60,
+  "raw": 53,
+  "sky": {
+   "t": 1792879560,
+   "low": 23,
+   "mid": 0,
+   "high": 0,
+   "total": 23,
+   "precip": 0
+  },
+  "photo": {
+   "w": 986,
+   "h": 1280,
+   "bright": 0.415,
+   "sat": 0.425,
+   "warm": 0.519,
+   "vivid": 0.159,
+   "cloud": 0.584,
+   "colorScore": 87
+  },
+  "ver": "d28c",
+  "resid": 15,
+  "cloudErr": 35
+ },
+ {
+  "group": "d08a12eb-9aa8-4829-94d5-29a28848eb4c",
+  "id": "cdf7d557-206f-4b3c-b9e7-bca9163cbceb",
+  "at": "2026-10-25T18:09:00",
+  "shot": "2026-10-25T18:09:00",
+  "saved": "2026-10-26T00:51:35.971171+00:00",
+  "spot": "grandview",
+  "mode": "sunset",
+  "rating": 60,
+  "raw": 54,
+  "sky": {
+   "t": 1792966140,
+   "low": 0,
+   "mid": 0,
+   "high": 0,
+   "total": 0,
+   "precip": 0
+  },
+  "photo": {
+   "w": 960,
+   "h": 1280,
+   "bright": 0.403,
+   "sat": 0.323,
+   "warm": 0.324,
+   "vivid": 0.192,
+   "cloud": 0.713,
+   "colorScore": 80
+  },
+  "ver": "d28y",
+  "resid": 12,
+  "cloudErr": 71
  }
 ]
