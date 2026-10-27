@@ -1,5 +1,5 @@
 {
- "updated": "2026-10-26T07:39:20.678Z",
+ "updated": "2026-10-27T07:37:55.057Z",
  "note": "score offsets from user feedback; bounded ±8 global, ±5 per spot",
  "sunset": {
   "n": 5,
@@ -9,10 +9,10 @@
   "cloudN": 9
  },
  "sunrise": {
-  "n": 0,
+  "n": 1,
   "global": 0,
   "spots": {},
   "cloudBias": 0,
-  "cloudN": 0
+  "cloudN": 2
  }
 }

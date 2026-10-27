@@ -1,3 +1,10 @@
+## 2026-10-27T07:37:50.858Z
+new rows: 2
+- avalonpier sunrise: rating 60, app 55, photo colour 79, cloud photo/forecast 20/1 → resid 11
+- avalonpier sunrise: rating 60, app 55, photo colour 92, cloud photo/forecast 43/1 → resid 15
+sunset: n=5 global 0 spots {} cloudBias -2 (n=9, logged only)
+sunrise: n=1 global 0 spots {} cloudBias 0 (n=2, logged only)
+
 ## 2026-10-26T07:39:16.038Z
 new rows: 2
 - yorktown sunset: rating 60, app 53, photo colour 87, cloud photo/forecast 58/23 → resid 15
