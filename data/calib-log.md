@@ -1,3 +1,10 @@
+## 2026-10-28T07:43:47.045Z
+new rows: 2
+- windmillpt sunset: rating 60, app 54, photo colour 49, cloud photo/forecast 77/1 → resid 3
+- windmillpt sunset: rating 60, app 54, photo colour 49, cloud photo/forecast 77/1 → resid 3
+sunset: n=7 global 4 spots {} cloudBias 5 (n=11, logged only)
+sunrise: n=1 global 0 spots {} cloudBias 0 (n=2, logged only)
+
 ## 2026-10-27T07:37:50.858Z
 new rows: 2
 - avalonpier sunrise: rating 60, app 55, photo colour 79, cloud photo/forecast 20/1 → resid 11
