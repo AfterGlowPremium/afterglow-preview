@@ -1,3 +1,14 @@
+## 2026-10-29T07:46:28.223Z
+new rows: 6
+- oldpoint sunset: rating 60, app 75, photo colour –, cloud photo/forecast –/100 → resid -15
+- oldpoint sunset: rating 60, app 75, photo colour 48, cloud photo/forecast 88/100 → resid -19
+- oldpoint sunset: rating 60, app 75, photo colour 50, cloud photo/forecast 7/100 → resid -18
+- huntington sunset: rating 60, app 65, photo colour 12, cloud photo/forecast 76/100 → resid -19
+- huntington sunset: rating 60, app 65, photo colour 37, cloud photo/forecast 84/100 → resid -12
+- huntington sunset: rating 60, app 65, photo colour 32, cloud photo/forecast 83/100 → resid -13
+sunset: n=13 global 2 spots {"oldpoint":-5} cloudBias -14 (n=16, logged only)
+sunrise: n=1 global 0 spots {} cloudBias 0 (n=2, logged only)
+
 ## 2026-10-28T07:43:47.045Z
 new rows: 2
 - windmillpt sunset: rating 60, app 54, photo colour 49, cloud photo/forecast 77/1 → resid 3
