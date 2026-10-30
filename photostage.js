@@ -77,7 +77,7 @@
       city: spot.far === "skyline" ? 1 : 0, bridge: spot.far === "bridge" ? 1 : 0,
       camH: spot.type === "Summit" ? 0.47 : spot.type === "Bluff" ? 0.025 : spot.type === "Dunes" ? 0.03 : 0.0025,
       ...seaP(spot, ev, t),
-      seed, wind: seed * 6.283, dog: ev.dog && ev.dog.p >= 15 && pos.elev > 0.3 && pos.elev < 15 ? clamp(ev.dog.p / 60) : 0,
+      seed, wind: seed * 6.283, dog: /[?&]sundogs=strong/.test(location.search) && pos.elev > -0.5 && pos.elev < 25 ? 1 : ev.dog && ev.dog.p >= 8 && pos.elev > 0.3 && pos.elev < 25 ? clamp(ev.dog.p / 50) : 0,   // d28z: ?sundogs=strong test; shown from 8 %, up to 25° sun
     }, DEMO || {}, opt);
     if (opt.turned) P.sunAzOff = ((off + 180 + 540) % 360) - 180;   // d23: 180° Turn — the real sun azimuth relative to the view behind you
     // d17 afterglow regimes (renderer reads glow / under / tops):

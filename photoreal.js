@@ -911,9 +911,9 @@ void main(){
     vec3 dd = rd - sa;
     float sq = 1. + .25*smoothstep(.03, 0., sel);
     float ang = length(vec2(dot(dd, normalize(cross(sa, vec3(0,1,0)))), dot(dd, vec3(0,1,0))*sq));
-    float disc = (1. - smoothstep(.0176, .0196, ang))   /* d28i: Sean — sun drawn 4x its true size (r 0.27° → 1.08°) */ * step(0., dot(rd, sa));   // only toward the sun (fixes mirrored dot)
-    float limb = .45 + .55*sqrt(max(0., 1. - (ang/.0188)*(ang/.0188)));
-    col += T * disc * limb * ESUN * 3000.;   // d28i: 16x the disc area → lower per-pixel radiance so the bigger disc doesn't flood the exposure
+    float disc = (1. - smoothstep(.0264, .0294, ang))   /* d28z: Sean — sun drawn 6x its true size (r 0.27° → 1.62°) */ * step(0., dot(rd, sa));   // only toward the sun (fixes mirrored dot)
+    float limb = .45 + .55*sqrt(max(0., 1. - (ang/.0282)*(ang/.0282)));
+    col += T * disc * limb * ESUN * 1333.;   // d28i: 16x the disc area → lower per-pixel radiance so the bigger disc doesn't flood the exposure
     col = antiTw(col, rd, elevR - dip);
     // sun dogs (parhelia) ~22° either side of a low sun, in thin ice cloud
     if (uDog > .01){
@@ -925,10 +925,13 @@ void main(){
       for (int sgn = -1; sgn <= 1; sgn += 2){
         float x = abs(daz) - off;
         vec3 sh = vec3(-.006, 0., .007);
-        vec3 g = exp(-pow((vec3(x) - sh)/vec3(.007,.009,.016), vec3(2.)) - pow(dy/.016, 2.));
-        g += exp(-pow(x/.05, 2.) * 1. - pow(dy/.006, 2.)) * .15 * step(0., x); // faint tail away from the sun
+        vec3 wd = x < 0. ? vec3(.0035,.0045,.006) : vec3(.007,.011,.019);   // d28z: photo-like parhelion — sharp red inner edge, soft white→bluish outward spread, ~2.5° tall
+        float vy = dy / (.024 + .012 * smoothstep(0., .015, abs(x)));
+        vec3 g = exp(-pow((vec3(x) - sh)/wd, vec3(2.)) - vy * vy) * (.75 + .25 * fbm(vec2(daz * 60., elevR * 40.), 0., 3));   // slight ice-crystal mottling
+        g += vec3(.95, .97, 1.) * exp(-pow(x/.11, 2.) - pow(dy/.005, 2.)) * .09 * step(0., x); // faint white tail away from the sun
         pd = max(pd, g);
       }
+      float a22 = acos(clamp(dot(rd, sa), -1., 1.)); pd += vec3(.9, .95, 1.) * exp(-pow((a22 - .384) / .008, 2.)) * .22 * smoothstep(.55, .9, uDog) * step(-.02, dy + .1);   // d28z: faint 22° halo arc when sun dogs are likely
       col += pd * uDog * T * ESUN * sunAtm * sunVis * .18 * smoothstep(-.01, .02, sa.y);
     }
   } else if (uWater > .5 && elevR <= dip + .0002){
@@ -1222,7 +1225,7 @@ void main(){
   vec3 sa = uSunA;
   float ca = acos(clamp(dot(rd, sa), -1., 1.));
   vec3 sunRad = ESUN * sunAtm * sunVis * smoothstep(-.012, .003, sa.y);
-  col += sunRad * (2.5e-3 / (1. + pow(ca/.016, 2.)) + 4e-4 / (1. + pow(ca/.1, 2.)) + 6e-5*exp(-ca*4.));
+  col += sunRad * (2.5e-3 / (1. + pow(ca/.024, 2.)) + 4e-4 / (1. + pow(ca/.15, 2.)) + 6e-5*exp(-ca*4.));
 
   if (uMeter > 1.5){ o = vec4(sqrt(clamp(col * uExpo / 4., 0., 1.)), 1.); return; }
   if (uMeter > .5){ float L = max(max(col.r, max(col.g, col.b)) * .8 + dot(col, vec3(.2126,.7152,.0722)) * .2, 1e-6); o = vec4(clamp((log2(L) + 16.) / 24., 0., 1.), 0., 0., 1.); return; }

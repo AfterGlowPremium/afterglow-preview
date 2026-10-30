@@ -768,7 +768,7 @@
       if (wxC && o.mode === "live" && !/[?&]wx=/.test(location.search)) { const key = sp.id + ":" + Math.round(t / 300), RQ = rainQ[key];
         if (RQ === undefined && window.Sat && Sat.radarAt && t < Date.now() / 1000 + 600) { rainQ[key] = "pending"; Sat.radarAt(sp.lat, sp.lng, t).then(r => { rainQ[key] = r; window.__agQueue && __agQueue(); }); }
         const R = rainQ[key];
-        if (R && R !== "pending") { if (R.rain >= 0.04) { wxC.rain = Math.max(wxC.rain || 0, Math.min(1, 0.35 + 1.2 * R.rain)); wxC.rainName = wxC.rainName || "Rain (radar)"; } else { wxC.rain = 0; wxC.rainName = null; } wxC.rainSrc = "radar"; }
+        if (R && R !== "pending") { if (R.rain >= 0.12) {   /* d28z: was 0.04 — light returns at dawn (dew/fog, sea clutter) drew rain at Buckroe Oct 30 */ wxC.rain = Math.max(wxC.rain || 0, Math.min(1, 0.35 + 1.2 * R.rain)); wxC.rainName = wxC.rainName || "Rain (radar)"; } else { wxC.rain = 0; wxC.rainName = null; } wxC.rainSrc = "radar"; }
         else if (R === "pending") { wxC.rain = 0; wxC.rainName = null; }   // brief: hold off until the radar frame answers
         else { const O = window.AGObs || {}, Nw = O.now && O.now[sp.id], nowS = Date.now() / 1000;
           const mo = !state.arch && Math.abs(t - ev.tSet) <= 3600 && O.metar && O.metar[sp.id] ? O.metar[sp.id] : Nw && Math.abs(t - nowS) < 7200 ? Nw.metar : null;
@@ -803,6 +803,11 @@
           se.title = W2.txt; } }
       $("#pv-phase").textContent = phaseName(o.phase);
       $("#pv-elev").textContent = `sun ${o.elev >= 0 ? "+" : "−"}${Math.abs(o.elev).toFixed(1)}°`;
+      { const sl = $("#scrub"); if (sl && sl.parentElement) {   // d28z: Sean — floating time/sun bubble above the slider thumb (live while dragging and playing)
+        let bb = document.getElementById("pv-bub"); if (!bb) { bb = document.createElement("div"); bb.id = "pv-bub"; bb.style.cssText = "position:absolute;z-index:5;pointer-events:none;transform:translateX(-50%);padding:3px 8px;border-radius:10px;background:rgba(14,16,28,.82);color:#fff;font:600 12px/1.25 system-ui,sans-serif;white-space:nowrap;text-align:center;box-shadow:0 2px 8px rgba(0,0,0,.35)"; const pe = sl.parentElement; if (getComputedStyle(pe).position === "static") pe.style.position = "relative"; pe.appendChild(bb); }
+        const mn = +sl.min, mx = +sl.max, f = mx > mn ? (+sl.value - mn) / (mx - mn) : 0, th = 22, w = sl.offsetWidth, x0 = sl.offsetLeft + th / 2 + f * (w - th);
+        bb.innerHTML = `${fmtTime(t, r.tz)}<br><span style="opacity:.8;font-weight:500">sun ${o.elev >= 0 ? "+" : "−"}${Math.abs(o.elev).toFixed(1)}°</span>`;
+        const bw = bb.offsetWidth || 70, pw = sl.parentElement.clientWidth; bb.style.left = Math.max(bw / 2 + 2, Math.min(pw - bw / 2 - 2, x0)) + "px"; bb.style.top = (sl.offsetTop - 40) + "px"; } }
       const DSk = demoSky(), sNow = DSk || ev.s, parts = [["high", sNow.high, "Cirrus"], ["mid", sNow.mid, "Mid cloud"], ["low", sNow.low, "Low cloud"]].filter(x => x[1] >= 10).map(x => `${x[2]} ${word(o.lit[x[0]])}`);
       { const gw = DSk ? DSk.gray : window.AGObs && AGObs.sceneAt ? AGObs.sceneAt(sp, ev, t).gray : 0; /* d19: demo sky → caption follows the forced sky, not today's obs */ if (gw > 0.5) { $("#pv-what").textContent = "Sun blocked by low/mid overcast: flat gray light, no color"; } else $("#pv-what").textContent = parts.length ? parts.join(" · ") : (o.elev > 0 ? "Clear sky: clean gradient, little canvas" : "Clear sky: horizon band fading"); }
       document.querySelectorAll(".scrub .mk").forEach(b => b.classList.toggle("on", Math.abs(+b.dataset.t - t) < 90));

@@ -8,7 +8,7 @@
     const WX = ev.wx || { items: [], bolt: { p: 0 }, wind: { mph: 0 } }, on = id => WX.items.some(x => x.id === id);
     const bp = WX.bolt.p || 0, bw = WX.bolt.win;
     const bolt = bp >= 25 && (!bw || (t >= bw.start - 1800 && t <= bw.end + 1800)) ? clamp(bp / 60, 0.4, 1) : 0;
-    const rainIt = WX.items.find(x => x.id === "rain");
+    const rainIt = WX.items.find(x => x.id === "rain" && (!WX.rain || ((WX.rain.mm || 0) >= 0.1 && ((WX.rain.pp || 0) >= 30 || (WX.rain.mm || 0) >= 0.5))));   // d28z: no rain for trace / low-odds model precip
     const rain = rainIt ? clamp(0.25 + (WX.rain && WX.rain.mm || 0) / 4 + (WX.rain && WX.rain.pp || 0) / 300, 0.2, 1) : 0;
     const snowIt = WX.items.find(x => x.id === "snow"), snow = snowIt ? (snowIt.lvl || 0.6) : 0, fog = on("fog") ? 0.6 : 0;
     const bow = ev.bonus && ev.bonus.bow, bwin = bow && bow.win;
@@ -139,7 +139,7 @@
   function moonTex() { const I = moonTex.i || (moonTex.i = Object.assign(new Image(), { src: "img/moon-near.png?v=d28p" })); return I.complete && I.naturalWidth ? I : null; }
   function moon(x, W, H, hz0, C) { const m = C.moonPos; if (!m || m.alt < -1.2 || m.frac < 0.02) return;
     const base = W / H < 1 ? 62 : W / H < 1.5 ? 50 : 40, ppd = H / base, dAz = ((m.az - C.faceAz + 540) % 360) - 180;
-    const r = Math.max(8.8, 1.04 * ppd), lowF = clamp(1 - (m.alt - 0.5) / 2.5), flat = 1 - 0.16 * lowF;   // d28i: Sean — drawn 4x the true 0.52°; d28o: refraction flattening near the horizon
+    const r = Math.max(13.2, 1.56 * ppd), lowF = clamp(1 - (m.alt - 0.5) / 2.5), flat = 1 - 0.16 * lowF;   // d28i: Sean — drawn 4x the true 0.52°; d28o: refraction flattening near the horizon
     const cx = W / 2 + dAz * ppd, cy = hz0 - m.alt * ppd, ridgeY = hz0 - (C.ridge || 0) * ppd;
     if (cx < -3 * r || cx > W + 3 * r || cy < -3 * r || cy - r * flat > ridgeY) return;
     // d28o: cloud transmittance by layer — thick low overcast hides it fully, mid dims strongly, thin cirrus barely (was: total cloud > 35 % incl. cirrus)
