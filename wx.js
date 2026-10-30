@@ -177,16 +177,19 @@
   // only the ~8 brightest twinkle (cheap sin alpha). Cool white with a faint lavender cast to sit in the purple night sky.
   function stars(x, W, H, hz0, C, now, dk, clr) {
     let S = stars.f; if (!S) { let sd = 11; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647; S = stars.f = [];
-      for (let i = 0; i < 420; i++) { const m = Math.pow(rnd(), 3.4); S.push([rnd() * 360, Math.asin(rnd()) * 57.2958, i < 8 ? 0.85 + 0.15 * rnd() : m, rnd() * 6.28, rnd()]); } }
+      for (let i = 0; i < 2400; i++) { const m = Math.pow(rnd(), 2.6); S.push([rnd() * 360, Math.asin(rnd()) * 57.2958, i < 8 ? 0.85 + 0.15 * rnd() : m, rnd() * 6.28, rnd()]); } }
     const base = W / H < 1 ? 62 : W / H < 1.5 ? 50 : 40, ppd = H / base, M = g.__agMoon, mp = C.moonPos, mf = mp && mp.alt > 0 ? mp.frac : 0, T = (now || 0) / 1000, ridge = C.ridge || 0;
     const n = Math.floor(S.length * clr); x.save();
+    { const vg = x.createLinearGradient(0, 0, 0, hz0 - ridge * ppd); vg.addColorStop(0, `rgba(58,30,104,${(0.22 * dk * clr).toFixed(3)})`); vg.addColorStop(0.7, `rgba(80,40,120,${(0.12 * dk * clr).toFixed(3)})`); vg.addColorStop(1, "rgba(80,40,120,0)");
+      x.globalCompositeOperation = "screen"; x.fillStyle = vg; x.fillRect(0, 0, W, hz0 - ridge * ppd); x.globalCompositeOperation = "source-over"; }   // d28z: faint purple-violet night sky (Sean's Nov 11 photos)
     for (let i = 0; i < n; i++) { const s = S[i]; if (s[1] < 1 + ridge) continue; const dAz = ((s[0] - C.faceAz + 540) % 360) - 180, sx = W / 2 + dAz * ppd, sy = hz0 - s[1] * ppd; if (sx < -2 || sx > W + 2 || sy < 0) continue;
-      let a = dk * clr * (0.35 + 0.65 * s[2]) * Math.min(1, (s[1] - 1 - ridge) / 12);
+      let a = Math.min(1, dk * (0.4 + 0.6 * clr) * (0.5 + 0.7 * s[2])) * Math.min(1, (s[1] - 1 - ridge) / 12);
       if (i < 8) a *= 0.6 + 0.4 * Math.sin(T * (2.3 + s[4] * 3) + s[3]) * Math.sin(T * 1.7 + s[3] * 2);
-      if (M && mf > 0) a *= 1 - mf * (0.95 - 0.5 * s[2]) * Math.exp(-Math.hypot(sx - M.cx, sy - M.cy) / (14 * (M.r || 10)));
-      if (a < 0.03) continue; const r = i < 8 ? 2.2 : 0.6 + 1.1 * s[2];
-      x.fillStyle = s[4] < 0.15 ? `rgba(255,228,210,${a.toFixed(3)})` : s[4] > 0.85 ? `rgba(210,218,255,${a.toFixed(3)})` : `rgba(240,236,255,${a.toFixed(3)})`; x.fillRect(sx - r / 2, sy - r / 2, r, r);
-      if (i < 8) { x.fillStyle = `rgba(235,230,255,${(a * 0.35).toFixed(3)})`; x.fillRect(sx - 3.5, sy - 0.4, 7, 0.8); x.fillRect(sx - 0.4, sy - 3.5, 0.8, 7); } }
+      if (M && mf > 0) a *= 1 - mf * (0.75 - 0.45 * s[2]) * Math.exp(-Math.hypot(sx - M.cx, sy - M.cy) / (14 * (M.r || 10)));
+      if (a < 0.03) continue; const r = i < 8 ? 3.2 : 1.1 + 1.7 * s[2];   // d28z: phone-visible sizes (CSS px)
+      if (i < 8) { const gl = x.createRadialGradient(sx, sy, 0, sx, sy, 9); gl.addColorStop(0, `rgba(235,230,255,${(a * 0.45).toFixed(3)})`); gl.addColorStop(1, 'rgba(235,230,255,0)'); x.fillStyle = gl; x.fillRect(sx - 9, sy - 9, 18, 18); }
+      x.fillStyle = s[4] < 0.15 ? `rgba(255,228,210,${a.toFixed(3)})` : s[4] > 0.85 ? `rgba(210,218,255,${a.toFixed(3)})` : `rgba(240,236,255,${a.toFixed(3)})`; if (i < 8) { x.beginPath(); x.arc(sx, sy, r / 2, 0, 6.283); x.fill(); } else x.fillRect(sx - r / 2, sy - r / 2, r, r);
+      if (i < 8) { x.fillStyle = `rgba(235,230,255,${(a * 0.4).toFixed(3)})`; x.fillRect(sx - 6, sy - 0.5, 12, 1); x.fillRect(sx - 0.5, sy - 6, 1, 12); } }
     x.restore(); }
   function draw(cv, C, t, now) {
     const W = cv.clientWidth, H = cv.clientHeight, dpr = Math.min(2, g.devicePixelRatio || 1);

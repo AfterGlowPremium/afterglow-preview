@@ -872,7 +872,7 @@
   }
   async function openDetail(id, keepScroll) {
     state.spot = id; window.__agSpot = id;
-    if (!keepScroll && window.AGX) state.turn = AGX.startTurned(id, RISE);
+    if (!keepScroll) state.turn = false;   // d28z: Sean — every spot opens facing WEST at sunset, EAST at sunrise (the forward view); Face East/West still turns
     const r = state.results.find(x => x.spot.id === id), sp = r.spot, ev = r.ev, s = ev.s, lb = label(ev.score), conf = confidence(state.day), T = ev.timing;
     const el = $("#detail-body"), scroll = el.scrollTop;
     const tw = t => t ? fmtTime(t, r.tz) : "—";
