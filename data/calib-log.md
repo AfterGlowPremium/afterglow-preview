@@ -1,3 +1,13 @@
+## 2026-10-30T07:44:59.823Z
+new rows: 5
+- grandview sunrise: rating 37, app 94, photo colour 5, cloud photo/forecast 86/93 → resid -67
+- grandview sunrise: rating 37, app 94, photo colour 5, cloud photo/forecast 93/93 → resid -67
+- grandview sunrise: rating 37, app 94, photo colour 6, cloud photo/forecast 10/93 → resid -66
+- grandview sunrise: rating 37, app 94, photo colour 31, cloud photo/forecast 87/86 → resid -59
+- grandview sunrise: rating 47, app 94, photo colour 12, cloud photo/forecast 100/87 → resid -57
+sunset: n=13 global 2 spots {"oldpoint":-5} cloudBias -14 (n=16, logged only)
+sunrise: n=1 global 0 spots {} cloudBias 1 (n=7, logged only)
+
 ## 2026-10-29T07:46:28.223Z
 new rows: 6
 - oldpoint sunset: rating 60, app 75, photo colour –, cloud photo/forecast –/100 → resid -15

@@ -850,5 +850,165 @@
   "ver": "d28y",
   "resid": -13,
   "cloudErr": -17
+ },
+ {
+  "group": "930fa6e2-0363-458f-a4ba-302e9cd877f6",
+  "id": "e71391fa-ba26-4fac-be85-a9a0554a4dc4",
+  "at": "2026-10-29T07:12:00",
+  "shot": "2026-10-29T07:12:00",
+  "saved": "2026-10-29T11:14:34.583603+00:00",
+  "spot": "grandview",
+  "mode": "sunrise",
+  "rating": 37,
+  "raw": 94,
+  "sky": {
+   "t": 1793272320,
+   "low": 93,
+   "mid": 17,
+   "high": 0,
+   "total": 93,
+   "precip": 0
+  },
+  "photo": {
+   "w": 960,
+   "h": 1280,
+   "bright": 0.439,
+   "sat": 0.112,
+   "warm": 0.016,
+   "vivid": 0.009,
+   "cloud": 0.862,
+   "colorScore": 5
+  },
+  "ver": "d28y",
+  "resid": -67,
+  "cloudErr": -7
+ },
+ {
+  "group": "930fa6e2-0363-458f-a4ba-302e9cd877f6",
+  "id": "e847350c-1f40-463b-ae79-ae653dbe215f",
+  "at": "2026-10-29T07:12:00",
+  "shot": "2026-10-29T07:12:00",
+  "saved": "2026-10-29T11:14:35.406612+00:00",
+  "spot": "grandview",
+  "mode": "sunrise",
+  "rating": 37,
+  "raw": 94,
+  "sky": {
+   "t": 1793272320,
+   "low": 93,
+   "mid": 17,
+   "high": 0,
+   "total": 93,
+   "precip": 0
+  },
+  "photo": {
+   "w": 960,
+   "h": 1280,
+   "bright": 0.411,
+   "sat": 0.105,
+   "warm": 0.016,
+   "vivid": 0.009,
+   "cloud": 0.931,
+   "colorScore": 5
+  },
+  "ver": "d28y",
+  "resid": -67,
+  "cloudErr": 0
+ },
+ {
+  "group": "930fa6e2-0363-458f-a4ba-302e9cd877f6",
+  "id": "58504c7e-fd23-48fb-bcd1-d70d4e760cbb",
+  "at": "2026-10-29T07:12:00",
+  "shot": "2026-10-29T07:12:00",
+  "saved": "2026-10-29T11:14:36.126846+00:00",
+  "spot": "grandview",
+  "mode": "sunrise",
+  "rating": 37,
+  "raw": 94,
+  "sky": {
+   "t": 1793272320,
+   "low": 93,
+   "mid": 17,
+   "high": 0,
+   "total": 93,
+   "precip": 0
+  },
+  "photo": {
+   "w": 960,
+   "h": 1280,
+   "bright": 0.457,
+   "sat": 0.186,
+   "warm": 0.007,
+   "vivid": 0.005,
+   "cloud": 0.099,
+   "colorScore": 6
+  },
+  "ver": "d28y",
+  "resid": -66,
+  "cloudErr": -83
+ },
+ {
+  "group": "69a1e54a-ba2c-4b73-b099-0c9a897a513c",
+  "id": "4152f69b-d228-4c80-900c-53c8c76492e9",
+  "at": "2026-10-29T07:26:00",
+  "shot": "2026-10-29T07:26:00",
+  "saved": "2026-10-29T11:19:21.890032+00:00",
+  "spot": "grandview",
+  "mode": "sunrise",
+  "rating": 37,
+  "raw": 94,
+  "sky": {
+   "t": 1793273160,
+   "low": 86,
+   "mid": 13,
+   "high": 0,
+   "total": 86,
+   "precip": 0
+  },
+  "photo": {
+   "w": 960,
+   "h": 1280,
+   "bright": 0.453,
+   "sat": 0.122,
+   "warm": 0.095,
+   "vivid": 0.038,
+   "cloud": 0.868,
+   "colorScore": 31
+  },
+  "ver": "d28y",
+  "resid": -59,
+  "cloudErr": 1
+ },
+ {
+  "group": "c39b3231-ac7c-4cec-8e09-e4eb4a249f5e",
+  "id": "d6d03b55-7474-4ed2-8747-877216f134dd",
+  "at": "2026-10-29T07:23:00",
+  "shot": "2026-10-29T07:23:00",
+  "saved": "2026-10-29T11:24:53.883506+00:00",
+  "spot": "grandview",
+  "mode": "sunrise",
+  "rating": 47,
+  "raw": 94,
+  "sky": {
+   "t": 1793272980,
+   "low": 87,
+   "mid": 14,
+   "high": 0,
+   "total": 87,
+   "precip": 0
+  },
+  "photo": {
+   "w": 960,
+   "h": 1280,
+   "bright": 0.487,
+   "sat": 0.109,
+   "warm": 0.029,
+   "vivid": 0.02,
+   "cloud": 0.995,
+   "colorScore": 12
+  },
+  "ver": "d28y",
+  "resid": -57,
+  "cloudErr": 13
  }
 ]
