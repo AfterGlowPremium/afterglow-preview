@@ -15,6 +15,8 @@
     // d28z lighthouse spots (OSM man_made=lighthouse; viewpoints chosen so the tower sits in the default view — drawn by Wx lighthouses())
     oldpointlight: { east: { near: SAND, nearD: 6, water: true, d: 6000, dl: 4000, dr: 9000, th: 10, town: 0.3 }, west: { land: true, near: LAWN, nearD: 12, far: LAWN, d: 140, dl: 90, dr: 220, th: 16, town: 0.45, camH: 0.0017 },
       front: { east: { near: SAND, nearD: 6, water: true, d: 6000, th: 10, town: 0.3 }, west: { land: true, near: LAWN, nearD: 12, far: LAWN, d: 140, th: 16, town: 0.45, camH: 0.0017 } } },
+    roanokemarshes: { east: { near: SAND, nearD: 4, water: true, d: 3200, dl: 2500, dr: 4500, th: 9, town: 0.05 }, west: { land: true, near: LAWN, nearD: 15, far: LAWN, d: 150, dl: 120, dr: 250, th: 12, town: 0.6, camH: 0.0017 },
+      front: { east: { near: SAND, nearD: 4, water: true, d: 3200, th: 9, town: 0.05 }, west: { land: true, near: LAWN, nearD: 15, far: LAWN, d: 150, th: 12, town: 0.6, camH: 0.0017 } } },
     thimbleshoal: { east: { water: true, d: 0 }, west: { water: true, d: 6500, dl: 7000, dr: 9000, th: 9, town: 0.35 }, front: { east: { water: true, d: 0 }, west: { water: true, d: 6500, th: 9, town: 0.35 } } },
     hatteraslight: { east: { near: SAND, nearD: 30, water: true, d: 0 }, west: { land: true, near: SAND, nearD: 40, far: LAWN, d: 160, dl: 140, dr: 200, th: 20, town: 0.05, camH: 0.0017 },
       front: { east: { near: SAND, nearD: 30, water: true, d: 0 }, west: { land: true, near: SAND, nearD: 40, far: LAWN, d: 160, th: 20, town: 0.05, camH: 0.0017 } } },
@@ -53,7 +55,7 @@
   const REG = {}; const R = (ids, v) => ids.split(" ").forEach(k => { REG[k] = v; });
   R("chincoteague", [3, 3, 0]); R("capecharles", [7, 3, 0]); R("fisherman", [3, 3, 0]);
   R("yorktown jamestown melrose huntington lionsbridge hoffler bennettscreek wickham windmillpt grandview plumtree northlanding backbay capehenry littlecreek", [2, 3, 0]);
-  R("oldpoint", [2, 4, 0]); R("saltponds oceanview willoughby lesner", [2, 3, 0.15]); R("buckroecoffee", [2, 3, 0]); R("oldpointlight thimbleshoal", [2, 4, 0]); R("bodielight hatteraslight", [3, 6, 0]); R("vb1st", [2, 3, 0.95]); R("sandbridge", [3, 6, 0]);
+  R("oldpoint", [2, 4, 0]); R("saltponds oceanview willoughby lesner", [2, 3, 0.15]); R("buckroecoffee", [2, 3, 0]); R("oldpointlight thimbleshoal roanokemarshes", [2, 4, 0]); R("bodielight hatteraslight", [3, 6, 0]); R("vb1st", [2, 3, 0.95]); R("sandbridge", [3, 6, 0]);
   R("duck jockeys avon buxton ocracoke hatteraslh avalonpier jennettes frisco sturns rodanthe", [3, 6, 0]);
   R("wrightsville sunsetbeach", [9, 4, 0.1]); R("fernandina", [7, 4, 0]);
   R("jaxpier", [5, 5, 0.45]); R("newsmyrna", [5, 5, 0.3]); R("titusville", [5, 5, 0.05]); R("cocoa", [5, 5, 0.3]); R("sebastian", [5, 5, 0]);

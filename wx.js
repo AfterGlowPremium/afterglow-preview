@@ -328,6 +328,7 @@
     { id: "bodie", lat: 35.81855, lon: -75.56331, h: 47.5, b: 8.2, tp: 5.0, st: "bands", flash: [2.5, 2.5], keeper: { dx: 22, w: 15, h: 9, wall: "#e9e1cf", roof: "#9c3b2c" } },   // 156 ft, 5 bands B/W/B/W/B, Bodie Island Lighthouse Rd
     { id: "hatteras", lat: 35.25054, lon: -75.52882, h: 60.4, b: 8.5, tp: 4.6, st: "spiral", flash: [0.3, 7.2], plinth: 1 },   // 198 ft, double black/white spiral, red-brick octagonal base
     { id: "oldpoint", lat: 37.00175, lon: -76.30647, h: 16.5, b: 5.6, tp: 3.4, st: "octagon", flash: [3, 0.3], keeper: { dx: -12, w: 11, h: 8, wall: "#efe9dc", roof: "#3c3f44" } },   // 54 ft white octagonal sandstone, 1802
+    { id: "roanoke", lat: 35.90821, lon: -75.66827, h: 11.5, b: 9, tp: 2.4, st: "screwpile", flash: [3, 3] },   // 2004 replica of the 1877 Roanoke Marshes screwpile light (OSM node 2411343600; ESRI imagery: on a ~25 m deck at the end of its pier)
     { id: "thimble", lat: 37.01457, lon: -76.23996, h: 16.8, b: 9.5, tp: 3.0, st: "caisson", flash: [1, 9] } ];   // red cast-iron caisson, ~55 ft focal plane
   function lighthouses(x, W, H, hz, C, now) {
     const a = W / H, base = a < 1 ? 62 : a < 1.5 ? 50 : 40, ppd = H / base, la = C.lat * Math.PI / 180, se = C.sunElev != null ? C.sunElev : (C.elev != null ? C.elev : 3);
@@ -338,7 +339,18 @@
       const day = clamp((se + 4) / 10), sRel = Math.sin((C.sunAz - brg) * Math.PI / 180), back = Math.cos((C.sunAz - brg) * Math.PI / 180), sil = clamp((back - 0.2) / 0.6) * clamp(1 - (se - 1) / 10);
       const haze = clamp(1 - d / 30000) * (0.55 + 0.45 * clamp(1 - d / 6000));
       x.save(); x.globalAlpha = 0.25 + 0.75 * haze;
-      if (th < 5) { x.fillStyle = L.st === "caisson" ? `rgb(${120 + 60 * day | 0},40,34)` : "#ddd"; x.fillRect(cx - 1, y0 - Math.max(2, th), 2, Math.max(2, th)); }   // distant speck
+      if (L.st === "screwpile" && th >= 5) {   // d28z4: piles (~3 m) → white square 1½-storey cottage with dark hip roof → black octagonal lantern
+        const pw = D(L.b), ph = th * 0.26, cw = pw * 0.86, ch = th * 0.42, rf = th * 0.14, lw = Math.max(2, D(L.tp)), lh = th * 0.16, top = y0 - ph;
+        x.fillStyle = "#2b2b30"; for (let i = 0; i <= 4; i++) { const px = cx - pw / 2 + i * pw / 4; x.fillRect(px - Math.max(0.6, pw * 0.015), top, Math.max(1.2, pw * 0.03), ph); }   // piles
+        x.strokeStyle = "rgba(43,43,48,.7)"; x.lineWidth = Math.max(0.5, pw * 0.008); x.beginPath(); for (let i = 0; i < 4; i++) { const a = cx - pw / 2 + i * pw / 4, b = a + pw / 4; x.moveTo(a, top + 2); x.lineTo(b, y0 - 1); x.moveTo(b, top + 2); x.lineTo(a, y0 - 1); } x.stroke();   // cross-bracing
+        x.fillStyle = "#6b6460"; x.fillRect(cx - pw / 2 - 1, top - Math.max(1, th * 0.03), pw + 2, Math.max(1, th * 0.03));   // gallery deck
+        x.fillStyle = "#f1eee6"; x.fillRect(cx - cw / 2, top - ch, cw, ch * 0.97);   // cottage
+        x.fillStyle = "rgba(40,45,55,.75)"; for (const f of [-0.28, 0, 0.28]) x.fillRect(cx + f * cw - cw * 0.05, top - ch * 0.72, cw * 0.1, ch * 0.32);   // windows
+        x.fillStyle = "#3a3b40"; x.beginPath(); x.moveTo(cx - cw / 2 - pw * 0.05, top - ch); x.lineTo(cx - lw * 0.6, top - ch - rf); x.lineTo(cx + lw * 0.6, top - ch - rf); x.lineTo(cx + cw / 2 + pw * 0.05, top - ch); x.fill();   // hip roof
+        const ly = top - ch - rf; x.fillStyle = "#141518"; x.fillRect(cx - lw / 2, ly - lh, lw, lh); x.fillStyle = "rgba(200,210,215,.4)"; x.fillRect(cx - lw * 0.36, ly - lh * 0.8, lw * 0.72, lh * 0.45); x.fillStyle = "#141518"; x.beginPath(); x.moveTo(cx - lw * 0.55, ly - lh); x.lineTo(cx, ly - lh - th * 0.05); x.lineTo(cx + lw * 0.55, ly - lh); x.fill();   // lantern + cap
+        const sh = x.createLinearGradient(cx - cw / 2, 0, cx + cw / 2, 0), dk = 0.45 * (1 - 0.4 * (1 - day)); sh.addColorStop(0, `rgba(10,12,20,${(sRel > 0 ? dk : 0.05).toFixed(2)})`); sh.addColorStop(1, `rgba(10,12,20,${(sRel > 0 ? 0.05 : dk).toFixed(2)})`); x.fillStyle = sh; x.fillRect(cx - cw / 2, top - ch, cw, ch);
+        const dim = Math.max(0.6 * sil, 0.55 * (1 - day)); if (dim > 0.02) { x.fillStyle = `rgba(10,10,20,${dim.toFixed(2)})`; x.fillRect(cx - cw / 2 - pw * 0.05, top - ch - rf, cw + pw * 0.1, ch + rf); }
+      } else if (th < 5) { x.fillStyle = L.st === "caisson" ? `rgb(${120 + 60 * day | 0},40,34)` : "#ddd"; x.fillRect(cx - 1, y0 - Math.max(2, th), 2, Math.max(2, th)); }   // distant speck
       else {
         wb = Math.max(1, D(L.b)); const body = new Path2D(); const tw = th * 0.86, wb0 = wb; if (L.st === "caisson") wb = wb * 0.42; body.moveTo(cx - wb / 2, y0); body.lineTo(cx - wt / 2, y0 - tw); body.lineTo(cx + wt / 2, y0 - tw); body.lineTo(cx + wb / 2, y0); body.closePath();
         if (L.keeper) { const k = L.keeper, kx = cx + D(k.dx), kw = D(k.w), kh = D(k.h * 0.6); x.fillStyle = k.wall; x.fillRect(kx - kw / 2, y0 - kh, kw, kh); x.fillStyle = k.roof; x.beginPath(); x.moveTo(kx - kw / 2 - 1, y0 - kh); x.lineTo(kx, y0 - D(k.h)); x.lineTo(kx + kw / 2 + 1, y0 - kh); x.fill();

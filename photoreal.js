@@ -932,7 +932,7 @@ void main(){
         pd = max(pd, g);
       }
       float a22 = acos(clamp(dot(rd, sa), -1., 1.)); pd += vec3(.9, .95, 1.) * exp(-pow((a22 - .384) / .008, 2.)) * .22 * smoothstep(.55, .9, uDog) * step(-.02, dy + .1);   // d28z: faint 22° halo arc when sun dogs are likely
-      col += pd * uDog * T * ESUN * sunAtm * sunVis * .18 * smoothstep(-.01, .02, sa.y);
+      col += pd * uDog * T * ESUN * sunAtm * sunVis * .4 * smoothstep(-.01, .02, sa.y);   // d28z4: brighter parhelia (Sean saw very good sun dogs at Lions Bridge Oct 28)
     }
   } else if (uWater > .5 && elevR <= dip + .0002){
     // ocean
@@ -1362,7 +1362,7 @@ void main(){
   // d24u: camera = the one source of truth for the WebGL scene's field of view, pitch and HORIZON (fraction of canvas height from the top).
   // Shader: rd.y = d0.y·cos(p) + sin(p) with d0 = (uv·2·tan(fov/2), −1) → horizon (rd.y = −dip) at uv.y = −(tan p + dip/cos p)/(2·tan(fov/2)).
   function camera(P, W, H) { const aspect = W / H, vfov = (aspect < 1 ? 62 : aspect < 1.5 ? 50 : 40) * (P.fovMul || 1), d2r = Math.PI / 180;
-    const pitch = (vfov * (P.hero && P.surf ? 0.04 : P.surf > 1.2 ? 0.09 : 0.17)) * d2r * (P.fovMul || 1) / Math.max(0.2, P.fovMul || 1);
+    const pitch = (vfov * (P.hero && P.surf ? 0.04 : P.surf > 1.2 ? 0.09 : 0.17)) * d2r * (P.fovMul || 1) / Math.max(0.2, P.fovMul || 1) + (P.lookPitch || 0) * d2r;
     const camKm = P.heroCam || P.camH || 0.002, dip = Math.sqrt(2 * camKm / 6371);
     return { vfov, pitch, hz: 0.5 + (Math.tan(pitch) + dip / Math.cos(pitch)) / (2 * Math.tan(vfov * d2r / 2)) }; }
   g.Photoreal = { camera, render, meter, setup, autoExpo, hash, supported: () => { try { return !!document.createElement("canvas").getContext("webgl2"); } catch (e) { return false; } } };
