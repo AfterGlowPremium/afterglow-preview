@@ -41,7 +41,11 @@
     const cov = Math.max(f.low || 0, f.mid || 0, (f.high || 0) * 0.6);
     if (cov > 0.75) sky = "overcast"; else if (cov > 0.3) sky = "partly";
     if ((f.vis != null && f.vis < 2000) || [45, 48].includes(f.code)) sky = "fog";
-    if ((f.precip || 0) > 0.2 || (f.code >= 51 && f.code <= 67) || (f.code >= 80 && f.code <= 82)) sky = "rain";
+    // d28z: Sean — Buckroe sunrise Oct 30 drew rain with none falling. Rain now needs a meaningful amount (≥ 0.1 mm/h) AND decent odds or a
+    // rain/shower code; a drizzle code (51–57) or high humidity with no measurable precip reads as mist/fog instead.
+    const pmm = f.precip || 0, rainCode = (f.code >= 61 && f.code <= 67) || (f.code >= 80 && f.code <= 82);
+    if (pmm >= 0.1 && ((f.pp || 0) >= 30 || rainCode || pmm >= 0.5)) sky = "rain";
+    else if (f.code >= 51 && f.code <= 57 && sky !== "fog") sky = "fog";
     if ((f.code >= 95) || (f.cape || 0) > 1500 && (f.pp || 0) > 40 || (f.alerts || []).some(a => /Thunderstorm|Tornado/.test(a))) sky = "storm";
     let wind = "calm";
     if (kt >= 5 && f.windDir != null) { const on = Math.cos((f.windDir - pr.normal) * Math.PI / 180); wind = on > 0.5 ? "onshore" : on < -0.5 ? "offshore" : "cross"; }

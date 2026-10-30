@@ -8,7 +8,7 @@
     const WX = ev.wx || { items: [], bolt: { p: 0 }, wind: { mph: 0 } }, on = id => WX.items.some(x => x.id === id);
     const bp = WX.bolt.p || 0, bw = WX.bolt.win;
     const bolt = bp >= 25 && (!bw || (t >= bw.start - 1800 && t <= bw.end + 1800)) ? clamp(bp / 60, 0.4, 1) : 0;
-    const rainIt = WX.items.find(x => x.id === "rain");
+    const rainIt = WX.items.find(x => x.id === "rain" && (!WX.rain || ((WX.rain.mm || 0) >= 0.1 && ((WX.rain.pp || 0) >= 30 || (WX.rain.mm || 0) >= 0.5))));   // d28z: no rain for trace / low-odds model precip
     const rain = rainIt ? clamp(0.25 + (WX.rain && WX.rain.mm || 0) / 4 + (WX.rain && WX.rain.pp || 0) / 300, 0.2, 1) : 0;
     const snowIt = WX.items.find(x => x.id === "snow"), snow = snowIt ? (snowIt.lvl || 0.6) : 0, fog = on("fog") ? 0.6 : 0;
     const bow = ev.bonus && ev.bonus.bow, bwin = bow && bow.win;
@@ -139,7 +139,7 @@
   function moonTex() { const I = moonTex.i || (moonTex.i = Object.assign(new Image(), { src: "img/moon-near.png?v=d28p" })); return I.complete && I.naturalWidth ? I : null; }
   function moon(x, W, H, hz0, C) { const m = C.moonPos; if (!m || m.alt < -1.2 || m.frac < 0.02) return;
     const base = W / H < 1 ? 62 : W / H < 1.5 ? 50 : 40, ppd = H / base, dAz = ((m.az - C.faceAz + 540) % 360) - 180;
-    const r = Math.max(8.8, 1.04 * ppd), lowF = clamp(1 - (m.alt - 0.5) / 2.5), flat = 1 - 0.16 * lowF;   // d28i: Sean — drawn 4x the true 0.52°; d28o: refraction flattening near the horizon
+    const r = Math.max(13.2, 1.56 * ppd), lowF = clamp(1 - (m.alt - 0.5) / 2.5), flat = 1 - 0.16 * lowF;   // d28i: Sean — drawn 4x the true 0.52°; d28o: refraction flattening near the horizon
     const cx = W / 2 + dAz * ppd, cy = hz0 - m.alt * ppd, ridgeY = hz0 - (C.ridge || 0) * ppd;
     if (cx < -3 * r || cx > W + 3 * r || cy < -3 * r || cy - r * flat > ridgeY) return;
     // d28o: cloud transmittance by layer — thick low overcast hides it fully, mid dims strongly, thin cirrus barely (was: total cloud > 35 % incl. cirrus)
@@ -177,16 +177,19 @@
   // only the ~8 brightest twinkle (cheap sin alpha). Cool white with a faint lavender cast to sit in the purple night sky.
   function stars(x, W, H, hz0, C, now, dk, clr) {
     let S = stars.f; if (!S) { let sd = 11; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647; S = stars.f = [];
-      for (let i = 0; i < 420; i++) { const m = Math.pow(rnd(), 3.4); S.push([rnd() * 360, Math.asin(rnd()) * 57.2958, i < 8 ? 0.85 + 0.15 * rnd() : m, rnd() * 6.28, rnd()]); } }
+      for (let i = 0; i < 2400; i++) { const m = Math.pow(rnd(), 2.6); S.push([rnd() * 360, Math.asin(rnd()) * 57.2958, i < 8 ? 0.85 + 0.15 * rnd() : m, rnd() * 6.28, rnd()]); } }
     const base = W / H < 1 ? 62 : W / H < 1.5 ? 50 : 40, ppd = H / base, M = g.__agMoon, mp = C.moonPos, mf = mp && mp.alt > 0 ? mp.frac : 0, T = (now || 0) / 1000, ridge = C.ridge || 0;
     const n = Math.floor(S.length * clr); x.save();
+    { const vg = x.createLinearGradient(0, 0, 0, hz0 - ridge * ppd); vg.addColorStop(0, `rgba(58,30,104,${(0.22 * dk * clr).toFixed(3)})`); vg.addColorStop(0.7, `rgba(80,40,120,${(0.12 * dk * clr).toFixed(3)})`); vg.addColorStop(1, "rgba(80,40,120,0)");
+      x.globalCompositeOperation = "screen"; x.fillStyle = vg; x.fillRect(0, 0, W, hz0 - ridge * ppd); x.globalCompositeOperation = "source-over"; }   // d28z: faint purple-violet night sky (Sean's Nov 11 photos)
     for (let i = 0; i < n; i++) { const s = S[i]; if (s[1] < 1 + ridge) continue; const dAz = ((s[0] - C.faceAz + 540) % 360) - 180, sx = W / 2 + dAz * ppd, sy = hz0 - s[1] * ppd; if (sx < -2 || sx > W + 2 || sy < 0) continue;
-      let a = dk * clr * (0.35 + 0.65 * s[2]) * Math.min(1, (s[1] - 1 - ridge) / 12);
+      let a = Math.min(1, dk * (0.4 + 0.6 * clr) * (0.5 + 0.7 * s[2])) * Math.min(1, (s[1] - 1 - ridge) / 12);
       if (i < 8) a *= 0.6 + 0.4 * Math.sin(T * (2.3 + s[4] * 3) + s[3]) * Math.sin(T * 1.7 + s[3] * 2);
-      if (M && mf > 0) a *= 1 - mf * (0.95 - 0.5 * s[2]) * Math.exp(-Math.hypot(sx - M.cx, sy - M.cy) / (14 * (M.r || 10)));
-      if (a < 0.03) continue; const r = i < 8 ? 2.2 : 0.6 + 1.1 * s[2];
-      x.fillStyle = s[4] < 0.15 ? `rgba(255,228,210,${a.toFixed(3)})` : s[4] > 0.85 ? `rgba(210,218,255,${a.toFixed(3)})` : `rgba(240,236,255,${a.toFixed(3)})`; x.fillRect(sx - r / 2, sy - r / 2, r, r);
-      if (i < 8) { x.fillStyle = `rgba(235,230,255,${(a * 0.35).toFixed(3)})`; x.fillRect(sx - 3.5, sy - 0.4, 7, 0.8); x.fillRect(sx - 0.4, sy - 3.5, 0.8, 7); } }
+      if (M && mf > 0) a *= 1 - mf * (0.75 - 0.45 * s[2]) * Math.exp(-Math.hypot(sx - M.cx, sy - M.cy) / (14 * (M.r || 10)));
+      if (a < 0.03) continue; const r = i < 8 ? 3.2 : 1.1 + 1.7 * s[2];   // d28z: phone-visible sizes (CSS px)
+      if (i < 8) { const gl = x.createRadialGradient(sx, sy, 0, sx, sy, 9); gl.addColorStop(0, `rgba(235,230,255,${(a * 0.45).toFixed(3)})`); gl.addColorStop(1, 'rgba(235,230,255,0)'); x.fillStyle = gl; x.fillRect(sx - 9, sy - 9, 18, 18); }
+      x.fillStyle = s[4] < 0.15 ? `rgba(255,228,210,${a.toFixed(3)})` : s[4] > 0.85 ? `rgba(210,218,255,${a.toFixed(3)})` : `rgba(240,236,255,${a.toFixed(3)})`; if (i < 8) { x.beginPath(); x.arc(sx, sy, r / 2, 0, 6.283); x.fill(); } else x.fillRect(sx - r / 2, sy - r / 2, r, r);
+      if (i < 8) { x.fillStyle = `rgba(235,230,255,${(a * 0.4).toFixed(3)})`; x.fillRect(sx - 6, sy - 0.5, 12, 1); x.fillRect(sx - 0.5, sy - 6, 1, 12); } }
     x.restore(); }
   function draw(cv, C, t, now) {
     const W = cv.clientWidth, H = cv.clientHeight, dpr = Math.min(2, g.devicePixelRatio || 1);
@@ -211,6 +214,7 @@
       if (C.moonPos && C.faceAz != null) { x.save(); x.translate(W / 2, H / 2); x.scale(k, k); x.translate(-W / 2, -H / 2); moon(x, W, H, hz0, C); x.restore(); }
       if (C.steam) { x.save(); x.translate(W / 2, H / 2); x.scale(k, k); x.translate(-W / 2, -H / 2); steam(x, W, H, hz0, C, now); x.restore(); }   // d28j: river steam fog, world-locked
       if (C.house) { x.save(); x.translate(W / 2, H / 2); x.scale(k, k); x.translate(-W / 2, -H / 2); house(x, W, H, hz0, C); x.restore(); }   // d28g: 558 Plantation Pl across the lawn (Mattaponi land side)
+      if (C.lat != null && C.faceAz != null) { x.save(); x.translate(W / 2, H / 2); x.scale(k, k); x.translate(-W / 2, -H / 2); lighthouses(x, W, H, hz0, C, now); x.restore(); }   // d28z: real lighthouses
       if (C.carrier || C.chinook || C.ghost) { x.save(); x.translate(W / 2, H / 2); x.scale(k, k); x.translate(-W / 2, -H / 2);
         if (C.carrier) { carrier(x, W, H, hz0, C, now); heli(x, W, H, hz0, C, now); } if (C.chinook) chinook(x, W, H, hz0, C, now); if (C.ghost) ghostTree(x, W, H, hz, C, now); x.restore(); } }
     if (C.torn) tornado(x, W, H, hz, now);
@@ -317,6 +321,60 @@
     }
     x.restore();
   }
+
+  // d28z: real lighthouses (OSM man_made=lighthouse positions), drawn world-locked at true bearing + angular height from the spot's viewpoint.
+  // h = focal-plane height (m), b = base diameter (m), top = lantern-top width (m). Styles from USCG/NPS/USLHS descriptions.
+  const LH = [
+    { id: "bodie", lat: 35.81855, lon: -75.56331, h: 47.5, b: 8.2, tp: 5.0, st: "bands", flash: [2.5, 2.5], keeper: { dx: 22, w: 15, h: 9, wall: "#e9e1cf", roof: "#9c3b2c" } },   // 156 ft, 5 bands B/W/B/W/B, Bodie Island Lighthouse Rd
+    { id: "hatteras", lat: 35.25054, lon: -75.52882, h: 60.4, b: 8.5, tp: 4.6, st: "spiral", flash: [0.3, 7.2], plinth: 1 },   // 198 ft, double black/white spiral, red-brick octagonal base
+    { id: "oldpoint", lat: 37.00175, lon: -76.30647, h: 16.5, b: 5.6, tp: 3.4, st: "octagon", flash: [3, 0.3], keeper: { dx: -12, w: 11, h: 8, wall: "#efe9dc", roof: "#3c3f44" } },   // 54 ft white octagonal sandstone, 1802
+    { id: "roanoke", lat: 35.90821, lon: -75.66827, h: 11.5, b: 9, tp: 2.4, st: "screwpile", flash: [3, 3] },   // 2004 replica of the 1877 Roanoke Marshes screwpile light (OSM node 2411343600; ESRI imagery: on a ~25 m deck at the end of its pier)
+    { id: "thimble", lat: 37.01457, lon: -76.23996, h: 16.8, b: 9.5, tp: 3.0, st: "caisson", flash: [1, 9] } ];   // red cast-iron caisson, ~55 ft focal plane
+  function lighthouses(x, W, H, hz, C, now) {
+    const a = W / H, base = a < 1 ? 62 : a < 1.5 ? 50 : 40, ppd = H / base, la = C.lat * Math.PI / 180, se = C.sunElev != null ? C.sunElev : (C.elev != null ? C.elev : 3);
+    for (const L of LH) {
+      const dy = (L.lat - C.lat) * 111320, dx = (L.lon - C.lng) * 111320 * Math.cos(la), d = Math.hypot(dx, dy); if (d > 26000 || d < 30) continue;
+      const brg = (Math.atan2(dx, dy) * 180 / Math.PI + 360) % 360, dAz = ((brg - C.faceAz + 540) % 360) - 180; if (Math.abs(dAz) > base * a / 2 + 5) continue;
+      let wb; const D = r => Math.atan(r / d) * 180 / Math.PI * ppd, cx = W / 2 + dAz * ppd, y0 = hz + D(1.7) - D(d * d / 12.74e6), th = D(L.h), wt = Math.max(0.8, D(L.tp));
+      const day = clamp((se + 4) / 10), sRel = Math.sin((C.sunAz - brg) * Math.PI / 180), back = Math.cos((C.sunAz - brg) * Math.PI / 180), sil = clamp((back - 0.2) / 0.6) * clamp(1 - (se - 1) / 10);
+      const haze = clamp(1 - d / 30000) * (0.55 + 0.45 * clamp(1 - d / 6000));
+      x.save(); x.globalAlpha = 0.25 + 0.75 * haze;
+      if (L.st === "screwpile" && th >= 5) {   // d28z4: piles (~3 m) → white square 1½-storey cottage with dark hip roof → black octagonal lantern
+        const pw = D(L.b), ph = th * 0.26, cw = pw * 0.86, ch = th * 0.42, rf = th * 0.14, lw = Math.max(2, D(L.tp)), lh = th * 0.16, top = y0 - ph;
+        x.fillStyle = "#2b2b30"; for (let i = 0; i <= 4; i++) { const px = cx - pw / 2 + i * pw / 4; x.fillRect(px - Math.max(0.6, pw * 0.015), top, Math.max(1.2, pw * 0.03), ph); }   // piles
+        x.strokeStyle = "rgba(43,43,48,.7)"; x.lineWidth = Math.max(0.5, pw * 0.008); x.beginPath(); for (let i = 0; i < 4; i++) { const a = cx - pw / 2 + i * pw / 4, b = a + pw / 4; x.moveTo(a, top + 2); x.lineTo(b, y0 - 1); x.moveTo(b, top + 2); x.lineTo(a, y0 - 1); } x.stroke();   // cross-bracing
+        x.fillStyle = "#6b6460"; x.fillRect(cx - pw / 2 - 1, top - Math.max(1, th * 0.03), pw + 2, Math.max(1, th * 0.03));   // gallery deck
+        x.fillStyle = "#f1eee6"; x.fillRect(cx - cw / 2, top - ch, cw, ch * 0.97);   // cottage
+        x.fillStyle = "rgba(40,45,55,.75)"; for (const f of [-0.28, 0, 0.28]) x.fillRect(cx + f * cw - cw * 0.05, top - ch * 0.72, cw * 0.1, ch * 0.32);   // windows
+        x.fillStyle = "#3a3b40"; x.beginPath(); x.moveTo(cx - cw / 2 - pw * 0.05, top - ch); x.lineTo(cx - lw * 0.6, top - ch - rf); x.lineTo(cx + lw * 0.6, top - ch - rf); x.lineTo(cx + cw / 2 + pw * 0.05, top - ch); x.fill();   // hip roof
+        const ly = top - ch - rf; x.fillStyle = "#141518"; x.fillRect(cx - lw / 2, ly - lh, lw, lh); x.fillStyle = "rgba(200,210,215,.4)"; x.fillRect(cx - lw * 0.36, ly - lh * 0.8, lw * 0.72, lh * 0.45); x.fillStyle = "#141518"; x.beginPath(); x.moveTo(cx - lw * 0.55, ly - lh); x.lineTo(cx, ly - lh - th * 0.05); x.lineTo(cx + lw * 0.55, ly - lh); x.fill();   // lantern + cap
+        const sh = x.createLinearGradient(cx - cw / 2, 0, cx + cw / 2, 0), dk = 0.45 * (1 - 0.4 * (1 - day)); sh.addColorStop(0, `rgba(10,12,20,${(sRel > 0 ? dk : 0.05).toFixed(2)})`); sh.addColorStop(1, `rgba(10,12,20,${(sRel > 0 ? 0.05 : dk).toFixed(2)})`); x.fillStyle = sh; x.fillRect(cx - cw / 2, top - ch, cw, ch);
+        const dim = Math.max(0.6 * sil, 0.55 * (1 - day)); if (dim > 0.02) { x.fillStyle = `rgba(10,10,20,${dim.toFixed(2)})`; x.fillRect(cx - cw / 2 - pw * 0.05, top - ch - rf, cw + pw * 0.1, ch + rf); }
+      } else if (th < 5) { x.fillStyle = L.st === "caisson" ? `rgb(${120 + 60 * day | 0},40,34)` : "#ddd"; x.fillRect(cx - 1, y0 - Math.max(2, th), 2, Math.max(2, th)); }   // distant speck
+      else {
+        wb = Math.max(1, D(L.b)); const body = new Path2D(); const tw = th * 0.86, wb0 = wb; if (L.st === "caisson") wb = wb * 0.42; body.moveTo(cx - wb / 2, y0); body.lineTo(cx - wt / 2, y0 - tw); body.lineTo(cx + wt / 2, y0 - tw); body.lineTo(cx + wb / 2, y0); body.closePath();
+        if (L.keeper) { const k = L.keeper, kx = cx + D(k.dx), kw = D(k.w), kh = D(k.h * 0.6); x.fillStyle = k.wall; x.fillRect(kx - kw / 2, y0 - kh, kw, kh); x.fillStyle = k.roof; x.beginPath(); x.moveTo(kx - kw / 2 - 1, y0 - kh); x.lineTo(kx, y0 - D(k.h)); x.lineTo(kx + kw / 2 + 1, y0 - kh); x.fill();
+          x.fillStyle = "rgba(40,40,50,.6)"; for (let i = -2; i <= 2; i++) x.fillRect(kx + i * kw / 5.5 - kw / 30, y0 - kh * 0.7, kw / 15, kh * 0.3); }
+        x.save(); x.clip(body);
+        if (L.st === "bands") { const cols = ["#16171a", "#f2f1ec", "#16171a", "#f2f1ec", "#16171a"]; for (let i = 0; i < 5; i++) { x.fillStyle = cols[i]; x.fillRect(cx - wb, y0 - tw + i * tw / 5, wb * 2, tw / 5 + 1); } }
+        else if (L.st === "spiral") { x.fillStyle = "#f2f1ec"; x.fillRect(cx - wb, y0 - tw, wb * 2, tw); x.fillStyle = "#16171a"; const P = tw / 2.2, s = P * 0.5; for (let yy = -P; yy < tw + P; yy += P) { x.beginPath(); x.moveTo(cx - wb, y0 - yy); x.lineTo(cx + wb, y0 - yy - s * 1.3); x.lineTo(cx + wb, y0 - yy - s * 1.3 - P / 2); x.lineTo(cx - wb, y0 - yy - P / 2); x.fill(); }
+          x.fillStyle = "#9a4a33"; x.fillRect(cx - wb, y0 - th * 0.07, wb * 2, th * 0.07); }
+        else if (L.st === "octagon") { x.fillStyle = "#eeeae0"; x.fillRect(cx - wb, y0 - tw, wb * 2, tw); x.strokeStyle = "rgba(120,115,105,.35)"; x.lineWidth = 0.6; for (const f of [-0.28, 0.28]) { x.beginPath(); x.moveTo(cx + f * wb, y0); x.lineTo(cx + f * wt, y0 - tw); x.stroke(); } }
+        else { x.fillStyle = "#a8322b"; x.fillRect(cx - wb, y0 - tw, wb * 2, tw); }
+        const sh = x.createLinearGradient(cx - wb / 2, 0, cx + wb / 2, 0), dk = 0.5 * (1 - 0.4 * (1 - day)); sh.addColorStop(0, `rgba(10,12,20,${(sRel > 0 ? dk : 0.05).toFixed(2)})`); sh.addColorStop(0.5, "rgba(10,12,20,.12)"); sh.addColorStop(1, `rgba(10,12,20,${(sRel > 0 ? 0.05 : dk).toFixed(2)})`);
+        x.fillStyle = sh; x.fillRect(cx - wb, y0 - tw, wb * 2, tw); x.restore();
+        if (L.st === "caisson") { const cw = wb0, ch = th * 0.42; x.fillStyle = "#9c2f28"; x.fillRect(cx - cw / 2, y0 - ch, cw, ch); x.fillStyle = "rgba(0,0,0,.35)"; x.fillRect(sRel > 0 ? cx - cw / 2 : cx, y0 - ch, cw / 2, ch); x.fillStyle = "#2a2a2e"; x.fillRect(cx - cw * 0.58, y0 - ch - 1, cw * 1.16, Math.max(1, th * 0.03)); x.fillStyle = "rgba(60,60,70,.5)"; x.fillRect(cx - cw / 2, y0 - th * 0.04, cw, th * 0.04); }
+        if (L.plinth) { x.fillStyle = "#8d4330"; x.fillRect(cx - wb * 0.62, y0 - th * 0.05, wb * 1.24, th * 0.05); }
+        const gy = y0 - tw; x.fillStyle = "#141518"; x.fillRect(cx - wt * 0.75, gy - Math.max(1, th * 0.012), wt * 1.5, Math.max(1, th * 0.012));   // gallery
+        x.strokeStyle = "#141518"; x.lineWidth = Math.max(0.5, th * 0.004); x.strokeRect(cx - wt * 0.72, gy - th * 0.04, wt * 1.44, th * 0.028);   // railing
+        x.fillRect(cx - wt * 0.42, gy - th * 0.11, wt * 0.84, th * 0.1); x.beginPath(); x.moveTo(cx - wt * 0.46, gy - th * 0.11); x.lineTo(cx, gy - th * 0.14); x.lineTo(cx + wt * 0.46, gy - th * 0.11); x.fill();   // black lantern + dome
+        x.fillStyle = "rgba(200,210,215,.35)"; x.fillRect(cx - wt * 0.32, gy - th * 0.095, wt * 0.64, th * 0.05);   // lantern glazing
+        if (sil > 0.02) { x.fillStyle = `rgba(14,14,22,${(0.6 * sil).toFixed(2)})`; x.fill(body); x.fillRect(cx - wt * 0.75, y0 - th, wt * 1.5, th - tw); if (L.st === "caisson") x.fillRect(cx - wb0 / 2, y0 - th * 0.42, wb0, th * 0.42); if (L.keeper) { const k = L.keeper; x.fillRect(cx + D(k.dx) - D(k.w) / 2 - 1, y0 - D(k.h), D(k.w) + 2, D(k.h)); } }
+        if (day < 1) { x.fillStyle = `rgba(0,4,16,${(0.55 * (1 - day)).toFixed(2)})`; x.fill(body); x.fillRect(cx - wt * 0.75, y0 - th, wt * 1.5, th - tw); }
+      }
+      if (se < -6) { const p = L.flash[0] + L.flash[1], on = (now / 1000) % p < L.flash[0]; if (on) { const ly = y0 - th * 0.95, R = Math.max(4, th * 0.12) * (0.6 + 0.4 * haze); const gr = x.createRadialGradient(cx, ly, 0, cx, ly, R * 3); gr.addColorStop(0, "rgba(255,255,245,1)"); gr.addColorStop(0.2, "rgba(255,250,225,.6)"); gr.addColorStop(1, "rgba(255,250,225,0)"); x.globalAlpha = 1; x.fillStyle = gr; x.fillRect(cx - R * 3, ly - R * 3, R * 6, R * 6); } }
+      x.restore();
+    } }
   // Grandview Beach landmark: bare dead trees (eroded maritime forest) standing in the surf — soft, haze-faded silhouettes
   // d26a: Fort Monroe — a distant US Navy carrier (Nimitz/Ford profile) hull-down on the horizon, left of the sun column.
   // Flat flight deck with the angled-deck overhang, island right of centre with mast + radar; hazy silhouette, gold rim at low sun,
