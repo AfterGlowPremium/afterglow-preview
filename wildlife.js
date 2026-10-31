@@ -3,7 +3,7 @@
 (function (g) {
   const d = document, S = () => g.__agState || {}, R = (a, b) => a + Math.random() * (b - a), PI = Math.PI;
   let NOW = 0, cv, x, W = 0, H = 0, raf = 0, last = 0, ev = null, nextAt = 0, heron = null, curKey = "";
-  const q = () => new URLSearchParams(location.search);
+  const q = () => new URLSearchParams(location.search), FORCE = () => /^(1|now|on|dive)$/.test(q().get("wild") || "");
   const spot = () => S().spot || q().get("spot") || "";
   const mode = () => (d.querySelector(".stage .ev-toggle a.on") || {}).dataset?.ev || S().mode || q().get("mode") || "sunset";
   const facing = () => { const st = d.querySelector(".stage"); const m = st && st.textContent.match(/Facing [A-Z]{1,3} (\d{1,3})°/); return m ? +m[1] : null; };
@@ -28,17 +28,15 @@
   // =========================== HERON (resident; random behaviour queue) ===========================
   const POSE = { S: [.2, .95, .08, .82, .3, .86, .6], lean: [.42, .72, .25, .74, .4, .8, .95], strike: [.52, .06, .3, .6, .52, .32, 1.4], up: [.3, .92, .15, .8, .36, .84, .15] };
   const mix = (a, b, k) => a.map((v, i) => v + (b[i] - v) * k), ease = k => k < 0 ? 0 : k > 1 ? 1 : k * k * (3 - 2 * k);
-  function heronAnchor() { const img = d.querySelector(".stage img.pv-fg.pv-hr"), st = d.querySelector(".stage"); if (!st) return null; const r0 = st.getBoundingClientRect();
-    d.querySelectorAll(".stage img.pv-hr").forEach(el => el.style.visibility = "hidden"); if (img) { const r = img.getBoundingClientRect(), s = Math.max(r.width / 1600, r.height / 1000); const oy = r.height - 1000 * s;
-      return { fx: r.left - r0.left + 175 * s, fy: r.top - r0.top + oy + 965 * s, h: (965 - 701) * s * 1.05 }; }
-    return { fx: W * .18, fy: H * .9, h: H * .14 }; }
-  function newHeron() { return { dx: 0, queue: [], act: null, t0: 0, pose: POSE.S, step: 0, fish: null, splash: null }; }
+  function heronAnchor() { const st = d.querySelector(".stage"); if (!st) return null; d.querySelectorAll(".stage img.pv-hr").forEach(el => el.style.visibility = "hidden");
+    const h = Math.max(70, Math.min(H * .3, (g.innerHeight || H) * .15)); return { fx: W * .24, fy: Math.min(H - h * .08, Math.max(hz() + h * .5, H * .86)), h }; }
+  function newHeron() { return { dx: 0, queue: [{ k: "wade", dur: 4.5, dir: 1 }, { k: "freeze", dur: 3.5 }, { k: "hunt", dur: 5.5, hit: false }, { k: "freeze", dur: 3 }, { k: "hunt", dur: 12, hit: true }], act: null, t0: 0, pose: POSE.S, step: 0, fish: null, splash: null }; }
   function heronPlan(hr) { const r = Math.random(); // random next behaviour
     if (r < .3) return { k: "wade", dur: R(4, 10), dir: Math.random() < .5 ? -1 : 1 };
     if (r < .6) return { k: "freeze", dur: R(5, 16) };
     const hit = Math.random() < .25; return { k: "hunt", dur: hit ? 12 : 5.5, hit }; }
   function drawHeron(now, lit) { const A = heronAnchor(); if (!A) return; const hr = heron || (heron = newHeron()); const h = A.h;
-    if (!hr.act || now - hr.t0 > hr.act.dur) { hr.act = heronPlan(hr); hr.t0 = now; }
+    if (!hr.act || now - hr.t0 > hr.act.dur) { hr.act = hr.queue.length ? hr.queue.shift() : heronPlan(hr); hr.t0 = now; }
     const a = hr.act, t = now - hr.t0; let pose = POSE.S, lift = 0, lean = 0, shake = 0, fish = null, bulge = -1;
     if (a.k === "wade") { const st = t / 2.2, ph = st % 1; hr.dx = Math.max(-W * .06, Math.min(W * .1, hr.dx + a.dir * h * .0025)); lift = Math.sin(ph * PI) * (Math.floor(st) % 2 ? 1 : -1); pose = mix(POSE.S, POSE.lean, .25); }
     else if (a.k === "hunt") { if (t < 2) pose = mix(POSE.S, POSE.lean, ease(t / 2)); else if (t < 2.18) pose = mix(POSE.lean, POSE.strike, (t - 2) / .18); else if (t < 2.8) pose = POSE.strike; else if (!a.hit) pose = mix(POSE.strike, POSE.S, ease((t - 2.8) / 1.4));
@@ -84,7 +82,7 @@
     if (opts.legs) { x.strokeStyle = dark; x.lineWidth = Math.max(1, S * .03); const a0 = P(-.02, 0), a1 = opts.legs === "fwd" ? P(.42, .02) : [a0[0] + S * .02, a0[1] + S * .2]; x.beginPath(); x.moveTo(a0[0], a0[1]); x.lineTo(a1[0], a1[1]); x.stroke(); }
     if (opts.fish) { const c = P(-.05, 0), L = S * .32; x.save(); x.translate(c[0], c[1] + S * .1); x.rotate(hd); x.fillStyle = lit ? "#c9d3dc" : "rgba(210,205,215,.85)"; x.beginPath(); x.ellipse(0, 0, L * .5, L * .12, 0, 0, 2 * PI); x.fill(); x.beginPath(); x.moveTo(-L * .45, 0); x.lineTo(-L * .65, -L * .13); x.lineTo(-L * .65, L * .13); x.fill(); x.fillStyle = "#111"; x.beginPath(); x.arc(L * .36, -L * .03, L * .03, 0, 2 * PI); x.fill(); x.restore(); }   // fish head-first (head at +heading end)
   }
-  function ospreyEvent() { const dir = Math.random() < .5 ? 1 : -1, dive = q().get("wild") === "now" || Math.random() < .6, D = R(22, 45); return { k: "osprey", t0: NOW, dir, dive, D, x0: R(.3, .7), dur: dive ? 17 : 9 }; }
+  function ospreyEvent() { const dir = Math.random() < .5 ? 1 : -1, dive = /now|dive/.test(q().get("wild") || "") || Math.random() < .6, D = R(22, 45); return { k: "osprey", t0: NOW, dir, dive, D, x0: R(.3, .7), dur: dive ? 17 : 9 }; }
   function runOsprey(e, now, lit) { const t = now - e.t0, wy = waterY(e.D), S = pxPerM(e.D) * 1.6, dir = e.dir, cx = W * e.x0, hy = wy - S * 6; let px, py, hd, f = .5, flap = 0, o = {};
     const L = k => dir > 0 ? k : 1 - k; const fwd = dir > 0 ? 0 : PI;
     if (!e.dive) { const k = t / e.dur; px = W * L(-.15 + k * 1.3); py = hy - S * 1.5 + Math.sin(k * 6) * S * .3; hd = fwd + dir * -.05; f = .55; flap = (Math.sin(t * 5) * .5 + .5) * (Math.sin(t * .9) > .3 ? 1 : 0); return t < e.dur && (drawOsprey(px, py, S, hd, f, flap, {}, lit), true); }
@@ -113,16 +111,16 @@
       if (p.r) drawSplash(p.r, now, lit); }
     return true; }
   // =========================== loop ===========================
-  function size() { const st = d.querySelector(".stage"), pv = st && st.querySelector("#pv"); if (!pv) return false; if (!cv || !st.contains(cv)) { cv = d.createElement("canvas"); cv.id = "ag-wild"; cv.style.cssText = "position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:2"; pv.after(cv); x = cv.getContext("2d"); const E = x.ellipse.bind(x); x.ellipse = (a, b, rx, ry, ...r) => E(a, b, Math.abs(rx) + 1e-3, Math.abs(ry) + 1e-3, ...r); const A0 = x.arc.bind(x); x.arc = (a, b, r, ...q) => A0(a, b, Math.abs(r) + 1e-3, ...q); }
+  function size() { const st = d.querySelector(".stage"), pv = st && st.querySelector("#pv"); if (!pv) return false; if (!cv || !st.contains(cv)) { cv = d.createElement("canvas"); cv.id = "ag-wild"; cv.style.cssText = "position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:4"; pv.after(cv); x = cv.getContext("2d"); const E = x.ellipse.bind(x); x.ellipse = (a, b, rx, ry, ...r) => E(a, b, Math.abs(rx) + 1e-3, Math.abs(ry) + 1e-3, ...r); const A0 = x.arc.bind(x); x.arc = (a, b, r, ...q) => A0(a, b, Math.abs(r) + 1e-3, ...q); }
     const k = Math.min(1.5, g.devicePixelRatio || 1), w = pv.clientWidth, h = pv.clientHeight; cv.style.width = w + "px"; cv.style.height = h + "px"; cv.style.left = pv.offsetLeft + "px"; cv.style.top = pv.offsetTop + "px";
     if (cv.width !== Math.round(w * k)) { cv.width = Math.round(w * k); cv.height = Math.round(h * k); } W = w; H = h; x.setTransform(k, 0, 0, k, 0, 0); return true; }
   function frame(ms) { raf = 0; const w = which(); if (w !== "heron") d.querySelectorAll(".stage img.pv-fg,.stage img.pv-fg2").forEach(el => { if (el.style.visibility) el.style.visibility = ""; }); if (!w || !size()) { if (cv) x && x.clearRect(0, 0, cv.width, cv.height); ev = null; heron = null; return; }
     raf = requestAnimationFrame(frame); if (ms - last < 33) return; last = ms; const now = NOW = ms / 1000, lit = !backlit();
-    const key = spot() + w; if (key !== curKey) { curKey = key; ev = null; heron = null; nextAt = now + (q().get("wild") === "now" ? .5 : R(3, 12)); }
+    const key = spot() + w; if (key !== curKey) { curKey = key; ev = null; heron = null; nextAt = now + (FORCE() ? .5 : R(3, 12)); }
     x.clearRect(0, 0, W, H);
     if (w === "heron") { drawHeron(now, lit); return; }
     if (!ev && now > nextAt) ev = w === "osprey" ? ospreyEvent() : dolphinEvent();
-    if (ev) { if (!ev.t0 || ev.t0 > now) ev.t0 = now; const alive = ev.k === "osprey" ? runOsprey(ev, now, lit) : runDolphins(ev, now, lit); if (!alive) { ev = null; const long = Math.random() < .25; nextAt = now + (w === "osprey" ? R(45, 90) : R(40, 80)) * (long ? R(1.5, 3) : 1); } }
+    if (ev) { if (!ev.t0 || ev.t0 > now) ev.t0 = now; const alive = ev.k === "osprey" ? runOsprey(ev, now, lit) : runDolphins(ev, now, lit); if (!alive) { ev = null; const long = Math.random() < .25; nextAt = now + (FORCE() ? R(3, 8) : (w === "osprey" ? R(45, 90) : R(40, 80)) * (long ? R(1.5, 3) : 1)); } }
   }
   const kick = () => { if (!raf && which()) raf = requestAnimationFrame(frame); };
   setInterval(() => { if (!which()) d.querySelectorAll('.stage img.pv-fg,.stage img.pv-fg2').forEach(el => { if (el.style.visibility) el.style.visibility = ''; }); kick(); }, 1000); new MutationObserver(kick).observe(d.body, { childList: true, subtree: true });
