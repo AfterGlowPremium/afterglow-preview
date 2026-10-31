@@ -151,7 +151,8 @@
       if (p.r) drawSplash(p.r, now, lit); }
     return true; }
   // =========================== BODYBOARDER (Buckroe surf days ≥ 3 ft) ===========================
-  function surfFt() { const w = +q().get("waves") || (/surf/.test(q().get("demo") || "") ? +q().get("wave") || 5 : 0); if (w) return w;
+  function surfFt() { if (g.AG_NO_BOARDER !== false) return 0; // boarder gated off on Premium (d28zp) until fixed
+   const w = +q().get("waves") || (/surf/.test(q().get("demo") || "") ? +q().get("wave") || 5 : 0); if (w) return w;
     try { const sp = (g.SPOTS || []).find(s => s.id === spot()); const m = sp && g.AGX && g.AGX.sea(sp, {}); return m && m.surf !== false ? +m.ft || 0 : 0; } catch (e) { return 0; } }
   function boarderEvent() { return { k: "boarder", t0: NOW, dir: Math.random() < .5 ? 1 : -1, x0: R(.3, .7), Dout: R(110, 160), Dbreak: R(45, 70), dur: 19 }; }
   function drawBoarder(px, py, s, ang, lit, opts) { x.save(); x.translate(px, py); x.rotate(ang);
@@ -187,5 +188,5 @@
   }
   const kick = () => { if (!raf && which()) raf = requestAnimationFrame(frame); };
   setInterval(() => { if (!which()) d.querySelectorAll('.stage img.pv-fg,.stage img.pv-fg2').forEach(el => { if (el.style.visibility) el.style.visibility = ''; }); kick(); }, 1000); new MutationObserver(kick).observe(d.body, { childList: true, subtree: true });
-  g.__agWild = { restart: () => { heron = null; }, seek: t => { const w = which(); if (!ev && w && w !== "heron") ev = w === "osprey" ? (q().get("waves") ? boarderEvent() : ospreyEvent()) : dolphinEvent(); if (ev) ev.t0 = NOW - t; if (heron) heron.t0 = NOW - t; }, force: () => { nextAt = 0; ev = null; }, dbg: () => ({ w: which(), ev: ev && { k: ev.k, t: NOW - ev.t0, D: ev.D, dive: ev.dive }, W, H, nextAt, NOW, hz: hz(), ppm: pxPerM(100), raf }) };
+  g.__agWild = { restart: () => { heron = null; }, seek: t => { const w = which(); if (!ev && w && w !== "heron") ev = w === "osprey" ? ((q().get("waves") && surfFt()) ? boarderEvent() : ospreyEvent()) : dolphinEvent(); if (ev) ev.t0 = NOW - t; if (heron) heron.t0 = NOW - t; }, force: () => { nextAt = 0; ev = null; }, dbg: () => ({ w: which(), ev: ev && { k: ev.k, t: NOW - ev.t0, D: ev.D, dive: ev.dive }, W, H, nextAt, NOW, hz: hz(), ppm: pxPerM(100), raf }) };
 })(window);
