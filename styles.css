@@ -908,3 +908,11 @@ html.show-home #home-cv{top:0;height:100%}
 .stage.looking{touch-action:none;cursor:grab}.play.look.on{background:#ffb347;color:#222}
 .statezoom{margin-top:6px}
 .stage.looking canvas{touch-action:none}
+
+/* d28zc: Buckroe Coffee west — real parking-lot silhouette + power lines from Sean's Oct 29 photo */
+.stage .pv-fg.pv-bc{object-position:50% 100%}
+.stage .pv-fg2.pv-bc{transform:none;object-position:50% 100%}
+
+/* d28zc: iOS Safari zooms on focus when inputs are < 16px — keep all form fields at 16px (pinch-zoom left enabled) */
+input,textarea,select{font-size:16px!important}
+#fb-panel textarea{width:100%;min-height:6.5em;box-sizing:border-box}

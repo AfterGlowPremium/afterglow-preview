@@ -221,7 +221,7 @@ Object.assign(window.SUNRISE_VIEW, {
 
 // ---- DRAFT additions (afterglow-preview only) ----
 (function () {
-  const A = (id, name, st, lat, lng, type, note, arc, obst, water, rise, scene) => { window.SPOTS.push({ id, name, state: st, lat, lng, type, note, arc, obst, water }); window.SUNRISE_VIEW[id] = rise; window.SCENE[id] = scene; };
+  const A = (id, name, st, lat, lng, type, note, arc, obst, water, rise, scene) => { if (window.SPOTS.some(x => x.id === id)) return;   /* d28zc: dedupe (tybee, pensacola were added twice; 2nd copy overwrote the hand-checked sunrise view) */ window.SPOTS.push({ id, name, state: st, lat, lng, type, note, arc, obst, water }); window.SUNRISE_VIEW[id] = rise; window.SCENE[id] = scene; };
   const OCEAN = n => [50, 150, 0, true, n || "Open Atlantic horizon to the east."];
   A("hatteraslh", "Cape Hatteras Lighthouse, Buxton", "NC", 35.2506, -75.5288, "Lighthouse", "The lighthouse and the Point — faces the open Atlantic (east) by default; 180° shows Buxton woods and the sound side.", [220, 300], 1.5, false, OCEAN("Sun rises out of the Atlantic beside the lighthouse."), ["trees", "Beach", "open"]);
   A("hatteraslight", "Cape Hatteras Lighthouse (beach access), Buxton", "NC", 35.25193, -75.52358, "Lighthouse", "From the beach access ~500 m ENE of the relocated Cape Hatteras Lighthouse (198 ft, tallest brick lighthouse in the US, black-and-white spiral) — the tower rises over Buxton Woods (live oak, loblolly, yaupon) against the sunset; east is the open Atlantic.", [230, 300], 1.5, true, [60, 130, 0, true, "Atlantic sunrise straight off the Buxton beach."], ["woods", "Lighthouse", "open"]);
@@ -269,3 +269,17 @@ Object.assign(window.SUNRISE_VIEW, {
 // Lions Bridge (Mariners' Museum Park): sunrise looks east across Lake Maury to the park's wooded far shore (same pin, no vantage jump)
 window.SUNRISE_VIEW.lionsbridge = [60, 140, 3, true, "Sunrise across Lake Maury from the bridge — the sun clears the Mariners' Museum Park treeline on the far shore a few minutes after official sunrise."];
 window.SCENE.lionsbridge = ["lowshore", "Park", "trees"];
+
+// d28zc geography audit (OSM land/water sampled along today's real sunset ~252° / sunrise ~107° ±20°, 0.1–30 km; see agfix/geo_audit.csv)
+(function () { const SC = window.SCENE, RV = window.SUNRISE_VIEW, sp = id => window.SPOTS.find(x => x.id === id);
+  const set = (id, water, far) => { const s = sp(id); if (!s) return; if (water != null) s.water = water; if (far && SC[id]) SC[id][0] = far; };
+  const rise = (id, water, far) => { if (RV[id] && water != null) RV[id][3] = water; if (far && SC[id]) SC[id][2] = far; };
+  set("montauk", false, "trees");        // Gin Beach faces N; WSW sunset is over the Montauk peninsula (land 0–8 km)
+  set("capehenry", false, "trees");      // WSW = First Landing woods; bay is to the right
+  set("galveston", false, "town"); rise("galveston", true, "open");   // seawall faces SE: sunset over the island town, sunrise over the Gulf
+  set("hatteraslight", false, "woods");  // Buxton Woods 0–8 km, Pamlico Sound beyond, below the trees
+  set("buckroecoffee", false, "town");   // parking lot / Hampton streets west (Sean's Oct 29 photos)
+  rise("keywest", false, "town");        // Mallory Square faces W; east is Old Town
+  set("capemay", null, "lowshore");      // Delaware shore (Cape Henlopen/Lewes) ~28 km
+  ["yorktown", "hoffler", "littlecreek", "northlanding", "plumtree"].forEach(id => set(id, null, "trees"));   // river/creek/marsh then treeline < 1 km
+})();
