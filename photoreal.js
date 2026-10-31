@@ -917,7 +917,7 @@ void main(){
       vec3 rc = mix(vec3(1., .94, .8), vec3(1., .68, .42), smoothstep(.03, -.06, s.y));
       col *= 1. + (bm * 1.1 * rc - (1. - bm) * .28) * fall * uRays;
       if (uRays > .55){ float a2 = acos(clamp(dot(rd, -s), -1., 1.)), p2 = atan(dot(rd, uy), -dot(rd, ux)), b2 = smoothstep(.42, .72, fbm(vec2(p2 * 7.5, 3.1), 0., 3));
-        col *= 1. + (b2 * .35 - (1. - b2) * .1) * exp(-a2 / .9) * (uRays - .55) * 2.; } }
+        col *= 1. + (b2 * .2 * vec3(1., .82, .9) - (1. - b2) * .09 * vec3(.85, .92, 1.1)) * exp(-a2 / .9) * smoothstep(-.02, .06, elevR) * (uRays - .55) * 2.2; } }   // d28zg: anticrepuscular rays (Face East/West view, strong cumulus-ray days only) — subtle pink beams / bluish shadow lanes converging on the antisolar point
     // sun disc (limb darkened, flattened by refraction near the horizon)
     vec3 sa = uSunA;
     float sel = asin(sa.y);

@@ -485,5 +485,20 @@
     const ev = evaluate0(sp, S, Wl, E, ...rest), C = g.AG_CAL; if (!C || !ev || typeof ev.score !== "number") return ev;
     const m = (C[g.AG_MODE === "sunrise" ? "sunrise" : "sunset"]) || {}, off = Math.max(-10, Math.min(10, (m.global || 0) + ((m.spots || {})[sp.id] || 0)));
     if (off) { ev.scoreRaw = ev.score; ev.score = Math.round(clamp(ev.score + off, 0, 100)); ev.calOff = off; } return ev; }
-  g.Model = { sunPos, offset, evaluate: evaluateCal, label, likely, clamp, timeAtElev, EPIC, seaState, seaAt, windAt, at };
+  // d28zg: lock each event once its last forecast is in (Sean): sunset freezes 15 min BEFORE sunset, sunrise 5 min AFTER sunrise (so the
+  // visible satellite can see the clouds). From then on that day's scene/score/animation come from the stored snapshot (localStorage, per spot+event),
+  // so reloads and past days show the same picture. ?now=<ISO|epoch> simulates the clock.
+  const nowS = () => { const q = new URLSearchParams(location.search).get("now"); if (q) { const n = /^\d+$/.test(q) ? +q : Date.parse(q) / 1000; if (isFinite(n)) return n > 1e12 ? n / 1000 : n; } return Date.now() / 1000; };
+  function evaluateFrozen(sp, S, Wl, E, ...rest) {
+    const mode = g.AG_MODE === "sunrise" ? "sunrise" : "sunset", ev = evaluateCal(sp, S, Wl, E, ...rest);
+    if (!ev || typeof ev.tSet !== "number" || /[?&](force|demo|nofreeze)=/.test(location.search)) return ev;
+    const lockT = mode === "sunrise" ? ev.tSet + 300 : ev.tSet - 900, key = `ag_frz:${mode}:${sp.id}:${ev.tSet}`;
+    if (nowS() < lockT) return ev;
+    try { const st = localStorage.getItem(key); if (st) { const f = JSON.parse(st); return Object.assign(ev, f, { frozen: true }); }
+      const snap = {}; for (const k of Object.keys(ev)) { const v = ev[k]; if (typeof v !== "function") snap[k] = v; }
+      const js = JSON.stringify(snap); if (js.length < 200000) localStorage.setItem(key, js); ev.frozen = true;
+      if (Math.random() < 0.05) for (let i = localStorage.length - 1; i >= 0; i--) { const k = localStorage.key(i); if (k && k.startsWith("ag_frz:") && +k.split(":")[3] < nowS() - 3 * 86400) localStorage.removeItem(k); }
+    } catch (e) {}
+    return ev; }
+  g.Model = { sunPos, offset, evaluate: evaluateFrozen, label, likely, clamp, timeAtElev, EPIC, seaState, seaAt, windAt, at };
 })(window);

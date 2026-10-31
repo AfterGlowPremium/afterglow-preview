@@ -15,7 +15,7 @@
   function cloudsAt(spot, ev, t) {
     const s = ev.s, N = g.AGNoaa, out = { high: (s.high || 0) / 100, mid: (s.mid || 0) / 100, low: (s.low || 0) / 100, midKm: 4.5, gap: 0, src: "model@event" };
     if (g.__agForce) { out.src = "force"; out.gap = clamp(1 - g.__agForce.wl / 100); if (g.__agForce.ct === 1) out.midKm = 6.8; return out; }   // d28o test hook (model.js ?force=)
-    if (!N) return out;
+    if (!N || ev.frozen) return out;   // d28zg: locked event — the stored forecast snapshot, not later HRRR/GOES updates
     const H = N.hrrr && N.hrrr.hours ? Object.keys(N.hrrr.hours).map(Number).sort((a, b) => a - b) : [];
     const pick = id => { let a = null, b = null; for (const k of H) { const x = N.hrrr.hours[k][id]; if (!x) continue; if (k <= t) a = [k, x]; if (k >= t && !b) b = [k, x]; }
       if (!a && !b) return null; if (!a || !b || a[0] === b[0]) return (a || b)[0] && Math.abs((a || b)[0] - t) < 5400 ? (a || b)[1] : null;
@@ -58,9 +58,19 @@
   //  both need the sun between −0.5° and 25° (B ≤ 20°).
   // d28za crepuscular-ray GATE: broken/scattered low–mid cloud near the sun (0.2–0.85 cover), sun −5°..15°, some haze (AOD ≥ 0.06) and not grayed out.
   //  strength = broken-ness × elevation window × haze; ?rays=strong forces 1 for testing.
+  // d28zg: rays need a real broken, puffy low/mid deck (cumulus / stratocumulus / altocumulus) toward the sun — whole-sky low+mid cover alone fired
+  // on near-clear or veiled skies (OBX/Roanoke, Sean Oct 31). Thin cirrus/haze never make rays. Strength scales with the occluder.
+  const tri = (x, a, b, c) => x <= a || x >= c ? 0 : x < b ? (x - a) / (b - a) : (c - x) / (c - b);
   function raysAt(C, el, aod, ev) { if (/[?&]rays=strong/.test(location.search)) return el > -6 && el < 18 ? 1 : 0;
-    const cov = Math.max(C.low || 0, 0.8 * (C.mid || 0)); if (cov < 0.2 || cov > 0.85 || el < -5 || el > 15) return 0;
-    const raw = clamp((cov - 0.2) / 0.2) * clamp((0.85 - cov) / 0.15) * clamp((aod - 0.04) / 0.1) * (el > 10 ? clamp((15 - el) / 5) : 1); return raw * (0.1 + 0.9 * raw); }   // d28za: everyday (mid) signals ~30 % softer, strong forecasts still reach full; ?rays=strong unchanged
+    const low = C.low || 0, mid = C.mid || 0; g.__agRaysIn = { low, mid, high: C.high || 0, sb: ev.slotBlock, aod: +aod.toFixed(3), el: +el.toFixed(1), rays: 0 };
+    if (el < -5 || el > 15 || low + mid > 0.95 || Math.max(low, mid) > 0.8) return 0;   // overcast: no gaps
+    const puff = Math.max(tri(low, 0.15, 0.45, 0.8), 0.8 * tri(mid, 0.2, 0.45, 0.8) * ((C.midKm || 4.5) < 6.5 ? 1 : 0));   // broken puffy deck, peaks ~45 %
+    const sb = ev.slotBlock != null ? ev.slotBlock : ev.geoBlock;   // cloud along the sun line (path forecast)
+    const near = sb == null ? 0.4 : tri(sb, 0.08, 0.4, 0.9);   // something actually in front of the sun, with gaps
+    let raw = puff * near * clamp((aod - 0.04) / 0.1) * (el > 10 ? clamp((15 - el) / 5) : 1);
+    if (raw < 0.12) raw = 0;
+    const haze = el < 8 && el > -4 ? 0.07 * clamp((aod - 0.12) / 0.2) : 0;   // tier 1 (Sean): haze/moisture alone — faint, barely-there beams; cirrus never counts
+    const r = Math.max(haze, raw * (0.1 + 0.9 * raw));  g.__agRaysIn.rays = +r.toFixed(3); return r; }   // tier 2: sun behind real broken cumulus-type cloud — pronounced, up to the full look
   function dogAt(ev, C, el) {
     if (/[?&]sundogs=strong/.test(location.search)) return el > -0.5 && el < 25 ? 1 : 0;
     const A = ev.dog && ev.dog.p >= 8 && el > -0.5 && el < 25 ? clamp(ev.dog.p / 50) : 0;
@@ -74,7 +84,7 @@
     aod *= 1 + Math.min(0.3, Math.max(0, (ev.rhLow || 60) - 70) / 50);   // d28za: humid swelling capped (+30 %) — was up to +60 % and then +0.6·haze → AOD ~1.2 = clear sky painted orange-red
     const seed = (g.Photoreal ? g.Photoreal.hash : () => 0.5)(spot.id + ":" + ev.tSet);
     const C = cloudsAt(spot, ev, t);
-    let OB = g.AGObs && g.AGObs.sceneAt ? g.AGObs.sceneAt(spot, ev, t) : { gray: ev.obs ? ev.obs.gray : 0, haze: 0 };
+    let OB = g.AGObs && g.AGObs.sceneAt && !ev.frozen ? g.AGObs.sceneAt(spot, ev, t) : { gray: ev.obs ? ev.obs.gray : 0, haze: 0 };
     // d17: sky demos (?sky=clear|partly|broken|overcast, ?wx=partly|rain|storm…) show that sky, not today's observations
     const qp = new URLSearchParams(location.search), skq = qp.get("sky"), wxq = qp.get("wx");
     const DEMO = { broken: { high: 0.3, mid: 0.75, low: 0.45, block: 0.12, gap: 0.9, midKm: 4 }, partly: { high: 0.35, mid: 0.3, low: 0.2, block: 0.15, gap: 0.8 } }[skq];
