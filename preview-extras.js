@@ -1,4 +1,4 @@
-// PREVIEW-ONLY extras (d28z5). Not ported to Premium: (1) state-zoom chips on the map, (2) 360° pro gestures.
+// PREVIEW-ONLY extras (d28z6). Not ported to Premium: (1) state-zoom chips on the map, (2) 360° pro gestures.
 (function (g) {
   const d = document, S = () => g.__agState || {}, Q = () => g.__agQueue && g.__agQueue();
   // (1) state zoom — tap a state chip, the map fits every spot in that state
@@ -34,7 +34,7 @@
   d.addEventListener("touchmove", e => { if (inStage(e)) e.preventDefault(); }, { passive: false, capture: true });
   chips();
 
-  // ===== d28z5 preview-only features =====
+  // ===== d28z6 preview-only features =====
   const LS = { get: (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } }, set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} } };
   const curSpot = () => S().spot || (d.querySelector(".stage") && new URLSearchParams(location.search).get("spot"));
   const spotObj = id => (g.SPOTS || []).find(s => s.id === id);

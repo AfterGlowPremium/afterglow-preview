@@ -28,12 +28,12 @@ uniform vec2 uMarsh;  // d28e: x = distance (m) where a tidal marsh plain starts
 uniform vec4 uReg;   // d28v regional architecture: x house style, y tree species, z tower share
 uniform vec4 uFSv;   // d23: x distance at the left edge (m), y at the right edge, z/w azimuth range (rad) where the shore exists
 uniform float uCamH;    // camera height km
-uniform float uPitch, uFov, uYaw;   // d28z5: uYaw = 360° look (rad, + = right) — whole world (sky, clouds, sun, halos, water, terrain) turns with the head
+uniform float uPitch, uFov, uYaw;   // d28z6: uYaw = 360° look (rad, + = right) — whole world (sky, clouds, sun, halos, water, terrain) turns with the head
 uniform vec2 uSeed;
 uniform float uWind;    // upper wind direction (rad) – cloud streak orientation
 uniform float uLQ;      // 1 = low quality (dragging)
 uniform float uGrainT;
-uniform float uDog; uniform float uRays;   // d28z5: crepuscular-ray strength (photostage gate / ?rays=strong)
+uniform float uDog; uniform float uRays;   // d28z6: crepuscular-ray strength (photostage gate / ?rays=strong)
 uniform float uMeter;
 uniform float uPixScale;
 uniform float uTwi;
@@ -268,7 +268,7 @@ vec3 cloudShade(int L, vec3 P, vec3 rd, float t, float pixA, out float alpha){
   // d28o: clouds opposite the sun catch the low beam flat-on: soft pastel pink, no rim
   direct += ESUN * Ts * lightIn * (shadow*.6 + ms) * smoothstep(0., -.7, cs) * .018 * vec3(1., .8, .9);
   // d17: (a) under-lit deck bases when the sun is below the deck and the horizon is open; (b) broken deck → lit edges/tops, higher layers lit from below
-  direct *= min(uGlow, 1.1) * (1. + min(.7, uUnder * .9 * (1. - above) * (L < 2 ? 1. : .5) + uTops * (L >= 1 ? .4 : .2)));   // d28z5 ROOT CAUSE fix: was uGlow(≤1.65) × (1 + 1.2·under + .7·tops) ≈ up to 4.8× sunlight on every lit cloud in view → whole sky red on broken/deck days; now ≤ 1.9× and only as an under/edge-lighting boost (colour itself comes from the physical reddened beam Ts)
+  direct *= min(uGlow, 1.1) * (1. + min(.7, uUnder * .9 * (1. - above) * (L < 2 ? 1. : .5) + uTops * (L >= 1 ? .4 : .2)));   // d28z6 ROOT CAUSE fix: was uGlow(≤1.65) × (1 + 1.2·under + .7·tops) ≈ up to 4.8× sunlight on every lit cloud in view → whole sky red on broken/deck days; now ≤ 1.9× and only as an under/edge-lighting boost (colour itself comes from the physical reddened beam Ts)
   // ambient: blue skylight from above + warm horizon light
   vec3 hA = sunT(P + up*2.5, sun), hB = sunT(P + up*12., sun);
   float skyLit = dot(hA, vec3(.25,.45,.3))*.75 + dot(hB, vec3(.25,.45,.3))*.25;
@@ -906,7 +906,7 @@ void main(){
       col = mix(c, hzS * .95, clamp(1. - exp(-1.2 * (BMe * 1.3 + BR.g)), 0., 1.)); }
   } else if (elevR > prof && elevR > dip + .0002){
     col = skyRay(ro, rd, pixA, uLQ < .5, T);
-    // d28z5: visible crepuscular beams (the d28o in-scatter term above stays; it only shades air under a broken LOW deck within ~56° of the sun
+    // d28z6: visible crepuscular beams (the d28o in-scatter term above stays; it only shades air under a broken LOW deck within ~56° of the sun
     // and is too weak/noisy to read as beams). Beams = fixed angular pattern around the sun direction (shadow lanes from the occluding cloud
     // edges), pale warm-white by day → orange after sunset, fading with angular distance; after sunset they fan up from below the horizon.
     // Strong cases add faint anticrepuscular rays converging on the antisolar point. World-anchored (rd already includes the 360° yaw).
@@ -927,7 +927,7 @@ void main(){
     float limb = .45 + .55*sqrt(max(0., 1. - (ang/.0282)*(ang/.0282)));
     col += T * disc * limb * ESUN * 1333.;   // d28i: 16x the disc area → lower per-pixel radiance so the bigger disc doesn't flood the exposure
     col = antiTw(col, rd, elevR - dip);
-    // d28z5: sun dogs rebuilt from Sean's Lions Bridge photos — compact bright vertically-elongated parhelia at ~22°/cos(e) at the sun's height
+    // d28z6: sun dogs rebuilt from Sean's Lions Bridge photos — compact bright vertically-elongated parhelia at ~22°/cos(e) at the sun's height
     // (red inner edge → yellow → bluish-white outer + faint white tail away from the sun), upper tangent arc 22° above the sun with up-curving wings,
     // very faint 22° halo. Brightness tied to the local sky + reddened sunlight so they stay vivid down to sun elevation ~0° and fade only after sunset.
     if (uDog > .01){
@@ -992,7 +992,7 @@ void main(){
     float sunUp = smoothstep(-.006, .004, sa.y);
     vec3 hv = normalize(-rd + sa);
     float nh = max(dot(n, hv), 0.);
-    float m = mix(.02, .07, uChop) + mix(.012, .07, uChop)*far;   // mirror-sharp sun reflection when slick, wide glitter when rough
+    float m = (mix(.02, .07, uChop) + mix(.012, .07, uChop)*far) * 1.5;   // d28z6: ×1.5 to match the 50 %-bigger sun disc (reflection/glitter was still the old size)   // mirror-sharp sun reflection when slick, wide glitter when rough
     float c2 = max(nh*nh, 1e-3); float D = min(exp((c2-1.)/(c2*m*m)) / (PI*m*m*c2*c2), 400.);
     float cosI = max(dot(-rd, n), .01);
     float F = .02 + .98*pow(1.-cosI, 5.);
@@ -1098,7 +1098,7 @@ void main(){
       vec3 sL = ESUN * sunAtm * sunVis * smoothstep(-.015, .02, uSunA.y) * .045 * uBack;
       float fwd = max(dot(rd, uSunA), 0.), front = max(dot(n, uSunA), 0.);
       c += sL * front * (.35 + .65 * faceZ) * vec3(1., .85, .62) * (1. - F) * .8;   // golden-hour light straight onto the face                         // front-lit face (sunset, sun at your back)
-      c += sL * pow(max(dot(reflect(rd, n), uSunA), 0.), 60.) * .8;                                      // golden glints on the groomed lines
+      c += sL * pow(max(dot(reflect(rd, n), uSunA), 0.), 27.) * .8;                                      // golden glints on the groomed lines
       c += sL * pow(fwd, 6.) * thin * vec3(.55, .8, .35) * 3.;   // sunrise: green-gold glow through the thin upper face                                           // sun shining THROUGH the thin face (sunrise)
       c *= mix(1., mix(.75, 1.2, smoothstep(.86, 1., x)), faceZ);                                          // shading gradient up the face: trough dark, lip bright
       fc += sL * (front * 1.2 + pow(fwd, 4.) * 2.5) * vec3(1., .82, .6);                                    // whitewater catches sun: lit (evening) / glowing rim (morning)
@@ -1166,7 +1166,7 @@ void main(){
         float thin = smoothstep(.55, 1., yr), rz = smoothstep(.6, 1.6, uSurf), relT = (mod(p.x * .927 + (p.z + gHD) * .375 - heroPX() + 9., 15.) - 9.) * 1.7;   // d20: real-water face from ~3 ft up; 2 ft keeps the v17 look
         vec3 trans = sky * olive * (.5 + 1.6 * thin) + sL * pow(fwd, 3.) * thin * vec3(.45, .65, .3) * 2.2;   // light through the upper third
         c = refl * F + trans * (1. - F);
-        c += sL * pow(max(dot(rv, uSunA), 0.), 120.) * 3. + refl * .12;   // wet: sun glint + sky sheen
+        c += sL * pow(max(dot(rv, uSunA), 0.), 53.) * 3. + refl * .12;   // wet: sun glint + sky sheen
         c *= .7 + .45 * fbm(vec2(p.x * 3.5 + y * .4, y * .7 - uSurfT * .3), 0., 4);   // streaks running down the face
         float pk = mix(1., .35, b * smoothstep(.3 * Hh, -.05, length(vec2(s, y) - heroC(Hh)) - .5 * heroR(Hh)));   // shadowed pocket
         c *= pk;
