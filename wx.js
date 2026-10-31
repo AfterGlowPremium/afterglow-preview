@@ -339,7 +339,7 @@
       const day = clamp((se + 4) / 10), sRel = Math.sin((C.sunAz - brg) * Math.PI / 180), back = Math.cos((C.sunAz - brg) * Math.PI / 180), sil = clamp((back - 0.2) / 0.6) * clamp(1 - (se - 1) / 10);
       const haze = clamp(1 - d / 30000) * (0.55 + 0.45 * clamp(1 - d / 6000));
       x.save(); x.globalAlpha = 0.25 + 0.75 * haze;
-      if (L.st === "screwpile" && th >= 5) {   // d28z6: piles (~3 m) → white square 1½-storey cottage with dark hip roof → black octagonal lantern
+      if (L.st === "screwpile" && th >= 5) {   // d28z7: piles (~3 m) → white square 1½-storey cottage with dark hip roof → black octagonal lantern
         const pw = D(L.b), ph = th * 0.26, cw = pw * 0.86, ch = th * 0.42, rf = th * 0.14, lw = Math.max(2, D(L.tp)), lh = th * 0.16, top = y0 - ph;
         x.fillStyle = "#2b2b30"; for (let i = 0; i <= 4; i++) { const px = cx - pw / 2 + i * pw / 4; x.fillRect(px - Math.max(0.6, pw * 0.015), top, Math.max(1.2, pw * 0.03), ph); }   // piles
         x.strokeStyle = "rgba(43,43,48,.7)"; x.lineWidth = Math.max(0.5, pw * 0.008); x.beginPath(); for (let i = 0; i < 4; i++) { const a = cx - pw / 2 + i * pw / 4, b = a + pw / 4; x.moveTo(a, top + 2); x.lineTo(b, y0 - 1); x.moveTo(b, top + 2); x.lineTo(a, y0 - 1); } x.stroke();   // cross-bracing

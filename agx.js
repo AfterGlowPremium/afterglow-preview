@@ -8,7 +8,7 @@
   const SHORE_NORMAL = { saltponds: 100, windmillpt: 95, jennettes: 75, rodanthe: 100, sturns: 85, vb1st: 85, sandbridge: 80,
     frisco: 165, pensacola: 170, galveston: 140 };
   const normal = sp => SHORE_NORMAL[sp.id] != null ? SHORE_NORMAL[sp.id] : FACE_EAST.has(sp.id) ? 90 : (sp.arc ? (sp.arc[0] + sp.arc[1]) / 2 : 270);
-  const BAYPT = { saltponds: [37.04, -76.2], buckroecoffee: [37.04, -76.2] }, WMIN = { saltponds: 1.5, buckroecoffee: 1.5 };   // d28z6: Buckroe — nearest open-bay marine grid (the default sea cell snaps to sheltered Hampton Roads), rideable bay windswell from 1.5 ft
+  const BAYPT = { saltponds: [37.04, -76.2], buckroecoffee: [37.04, -76.2] }, WMIN = { saltponds: 1.5, buckroecoffee: 1.5 };   // d28z7: Buckroe — nearest open-bay marine grid (the default sea cell snaps to sheltered Hampton Roads), rideable bay windswell from 1.5 ft
   const LAT = s => (BAYPT[s.id] || [s.lat])[0], LNG = s => (BAYPT[s.id] || [0, s.lng])[1];
   const M = {}, AL = {}, PM = {};   // d25p: PM = past-day marine hourly (archived), filled per past chunk
   const MV = "wave_height,wave_direction,wave_period,swell_wave_height,swell_wave_direction,swell_wave_period,wind_wave_height,wind_wave_direction,secondary_swell_wave_height,secondary_swell_wave_direction";
