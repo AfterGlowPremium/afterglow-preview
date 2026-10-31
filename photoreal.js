@@ -871,10 +871,10 @@ void main(){
   bool gfar = uGnd.w > .5 && rd.y < 0. && !fsHit && !gnear;
   bool gmarsh = false;
   if (gnear && uMarsh.x > 0. && uGnd.x > 1.5 && uGnd.x < 2.5){ vec2 mxz = (rd * gT).xz;   // d28f: marsh foreground (Grandview) — winding tidal creeks show the water through the cordgrass
-    float cr = abs(fbm(mxz * vec2(.012, .02) + 3.1, 0., 4) - .5), w = .03 * (1. - smoothstep(300., 1200., gT));
+    float cr = abs(fbm(mxz * vec2(.006, .03) + 3.1, 0., 4) - .5), w = .03 * (1. - smoothstep(150., 600., gT));   // d28ze: creeks run across the view and fade with distance (depth-aligned creeks drew as vertical bars down the marsh — Grandview)
     if (cr < w || gT > uGnd.y - 25. * fbm(mxz * .02, 0., 3)) gnear = false; }
   if (uMarsh.x > 0. && rd.y < 0. && !fsHit && !gnear && !gfar){ vec2 mxz = (rd * gT).xz;   // d28e: cordgrass flats with winding tidal creeks between the river and the swamp treeline
-    float edge = uMarsh.x + 35. * fbm(mxz * .01, 0., 3), cr = abs(fbm(mxz * vec2(.007, .012) + 3.1, 0., 4) - .5), cr2 = abs(fbm(mxz * .011 + 9.4, 0., 3) - .5);
+    float edge = uMarsh.x + 35. * fbm(mxz * .01, 0., 3), cr = abs(fbm(mxz * vec2(.004, .02) + 3.1, 0., 4) - .5), cr2 = abs(fbm(mxz * vec2(.006, .03) + 9.4, 0., 3) - .5);   // d28ze: across-view creeks
     float far = smoothstep(450., 900., gT); gmarsh = gT > edge && (cr > .014 * (1. - far) || far > .99) && (cr2 > .012 * (1. - far) || far > .99); }   // creeks only where they're resolvable (far ones read as lit slabs)
 
   if (pier > .5){
@@ -884,7 +884,7 @@ void main(){
     gGnd = 1.;
     vec3 Ta; vec3 hzS = antiTw(skyRay(ro, normalize(vec3(rd.x, .004, rd.z)), pixA + HZB, false, Ta), rd, .004);
     vec2 rh = normalize(rd.xz + 1e-5);
-    vec3 Tb; vec3 amb = skyRay(ro, normalize(vec3(-rh.x * .8, .6, -rh.y * .8)), pixA * 4., false, Tb) * .45 + skyRay(ro, vec3(0., 1., 0.), pixA * 4., false, Tb) * .3 + hzS * .35;   // sky irradiance: sun-side sky (not the glare), zenith, horizon   // light from the sky the surface faces (the sun side)
+    vec3 Tb; vec3 amb = skyRay(ro, normalize(vec3(-rh.x * .8, .6, -rh.y * .8)), .35, false, Tb) * .45 + skyRay(ro, vec3(0., 1., 0.), .35, false, Tb) * .3 + hzS * .35;   // d28ze: irradiance must be a wide-cone (blurred) sky sample — a sharp per-column sample printed the cloud texture as vertical bars down the land (Grandview)   // sky irradiance: sun-side sky (not the glare), zenith, horizon   // light from the sky the surface faces (the sun side)
     if (fsHit) col = shadeFacade(ro, rd, fsD, fsLP, fsTopH, fsK, fsHv, sunVis, hzS, amb, fsD * pixA);
     else {
       vec2 xz = (rd * gT).xz; float fpG = gT * pixA / max(-rd.y, .002), typ = gnear ? uGnd.x : gmarsh ? 2. : uGnd.z;
