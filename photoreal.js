@@ -1328,7 +1328,7 @@ void main(){
     gl.uniform1f(U.uWater, P.water ? 1 : 0); gl.uniform1f(U.uPier, P.pier ? 1 : 0); gl.uniform1f(U.uShore, P.shore || 0); gl.uniform1f(U.uHills, P.hills || 0); if (U.uCity) gl.uniform1f(U.uCity, P.city || 0); if (U.uBridge) gl.uniform1f(U.uBridge, P.bridge || 0); { const G = P.ground || {}; if (U.uGnd) gl.uniform4f(U.uGnd, G.near || 0, G.nearD || 0, G.far || 0, G.land ? 1 : 0); if (U.uFS) gl.uniform4f(U.uFS, G.d || 0, G.th || 0, G.town || 0, G.dune || 0); if (U.uMarsh) gl.uniform2f(U.uMarsh, G.marsh || 0, G.swamp ? 1 : 0); if (U.uReg) { const R = G.reg || [0, 0, 0]; gl.uniform4f(U.uReg, R[0], R[1], R[2] || 0, 0); } if (U.uFSv) gl.uniform4f(U.uFSv, G.dl != null ? G.dl : (G.d || 0), G.dr != null ? G.dr : (G.d || 0), G.a0 != null ? G.a0 : -9, G.a1 != null ? G.a1 : 9); }
     gl.uniform1f(U.uCamH, P.heroCam || P.camH || 0.002);
     const cam = camera(P, W, H), vfov = cam.vfov; P.hz = cam.hz; P.vfov = vfov;   // d24u: horizon line shared with the 2D overlays (storm towers)
-    gl.uniform1f(U.uFov, vfov * d2r); gl.uniform1f(U.uPitch, cam.pitch); if (U.uYaw) gl.uniform1f(U.uYaw, (P.lookYaw || 0) * d2r);
+    gl.uniform1f(U.uFov, vfov * d2r); gl.uniform1f(U.uPitch, cam.pitch); window.__agCam = { pitch: cam.pitch, vfov: vfov }; if (U.uYaw) gl.uniform1f(U.uYaw, (P.lookYaw || 0) * d2r);
     gl.uniform2f(U.uSeed, P.seed * 977 % 500, P.seed * 613 % 500); gl.uniform1f(U.uWind, P.wind || 0);
     gl.uniform1f(U.uLQ, P.lq ? 1 : 0); gl.uniform1f(U.uDog, P.dog || 0); if (U.uRays) gl.uniform1f(U.uRays, P.rays || 0); gl.uniform1f(U.uPixScale, 1);
     gl.uniform1f(U.uTwi, Math.max(0, Math.min(1, (1.5 - P.elev) / 3)) * Math.max(0, Math.min(1, (P.elev + 8) / 3)) * (1 - clamp(P.gray || 0))); gl.uniform1f(U.uGrainT, P.grain || 0.37);
