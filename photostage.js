@@ -52,12 +52,26 @@
     const W = (g.Model.seaAt && g.Model.seaAt(ev, t)) || g.Model.seaState({ wind: ev.s.wind || 0, gust: ev.s.gust || 0 }, 0.5);
     return { chop: W.chop, swell: W.swell, caps: W.caps, phase: (t % 86400) / 420 + performance.now() / 1000 * 0.25, sea: W };   // d25o: continuous drift
   }
+  // d28z5 sun-dog GATE (render only; model.js forecast math untouched). Renders if A OR B, intensity = max(A, B); only ?sundogs=strong overrides.
+  //  A: existing forecast sun-dog signal ev.dog.p (model.js §7.1) ≥ 8 % → clamp(p / 50)   (same threshold/scale as before)
+  //  B: thin cirrus veil at this time (HRRR/GOES layers): high ≥ 30 %, low < 20 %, mid < 25 % → clamp((high − 0.3) / 0.4 + 0.4) × (1 − max(low, mid))
+  //  both need the sun between −0.5° and 25° (B ≤ 20°).
+  // d28z5 crepuscular-ray GATE: broken/scattered low–mid cloud near the sun (0.2–0.85 cover), sun −5°..15°, some haze (AOD ≥ 0.06) and not grayed out.
+  //  strength = broken-ness × elevation window × haze; ?rays=strong forces 1 for testing.
+  function raysAt(C, el, aod, ev) { if (/[?&]rays=strong/.test(location.search)) return el > -6 && el < 18 ? 1 : 0;
+    const cov = Math.max(C.low || 0, 0.8 * (C.mid || 0)); if (cov < 0.2 || cov > 0.85 || el < -5 || el > 15) return 0;
+    return clamp((cov - 0.2) / 0.2) * clamp((0.85 - cov) / 0.15) * clamp((aod - 0.04) / 0.1) * (el > 10 ? clamp((15 - el) / 5) : 1) * 0.8; }
+  function dogAt(ev, C, el) {
+    if (/[?&]sundogs=strong/.test(location.search)) return el > -0.5 && el < 25 ? 1 : 0;
+    const A = ev.dog && ev.dog.p >= 8 && el > -0.5 && el < 25 ? clamp(ev.dog.p / 50) : 0;
+    const B = C.high >= 0.3 && C.low < 0.2 && C.mid < 0.25 && el > -0.5 && el < 20 ? clamp((C.high - 0.3) / 0.4 + 0.4) * (1 - Math.max(C.low, C.mid)) : 0;
+    return Math.max(A, B); }
   function params(spot, ev, t, opt = {}) {
     const pos = g.Model.sunPos(t, spot.lat, spot.lng), s = ev.s;
     const off = ((pos.az - ev.sunsetAz + 540) % 360) - 180;
     // aerosol: NOAA GOES AOD / CAMS when present, else infer from the clean-air score; humid air swells haze
     let aod = s.aod != null ? s.aod : 0.05 + (1 - ev.clean) * 0.45;
-    aod *= 1 + Math.max(0, (ev.rhLow || 60) - 70) / 50;
+    aod *= 1 + Math.min(0.3, Math.max(0, (ev.rhLow || 60) - 70) / 50);   // d28z5: humid swelling capped (+30 %) — was up to +60 % and then +0.6·haze → AOD ~1.2 = clear sky painted orange-red
     const seed = (g.Photoreal ? g.Photoreal.hash : () => 0.5)(spot.id + ":" + ev.tSet);
     const C = cloudsAt(spot, ev, t);
     let OB = g.AGObs && g.AGObs.sceneAt ? g.AGObs.sceneAt(spot, ev, t) : { gray: ev.obs ? ev.obs.gray : 0, haze: 0 };
@@ -69,7 +83,8 @@
       elev: pos.elev, sunAzOff: clamp(off + 3, -14, 14),
       high: C.high, mid: C.mid, low: C.low, midKm: C.midKm, gap: C.gap, cloudSrc: C.src,
       // d16: blocked sun AT THE TIME SHOWN (obs near now, model otherwise) → flat gray. d17 fix: aod/rh were commented out by the d15/d16 edit
-      block: Math.max(clamp(ev.geoBlock != null ? Math.min(ev.slotBlock || 0, ev.geoBlock + 0.25) : ev.slotBlock || 0), OB.gray), gray: OB.gray,   // d23: light-geometry path (low cloud far out), not the near deck aod: clamp(aod + 0.6 * OB.haze, 0.02, 1.2), rh: Math.max((ev.rhLow || 60) / 100, OB.haze > 0 ? 0.9 + 0.08 * OB.haze : 0),
+      block: Math.max(clamp(ev.geoBlock != null ? Math.min(ev.slotBlock || 0, ev.geoBlock + 0.25) : ev.slotBlock || 0), OB.gray), gray: OB.gray,
+      aod: clamp(aod + 0.35 * OB.haze, 0.02, 0.6), rh: Math.max((ev.rhLow || 60) / 100, OB.haze > 0 ? 0.9 + 0.08 * OB.haze : 0),   // d28z5 ROOT CAUSE: aod/rh had been swallowed by the d23 comment on the line above → uAod/uRH got undefined (NaN on the GPU) → haze/redness varied by device & day. Restored, AOD capped 0.6   // d23: light-geometry path (low cloud far out), not the near deck
       water: spot.water !== false, pier: spot.type === "Pier" || spot.type === "Boardwalk",
       // horizon features from the geography table (spots.js SCENE) for the direction you face
       shore: spot.water !== false ? ({ open: 0, lowshore: 0.45, islands: 0.6, skyline: 0.35, bridge: 0.3, trees: 0.8, town: 0.6, hills: 0.4 }[spot.far] ?? (spot.obst >= 0.5 ? clamp(spot.obst / 2, 0.25, 1) : 0)) : 0,
@@ -77,10 +92,12 @@
       city: spot.far === "skyline" ? 1 : 0, bridge: spot.far === "bridge" ? 1 : 0,
       camH: spot.type === "Summit" ? 0.47 : spot.type === "Bluff" ? 0.025 : spot.type === "Dunes" ? 0.03 : 0.0025,
       ...seaP(spot, ev, t),
-      seed, wind: seed * 6.283, dog: /[?&]sundogs=strong/.test(location.search) && pos.elev > -0.5 && pos.elev < 25 ? 1 : ev.dog && ev.dog.p >= 8 && pos.elev > 0.3 && pos.elev < 25 ? clamp(ev.dog.p / 50) : 0,   // d28z: ?sundogs=strong test; shown from 8 %, up to 25° sun
+      seed, wind: seed * 6.283, dog: dogAt(ev, C, pos.elev), rays: raysAt(C, pos.elev, aod, ev),   // d28z: ?sundogs=strong test; shown from 8 %, up to 25° sun
     }, DEMO || {}, opt);
+    if (P.gray > 0.5 && !/[?&]rays=strong/.test(location.search)) P.rays = 0;
+    if (P.dog > 0) P.high = Math.max(P.high || 0, 0.3 * P.dog);   // d28z5: sun dogs come with streaky cirrus/cirrostratus (photo)
     if (opt.turned) P.sunAzOff = ((off + 180 + 540) % 360) - 180;
-    if (opt.yaw != null) P.sunAzOff = ((off - opt.yaw + 540) % 360) - 180;   // d28z4: 360° look — sun at its real azimuth relative to the panned camera   // d23: 180° Turn — the real sun azimuth relative to the view behind you
+    // d23: 180° Turn — the real sun azimuth relative to the view behind you
     // d17 afterglow regimes (renderer reads glow / under / tops):
     //  (a) UNDER-LIT: a low/mid deck with an open slot on the horizon toward the sun → light filters underneath, deck bases glow
     //  (b) TOPS/EDGES: a broken/patchy deck → sunlight catches edges and the higher (mid/high) clouds lit from below/behind
@@ -101,6 +118,11 @@
     const clearSky = cover < 0.1 && (P.high || 0) < 0.15;
     P.under = under * (1 - P.gray) * (gw > 0 ? 0.42 : 1); P.tops = Math.max(tops, 0.3 * gw) * (1 - P.gray);   // d23: visible, not a wall-to-wall orange wash
     P.glow = (1 - P.gray) * (clearSky ? 1.0 : gw > 0 ? 0.92 + 0.12 * P.under + 0.1 * P.tops : 1.15 + 0.3 * under + 0.2 * tops);
+    // d28z5: LOS/curvature regime (los.js). Only lit clouds in the view path glow: broad lit deck overhead → whole-sky (keep under/tops);
+    // lit clouds only far out → horizon band (under/tops scaled down, colour stays low); nothing lit → plain twilight (glow 1, no boosts).
+    { const LO = g.AGLos && ev.sunsetAz != null ? g.AGLos.get(spot, ev.sunsetAz, t, pos.elev) : null; if (LO && !DEMO && !skq && !wxq && !g.__agForce) { P.los = LO;
+      const lit = Math.max(LO.overhead, 0.6 * LO.far); if (LO.wall > 0.6) P.gap = Math.min(P.gap || 1, 1 - LO.wall);
+      P.under *= clamp(LO.overhead / 0.4) * clamp(1 - (LO.wall - 0.5) / 0.4); P.tops *= clamp(lit / 0.3); if (lit < 0.05) P.glow = Math.min(P.glow, 1); } }
     return P;
   }
 

@@ -28,12 +28,12 @@ uniform vec2 uMarsh;  // d28e: x = distance (m) where a tidal marsh plain starts
 uniform vec4 uReg;   // d28v regional architecture: x house style, y tree species, z tower share
 uniform vec4 uFSv;   // d23: x distance at the left edge (m), y at the right edge, z/w azimuth range (rad) where the shore exists
 uniform float uCamH;    // camera height km
-uniform float uPitch, uFov;
+uniform float uPitch, uFov, uYaw;   // d28z5: uYaw = 360° look (rad, + = right) — whole world (sky, clouds, sun, halos, water, terrain) turns with the head
 uniform vec2 uSeed;
 uniform float uWind;    // upper wind direction (rad) – cloud streak orientation
 uniform float uLQ;      // 1 = low quality (dragging)
 uniform float uGrainT;
-uniform float uDog;
+uniform float uDog; uniform float uRays;   // d28z5: crepuscular-ray strength (photostage gate / ?rays=strong)
 uniform float uMeter;
 uniform float uPixScale;
 uniform float uTwi;
@@ -268,7 +268,7 @@ vec3 cloudShade(int L, vec3 P, vec3 rd, float t, float pixA, out float alpha){
   // d28o: clouds opposite the sun catch the low beam flat-on: soft pastel pink, no rim
   direct += ESUN * Ts * lightIn * (shadow*.6 + ms) * smoothstep(0., -.7, cs) * .018 * vec3(1., .8, .9);
   // d17: (a) under-lit deck bases when the sun is below the deck and the horizon is open; (b) broken deck → lit edges/tops, higher layers lit from below
-  direct *= uGlow * (1. + uUnder * 1.2 * (1. - above) * (L < 2 ? 1. : .5) + uTops * (L >= 1 ? .7 : .3));
+  direct *= min(uGlow, 1.1) * (1. + min(.7, uUnder * .9 * (1. - above) * (L < 2 ? 1. : .5) + uTops * (L >= 1 ? .4 : .2)));   // d28z5 ROOT CAUSE fix: was uGlow(≤1.65) × (1 + 1.2·under + .7·tops) ≈ up to 4.8× sunlight on every lit cloud in view → whole sky red on broken/deck days; now ≤ 1.9× and only as an under/edge-lighting boost (colour itself comes from the physical reddened beam Ts)
   // ambient: blue skylight from above + warm horizon light
   vec3 hA = sunT(P + up*2.5, sun), hB = sunT(P + up*12., sun);
   float skyLit = dot(hA, vec3(.25,.45,.3))*.75 + dot(hB, vec3(.25,.45,.3))*.25;
@@ -821,6 +821,7 @@ void main(){
   float cp = cos(uPitch), sp = sin(uPitch);
   rd = vec3(rd.x, rd.y*cp + rd.z*(-sp)*-1.*-1., 0.);
   { vec3 d0 = normalize(vec3(uv.x*2.*th, uv.y*2.*th, -1.)); rd = normalize(vec3(d0.x, d0.y*cp - d0.z*sp, d0.y*sp + d0.z*cp)); }
+  if (uYaw != 0.) { float cy = cos(uYaw), sy = sin(uYaw); rd = vec3(rd.x*cy - rd.z*sy, rd.y, rd.x*sy + rd.z*cy); }
   float pixA = 2.*th / uRes.y / uPixScale;
   BMe = max(uAod, .01) / HM; BMs = BMe * .9;
   vec3 ro = vec3(0., R0 + uCamH, 0.);
@@ -905,6 +906,17 @@ void main(){
       col = mix(c, hzS * .95, clamp(1. - exp(-1.2 * (BMe * 1.3 + BR.g)), 0., 1.)); }
   } else if (elevR > prof && elevR > dip + .0002){
     col = skyRay(ro, rd, pixA, uLQ < .5, T);
+    // d28z5: visible crepuscular beams (the d28o in-scatter term above stays; it only shades air under a broken LOW deck within ~56° of the sun
+    // and is too weak/noisy to read as beams). Beams = fixed angular pattern around the sun direction (shadow lanes from the occluding cloud
+    // edges), pale warm-white by day → orange after sunset, fading with angular distance; after sunset they fan up from below the horizon.
+    // Strong cases add faint anticrepuscular rays converging on the antisolar point. World-anchored (rd already includes the 360° yaw).
+    if (uRays > .01){ vec3 s = uSunA, ux = normalize(cross(s, vec3(0., 1., 0.)) + 1e-5), uy = cross(ux, s);
+      float ang = acos(clamp(dot(rd, s), -1., 1.)), phi = atan(dot(rd, uy), dot(rd, ux));
+      float bm = smoothstep(.42, .72, fbm(vec2(phi * 7.5, 3.1), 0., 3)), fall = exp(-ang / .75) * smoothstep(.03, .14, ang) * smoothstep(-.005, .03, elevR - dip);
+      vec3 rc = mix(vec3(1., .94, .8), vec3(1., .68, .42), smoothstep(.03, -.06, s.y));
+      col *= 1. + (bm * 1.1 * rc - (1. - bm) * .28) * fall * uRays;
+      if (uRays > .55){ float a2 = acos(clamp(dot(rd, -s), -1., 1.)), p2 = atan(dot(rd, uy), -dot(rd, ux)), b2 = smoothstep(.42, .72, fbm(vec2(p2 * 7.5, 3.1), 0., 3));
+        col *= 1. + (b2 * .35 - (1. - b2) * .1) * exp(-a2 / .9) * (uRays - .55) * 2.; } }
     // sun disc (limb darkened, flattened by refraction near the horizon)
     vec3 sa = uSunA;
     float sel = asin(sa.y);
@@ -915,24 +927,28 @@ void main(){
     float limb = .45 + .55*sqrt(max(0., 1. - (ang/.0282)*(ang/.0282)));
     col += T * disc * limb * ESUN * 1333.;   // d28i: 16x the disc area → lower per-pixel radiance so the bigger disc doesn't flood the exposure
     col = antiTw(col, rd, elevR - dip);
-    // sun dogs (parhelia) ~22° either side of a low sun, in thin ice cloud
+    // d28z5: sun dogs rebuilt from Sean's Lions Bridge photos — compact bright vertically-elongated parhelia at ~22°/cos(e) at the sun's height
+    // (red inner edge → yellow → bluish-white outer + faint white tail away from the sun), upper tangent arc 22° above the sun with up-curving wings,
+    // very faint 22° halo. Brightness tied to the local sky + reddened sunlight so they stay vivid down to sun elevation ~0° and fade only after sunset.
     if (uDog > .01){
       float se = asin(clamp(sa.y,-1.,1.));
-      float daz = atan(rd.x, -rd.z) - atan(sa.x, -sa.z);
-      float off = .3840 / max(cos(se), .5);
+      float daz = atan(rd.x, -rd.z) - atan(sa.x, -sa.z); daz = mod(daz + 3.14159265, 6.2831853) - 3.14159265;
+      float off = .3840 / max(cos(max(se, 0.)), .5);
       float dy = elevR - se;
-      vec3 pd = vec3(0.);
-      for (int sgn = -1; sgn <= 1; sgn += 2){
-        float x = abs(daz) - off;
-        vec3 sh = vec3(-.006, 0., .007);
-        vec3 wd = x < 0. ? vec3(.0035,.0045,.006) : vec3(.007,.011,.019);   // d28z: photo-like parhelion — sharp red inner edge, soft white→bluish outward spread, ~2.5° tall
-        float vy = dy / (.024 + .012 * smoothstep(0., .015, abs(x)));
-        vec3 g = exp(-pow((vec3(x) - sh)/wd, vec3(2.)) - vy * vy) * (.75 + .25 * fbm(vec2(daz * 60., elevR * 40.), 0., 3));   // slight ice-crystal mottling
-        g += vec3(.95, .97, 1.) * exp(-pow(x/.11, 2.) - pow(dy/.005, 2.)) * .09 * step(0., x); // faint white tail away from the sun
-        pd = max(pd, g);
-      }
-      float a22 = acos(clamp(dot(rd, sa), -1., 1.)); pd += vec3(.9, .95, 1.) * exp(-pow((a22 - .384) / .008, 2.)) * .22 * smoothstep(.55, .9, uDog) * step(-.02, dy + .1);   // d28z: faint 22° halo arc when sun dogs are likely
-      col += pd * uDog * T * ESUN * sunAtm * sunVis * .4 * smoothstep(-.01, .02, sa.y);   // d28z4: brighter parhelia (Sean saw very good sun dogs at Lions Bridge Oct 28)
+      float x = abs(daz) - off;                                   // < 0 toward the sun
+      float vy = dy / .026;                                       // ~1.5° half-height → elongated vertically
+      vec3 pd = vec3(1., .35, .12) * exp(-pow((x + .004) / .0045, 2.) - vy * vy)          // red inner edge
+              + vec3(1., .85, .45) * exp(-pow((x - .001) / .0055, 2.) - vy * vy)          // yellow core
+              + vec3(.75, .85, 1.) * exp(-pow((x - .010) / .010, 2.) - vy * vy * 1.3) * .55 // bluish-white outer
+              + vec3(.95, .96, 1.) * exp(-pow(max(x, 0.) / .13, 2.) - pow(dy / .007, 2.)) * .16 * step(-.002, x);   // white tail away from the sun
+      pd *= .8 + .2 * fbm(vec2(daz * 60., elevR * 40.), 0., 3);
+      float a22 = acos(clamp(dot(rd, sa), -1., 1.));
+      float ut = (elevR - (se + .384)) - 1.1 * daz * daz;         // upper tangent arc: 22° above the sun, wings curving up/out (low sun)
+      float utw = exp(-pow(ut / .006, 2.)) * exp(-pow(daz / .22, 2.));
+      vec3 arc = (vec3(1., .55, .25) * exp(-pow((ut + .004) / .004, 2.)) + vec3(1., .92, .7) * exp(-pow(ut / .006, 2.)) * .8) * exp(-pow(daz / .22, 2.)) * .75;
+      arc += vec3(1., .95, .85) * exp(-pow((a22 - .384) / .007, 2.)) * .07 * step(-.01, dy);   // very faint 22° halo
+      vec3 dogL = col * 1.4 + ESUN * sunAtm * .4;
+      col += (pd + arc) * dogL * uDog * (.35 + .65 * sunVis) * smoothstep(-.02, .0, sa.y);
     }
   } else if (uWater > .5 && elevR <= dip + .0002){
     // ocean
@@ -1304,9 +1320,9 @@ void main(){
     gl.uniform1f(U.uWater, P.water ? 1 : 0); gl.uniform1f(U.uPier, P.pier ? 1 : 0); gl.uniform1f(U.uShore, P.shore || 0); gl.uniform1f(U.uHills, P.hills || 0); if (U.uCity) gl.uniform1f(U.uCity, P.city || 0); if (U.uBridge) gl.uniform1f(U.uBridge, P.bridge || 0); { const G = P.ground || {}; if (U.uGnd) gl.uniform4f(U.uGnd, G.near || 0, G.nearD || 0, G.far || 0, G.land ? 1 : 0); if (U.uFS) gl.uniform4f(U.uFS, G.d || 0, G.th || 0, G.town || 0, G.dune || 0); if (U.uMarsh) gl.uniform2f(U.uMarsh, G.marsh || 0, G.swamp ? 1 : 0); if (U.uReg) { const R = G.reg || [0, 0, 0]; gl.uniform4f(U.uReg, R[0], R[1], R[2] || 0, 0); } if (U.uFSv) gl.uniform4f(U.uFSv, G.dl != null ? G.dl : (G.d || 0), G.dr != null ? G.dr : (G.d || 0), G.a0 != null ? G.a0 : -9, G.a1 != null ? G.a1 : 9); }
     gl.uniform1f(U.uCamH, P.heroCam || P.camH || 0.002);
     const cam = camera(P, W, H), vfov = cam.vfov; P.hz = cam.hz; P.vfov = vfov;   // d24u: horizon line shared with the 2D overlays (storm towers)
-    gl.uniform1f(U.uFov, vfov * d2r); gl.uniform1f(U.uPitch, cam.pitch);
+    gl.uniform1f(U.uFov, vfov * d2r); gl.uniform1f(U.uPitch, cam.pitch); if (U.uYaw) gl.uniform1f(U.uYaw, (P.lookYaw || 0) * d2r);
     gl.uniform2f(U.uSeed, P.seed * 977 % 500, P.seed * 613 % 500); gl.uniform1f(U.uWind, P.wind || 0);
-    gl.uniform1f(U.uLQ, P.lq ? 1 : 0); gl.uniform1f(U.uDog, P.dog || 0); gl.uniform1f(U.uPixScale, 1);
+    gl.uniform1f(U.uLQ, P.lq ? 1 : 0); gl.uniform1f(U.uDog, P.dog || 0); if (U.uRays) gl.uniform1f(U.uRays, P.rays || 0); gl.uniform1f(U.uPixScale, 1);
     gl.uniform1f(U.uTwi, Math.max(0, Math.min(1, (1.5 - P.elev) / 3)) * Math.max(0, Math.min(1, (P.elev + 8) / 3)) * (1 - clamp(P.gray || 0))); gl.uniform1f(U.uGrainT, P.grain || 0.37);
     gl.uniform1f(U.uBlockGap, P.gap || 0);
     gl.uniform1f(U.uChop, P.chop != null ? P.chop : 0.3); gl.uniform1f(U.uSwell, P.swell || 0); gl.uniform1f(U.uCaps, P.caps || 0); gl.uniform1f(U.uPhase, P.phase || 0);
@@ -1333,7 +1349,7 @@ void main(){
   // the way a photographer exposes a sunset (protect highlights, keep saturation). Blended with a twilight curve.
   const mcache = {};
   function meter(gl, U, w, h, P) {
-    const key = [P.elev, P.high, P.mid, P.low, P.block, P.aod, P.seed, P.water, P.pier, P.shore || 0, P.city || 0, P.bridge || 0, P.midKm || 4.5, P.gap || 0, Math.round((P.chop || 0) * 5)].map(v => typeof v === "number" ? v.toFixed(3) : v).join("|") + "|" + (w / h).toFixed(2);
+    const key = [P.rays || 0, P.dog || 0, P.lookYaw || 0, P.lookPitch || 0, P.fovMul || 1, P.elev, P.high, P.mid, P.low, P.block, P.aod, P.seed, P.water, P.pier, P.shore || 0, P.city || 0, P.bridge || 0, P.midKm || 4.5, P.gap || 0, Math.round((P.chop || 0) * 5)].map(v => typeof v === "number" ? v.toFixed(3) : v).join("|") + "|" + (w / h).toFixed(2);
     if (mcache[key]) return mcache[key];
     const mw = 64, mh = Math.max(24, Math.round(64 * h / w));
     gl.viewport(0, 0, mw, mh); gl.uniform2f(U.uRes, mw, mh); gl.uniform1f(U.uMeter, 1); gl.uniform1f(U.uLQ, 0); gl.uniform1f(U.uPixScale, w / mw);
