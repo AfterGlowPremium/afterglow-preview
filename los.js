@@ -1,4 +1,4 @@
-// d28z8: curvature-aware line of sight for sky glow (every spot). Toward the sun, samples forecast cloud by layer (Open-Meteo, one batched
+// d28z9: curvature-aware line of sight for sky glow (every spot). Toward the sun, samples forecast cloud by layer (Open-Meteo, one batched
 // request per spot/azimuth/day, cached) at 10–380 km, out to each layer's visible distance d_vis = √(2R·h_eye) + √(2R·h_cloud)
 // (R = 6371 km: low 1.5 km ≈ 143 km, mid 4.5 km ≈ 245 km, high 10 km ≈ 362 km). On-screen elevation of a sample = atan((h − d²/2R)/d).
 // A layer is LIT while sun depression < acos(R/(R+h)) ≈ √(2h/R) (low ≈ 1.2°, mid ≈ 2.2°, high ≈ 3.2°) AND the low/mid cloud near the
