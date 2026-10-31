@@ -15,6 +15,7 @@
     // d28z lighthouse spots (OSM man_made=lighthouse; viewpoints chosen so the tower sits in the default view — drawn by Wx lighthouses())
     oldpointlight: { east: { near: SAND, nearD: 6, water: true, d: 6000, dl: 4000, dr: 9000, th: 10, town: 0.3 }, west: { land: true, near: LAWN, nearD: 12, far: LAWN, d: 140, dl: 90, dr: 220, th: 16, town: 0.45, camH: 0.0017 },
       front: { east: { near: SAND, nearD: 6, water: true, d: 6000, th: 10, town: 0.3 }, west: { land: true, near: LAWN, nearD: 12, far: LAWN, d: 140, th: 16, town: 0.45, camH: 0.0017 } } },
+    stsimons: { front: { west: { near: SAND, nearD: 6, water: true, d: 6000, dl: 4000, dr: 9000, th: 11, town: 0.12 } } },   // d28zb: west = St. Simons Sound → Jekyll/Brunswick marsh + treeline (OSM survey), not open Atlantic
     roanokemarshes: { east: { near: SAND, nearD: 4, water: true, d: 3200, dl: 2500, dr: 4500, th: 9, town: 0.05 }, west: { land: true, near: LAWN, nearD: 15, far: LAWN, d: 150, dl: 120, dr: 250, th: 12, town: 0.6, camH: 0.0017 },
       front: { east: { near: SAND, nearD: 4, water: true, d: 3200, th: 9, town: 0.05 }, west: { land: true, near: LAWN, nearD: 15, far: LAWN, d: 150, th: 12, town: 0.6, camH: 0.0017 } } },
     thimbleshoal: { east: { water: true, d: 0 }, west: { water: true, d: 6500, dl: 7000, dr: 9000, th: 9, town: 0.35 }, front: { east: { water: true, d: 0 }, west: { water: true, d: 6500, th: 9, town: 0.35 } } },
