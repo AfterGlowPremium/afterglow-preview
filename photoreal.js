@@ -391,6 +391,7 @@ float surfH(vec2 p){
   float d = -p.y, x = surfX(p), sec = surfSec(p);
   float brk = smoothstep(110., 40., d) * sec * smoothstep(.35, 1.7, uSurf);   // closer in = steeper, about to pitch
   float fw = mix(.1, mix(.06, .022, clamp(uOff + 1. - uChop, 0., 1.)), brk);                                    // face width as a fraction of the spacing
+  fw = mix(fw, .26, (1. - step(.5, uHero)) * smoothstep(1.2, 1.6, uSurf));   // d28zq: bay surf (Buckroe) = short-period spilling waves, sloped faces not vertical walls
   float back = pow(1. - smoothstep(0., .78, x), 1.7);
   float face = pow(smoothstep(1. - fw, 1., x), 1.1 + 2.2 * brk);
   float h = max(back, face);
@@ -1049,7 +1050,7 @@ void main(){
       { float x = surfX(p.xz), d = -p.z, sec = surfSec(p.xz), brk = smoothstep(110., 40., d) * sec * smoothstep(.35, 1.7, uSurf), fw = mix(.1, .022, brk);
         float pl = surfPeel(p.xz), curl = smoothstep(-1., -.15, pl) * (1. - smoothstep(.15, .6, pl)) * brk * smoothstep(.15, .5, uOff + (1. - uChop) * .4);
         float u = (x - (1. - fw * 2.6)) / (fw * 2.6);
-        if (curl > .25 && uSurf > 1.05 && uSurf < 2.2 && u > .05 && u < 1.){   // d19: big surf seen from the beach = whitewater, not a solid thrown sheet
+        if (curl > .25 && uSurf > 1.05 && uSurf < 2.2 && (uHero > .5 || uSurf < 1.2) && u > .05 && u < 1.){   // d19: big surf seen from the beach = whitewater, not a solid thrown sheet
           float Ht = uSurf * surfEnv(p.xz) * sec * (1. + .35 * brk) * .68;
           float yl = -camM + Ht * (1. - .55 * pow(1. - u, 2.)) , th = (.12 + .5 * u) * curl;
           if (p.y < yl && p.y > yl - th){ hitT = t; lipHit = 1.; lipU = u; break; } } }
@@ -1077,11 +1078,12 @@ void main(){
       float x = surfX(q), d = -q.y, sec = surfSec(q), brk = smoothstep(150., 70., d) * sec;
       float faceZ = smoothstep(.8, .97, x), thin = smoothstep(.93, 1., x) * smoothstep(.0, .6, n.z);
       vec3 body = hz2 * uTint * .22;                                             // deep water body under a dusk sky
-      vec3 trans = (hz2 * .7 + vec3(dot(hz2, vec3(.33)))) * uTint * .85 * thin * (.5 + .5 * brk);                       // sky light glowing through the thin face
+      vec3 trans = (hz2 * .7 + vec3(dot(hz2, vec3(.33)))) * uTint * mix(.85, .45, (1. - step(.5, uHero)) * smoothstep(1.2, 1.6, uSurf)) * thin * (.5 + .5 * brk);                       // sky light glowing through the thin face
       vec3 c = refl * F + body * (1. - F) + trans;
       c *= mix(1., .55, faceZ * (1. - thin) * smoothstep(.2, .8, n.z));                     // face turned away from the bright sky reads darker
       // whitewater: feathering lip (offshore = thin, clean), pitching/broken sections, soup on the inside
-      float tex = fbm(q * vec2(.45, 1.6) + vec2(uSurfT * .3, 0.), 0., 5) * .65 + fbm(q * vec2(2.2, 3.2) + 7., 0., 4) * .35;
+      float bayK = (1. - step(.5, uHero)) * smoothstep(1.2, 1.6, uSurf);   // d28zq: no-hero big surf (Buckroe) — isotropic whitewater, no vertical curtain streaks on the faces
+      float tex = fbm(q * mix(vec2(.45, 1.6), vec2(1.4, 1.1), bayK) + vec2(uSurfT * .3, 0.), 0., 5) * .65 + fbm(q * mix(vec2(2.2, 3.2), vec2(3.5, 3.), bayK) + 7., 0., 4) * .35;
       float lip = smoothstep(.975, .995, x) * smoothstep(.45, .7, tex) * brk * mix(.9, .55, uOff);
       float broke = smoothstep(60., 30., d) * smoothstep(.55, .8, fbm(vec2(q.x * .05 + uSeed.x, 2.), 0., 3));
       float onF = (1. - uOff) * clamp(uChop, 0., 1.) * smoothstep(.15, .5, uCaps);   // v16: onshore / cross-shore — sections close out and crumble

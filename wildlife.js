@@ -153,25 +153,49 @@
   // =========================== BODYBOARDER (Buckroe surf days ≥ 3 ft) ===========================
   function surfFt() { const w = +q().get("waves") || (/surf/.test(q().get("demo") || "") ? +q().get("wave") || 5 : 0); if (w) return w;
     try { const sp = (g.SPOTS || []).find(s => s.id === spot()); const m = sp && g.AGX && g.AGX.sea(sp, {}); return m && m.surf !== false ? +m.ft || 0 : 0; } catch (e) { return 0; } }
-  function boarderEvent() { return { k: "boarder", t0: NOW, dir: Math.random() < .5 ? 1 : -1, x0: R(.3, .7), Dout: R(110, 160), Dbreak: R(45, 70), dur: 19 }; }
-  function drawBoarder(px, py, s, ang, lit, opts) { x.save(); x.translate(px, py); x.rotate(ang);
-    x.fillStyle = lit ? "#2fa4d8" : "rgba(30,24,34,.95)"; x.beginPath(); x.ellipse(0, 0, s * .55, s * .13, 0, 0, 2 * PI); x.fill();   // board ~1.05 m
-    x.fillStyle = lit ? "#15161c" : "rgba(14,10,18,.97)"; x.beginPath(); x.ellipse(-s * .1, -s * .12, s * .5, s * .1, 0, 0, 2 * PI); x.fill();   // prone rider (wetsuit)
-    x.beginPath(); x.arc(s * .42, -s * .17, s * .085, 0, 2 * PI); x.fill();   // head up, looking ahead
-    x.strokeStyle = x.fillStyle; x.lineWidth = Math.max(1, s * .06); const sw = opts.paddle ? Math.sin(NOW * 6) : 0; x.beginPath(); x.moveTo(s * .25, -s * .1); x.lineTo(s * (.35 + sw * .25), s * (.05 + Math.abs(sw) * .1)); x.stroke();   // arm stroke
-    x.beginPath(); x.moveTo(-s * .55, -s * .12); x.lineTo(-s * (.85 + (opts.kick ? Math.sin(NOW * 14) * .06 : 0)), -s * .18); x.stroke();   // legs + fins
-    x.restore(); }
-  function runBoarder(e, now, lit) { const t = now - e.t0; if (t > e.dur) return false; const d0 = e.dir, cx = ZX(W * e.x0), WZ = W * Zf(); let D, X, ang = 0, o = {};
-    if (t < 6) { const k = t / 6; D = e.Dbreak - 15 + (e.Dout - e.Dbreak + 15) * k; X = cx - d0 * WZ * .05 * k; o.paddle = 1; ang = -.05 * d0; }   // paddle out through the whitewater
-    else if (t < 9) { D = e.Dout; X = cx - d0 * WZ * .05; ang = Math.sin(t * 1.6) * .06; }   // waiting in the lineup, bobbing
-    else if (t < 10.6) { const k = (t - 9) / 1.6; D = e.Dout - k * 25; X = cx - d0 * WZ * .05; o.paddle = 1; o.kick = 1; ang = .05; }   // turn & paddle into the wave
-    else if (t < 12) { const k = (t - 10.6) / 1.4; D = e.Dout - 25 - k * (e.Dout - 25 - e.Dbreak); X = cx - d0 * WZ * .05 + d0 * WZ * .08 * k; ang = d0 * .5 * (1 - k) + d0 * .15; o.kick = 1; if (!e.sp) e.sp = mkSplash(0, 0, 1, 10); }   // drop in down the face
-    else if (t < 17.5) { const k = (t - 12) / 5.5; D = e.Dbreak - k * 12; X = cx + d0 * WZ * (.03 + k * .42); ang = d0 * .12 + Math.sin(t * 2.2) * .08 * d0; if (!e.trail || now - e.trail.t0 > .35) e.trail = mkSplash(X - d0 * pxPerM(D) * .7, waterY(D), pxPerM(D) * .5, 6); }   // prone ride along the face
-    else { const k = (t - 17.5) / 1.5; D = e.Dbreak - 12; X = cx + d0 * WZ * (.45 + k * .05); ang = -d0 * .4 * k; }   // kick out over the back
-    const s = pxPerM(D) * 1.9, Y = waterY(D) - s * .1; if (e.sp && e.sp.s === 1) { e.sp = mkSplash(X, Y, s * .6, 14); }
-    if (e.sp) drawSplash(e.sp, now, lit); if (e.trail) drawSplash(e.trail, now, lit);
-    if (t >= 10.6 && t < 17.5) { x.save(); x.fillStyle = lit ? "rgba(255,255,255,.55)" : "rgba(255,225,200,.35)"; for (let i = 1; i < 6; i++) { x.beginPath(); x.arc(X - d0 * s * .5 * i, Y + s * .08 + Math.sin(i * 3 + t * 9) * s * .04, s * .07 * (1 - i / 7), 0, 2 * PI); x.fill(); } x.restore(); }   // wake / spray off the rail
-    x.save(); x.translate(X, Y); x.scale(d0, 1); drawBoarder(0, 0, s, ang * d0, lit, o); x.restore(); return true; }
+  function boarderEvent() { return { k: "boarder", t0: NOW, dir: Math.random() < .5 ? 1 : -1, x0: R(.38, .62), Dout: R(22, 26), Dbreak: R(13, 15), dur: 22, spin: Math.random() < .55 }; }
+  const eyeM = () => { const L = g.PhotoStage && g.PhotoStage.last; return L && L.surf > 0.2 ? (L.heroCam || 0.0025) * 1000 : 2.5; };
+  // d28zq: side-view prone bodyboarder, s = px per metre. Colours lit by day; silhouette only when low sun is in front.
+  function drawBoarder(s, ang, sil, o) { x.save(); x.rotate(ang);
+    const SUIT = sil ? "#140f16" : "#1b1d24", PANEL = sil ? "#140f16" : "#2b78c4", SKIN = sil ? "#140f16" : "#c99070", BRD = sil ? "#1a1418" : "#f2c21b", RAIL = sil ? "#100c10" : "#d2462e", FIN = sil ? "#120e12" : "#e8433a";
+    const L = 1.05 * s, T = .07 * s;   // board 1.05 m x 7 cm
+    x.fillStyle = RAIL; x.beginPath(); x.roundRect ? x.roundRect(-L * .5, -T * .5, L, T, T * .5) : x.rect(-L * .5, -T * .5, L, T); x.fill();
+    x.fillStyle = BRD; x.fillRect(-L * .48, -T * .5, L * .96, T * .45);
+    const by = -T * .5, kk = o.kick ? Math.sin(NOW * 13) : 0, pd = o.paddle ? NOW * 5.5 : 0;
+    // torso + hips (chest on the board nose, hips at the tail)
+    x.fillStyle = SUIT; x.beginPath(); x.ellipse(-L * .02, by - .13 * s, .42 * s, .13 * s, -.05, 0, 2 * PI); x.fill();
+    x.fillStyle = PANEL; x.beginPath(); x.ellipse(.05 * s, by - .2 * s, .2 * s, .045 * s, -.08, 0, 2 * PI); x.fill();
+    // legs: thighs off the tail, kicking
+    x.strokeStyle = SUIT; x.lineCap = "round"; x.lineWidth = .13 * s;
+    const lg = (ph) => { const a = .12 + (o.kick ? .35 * Math.sin(NOW * 13 + ph) : .05); x.beginPath(); x.moveTo(-.38 * s, by - .1 * s); x.lineTo(-.82 * s, by - .1 * s - Math.sin(a) * .35 * s); x.stroke();
+      x.fillStyle = FIN; x.beginPath(); x.ellipse(-1.0 * s, by - .1 * s - Math.sin(a) * .5 * s, .16 * s, .045 * s, -a, 0, 2 * PI); x.fill(); };
+    lg(0); lg(PI);
+    // head up
+    x.fillStyle = SUIT; x.beginPath(); x.arc(.46 * s, by - .27 * s, .11 * s, 0, 2 * PI); x.fill();
+    x.fillStyle = SKIN; x.beginPath(); x.arc(.53 * s, by - .26 * s, .065 * s, -1.2, 1.4); x.fill();
+    // arm: paddling stroke or holding the nose
+    x.strokeStyle = SUIT; x.lineWidth = .09 * s; x.beginPath(); x.moveTo(.28 * s, by - .17 * s);
+    if (o.paddle) { const a = pd % (2 * PI); x.lineTo(.28 * s + Math.cos(a) * .5 * s, by - .1 * s + Math.max(-.25, Math.sin(a)) * .45 * s); } else x.lineTo(.5 * s, by - .02 * s);
+    x.stroke(); x.fillStyle = SKIN; x.restore(); }
+  function runBoarder(e, now, litIn) { const t = now - e.t0; if (t > e.dur) return false; const d0 = e.dir, cx = ZX(W * .5) - d0 * W * Zf() * .12, WZ = W * Zf(), EY = eyeM();
+    const sil = !q().get("bblit") && !litIn && sunEl() < 14; /* ?bblit=1 = test the daylight colours */ let D, X, ang = 0, o = {}, face = d0, lift = 0, spinA = 0, bob = Math.sin(t * 1.7) * .06;
+    if (t < 6) { const k = t / 6; D = e.Dbreak - 4 + (e.Dout - e.Dbreak + 4) * k; X = cx - d0 * WZ * .06 * k; o.paddle = 1; o.kick = 1; face = -d0; ang = -.04; if (t > 2.4 && t < 3.6) lift = -.25; }   // paddle out, duck-dive through a line
+    else if (t < 8.5) { D = e.Dout; X = cx - d0 * WZ * .06; face = -d0; ang = Math.sin(t * 1.6) * .06; }   // sit in the lineup
+    else if (t < 9.6) { const k = (t - 8.5) / 1.1; D = e.Dout; X = cx - d0 * WZ * .06; face = k < .5 ? -d0 : d0; spinA = 0; ang = .1 * Math.sin(k * PI); }   // turn to the beach
+    else if (t < 11.2) { const k = (t - 9.6) / 1.6; D = e.Dout - k * 6; X = cx - d0 * WZ * .06 + d0 * WZ * .02 * k; o.paddle = 1; o.kick = 1; lift = .6 * k; ang = .08; }   // kick into the wave, lifted by the swell
+    else if (t < 12.4) { const k = (t - 11.2) / 1.2; D = e.Dout - 6 - k * (e.Dout - 6 - e.Dbreak); X = cx - d0 * WZ * .04 + d0 * WZ * .07 * k; lift = .6 + .9 * Math.sin(k * PI) * (1 - k * .5); ang = .45 * (1 - k) + .12; o.kick = k < .4; if (!e.sp) e.sp = 1; }   // drop in down the face
+    else if (t < 19) { const k = (t - 12.4) / 6.6; D = e.Dbreak - k * 3; X = cx + d0 * WZ * (.03 + k * .3); lift = 1.0 + .3 * Math.sin(t * 2.1); ang = .1 + Math.sin(t * 2.2) * .1;
+      if (e.spin && k > .45 && k < .6) spinA = ((k - .45) / .15) * 2 * PI;   // spinner
+      if (!e.trail || now - e.trail.t0 > .3) e.trail = mkSplash(X - d0 * pxPerM(D) * .8, waterY(D, EY) - lift * pxPerM(D), pxPerM(D) * .6, 6); }   // prone ride along the face
+    else { const k = (t - 19) / 3; D = e.Dbreak - 3 + k * 4; X = cx + d0 * WZ * (.33 + k * .03); lift = 1.3 * (1 - k) ; ang = -.5 * Math.min(1, k * 2) + .2 * k; face = d0; }   // kick out over the back
+    const pm = pxPerM(D), Y = waterY(D, EY) - (lift + bob) * pm;
+    if (e.sp === 1) e.sp = mkSplash(X, Y, pm * .9, 14);
+    if (e.sp && e.sp !== 1) drawSplash(e.sp, now, litIn || !sil); if (e.trail) drawSplash(e.trail, now, litIn || !sil);
+    x.save(); x.translate(X, Y); x.scale(face * Math.cos(spinA) || .05, 1); drawBoarder(pm, ang, sil, o); x.restore();
+    // waterline: hide the lower half of the board in the water when paddling / sitting
+    if (t < 11.2) { x.save(); x.fillStyle = sil ? "rgba(20,16,22,.0)" : "rgba(0,0,0,0)"; x.restore(); }
+    if (t >= 11.2 && t < 19) { x.save(); x.fillStyle = "rgba(255,255,255,.6)"; for (let i = 1; i < 6; i++) { x.beginPath(); x.arc(X - d0 * pm * .45 * i, Y + pm * .05 + Math.sin(i * 3 + t * 9) * pm * .04, pm * .07 * (1 - i / 7), 0, 2 * PI); x.fill(); } x.restore(); }   // spray off the rail
+    g.__agBB = { D, h: (pm * .55) / H, X, Y, t }; return true; }
   // =========================== loop ===========================
   function size() { const st = d.querySelector(".stage"), pv = st && st.querySelector("#pv"); if (!pv) return false; if (!cv || !st.contains(cv)) { cv = d.createElement("canvas"); cv.id = "ag-wild"; cv.style.cssText = "position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:4"; pv.after(cv); x = cv.getContext("2d"); const E = x.ellipse.bind(x); x.ellipse = (a, b, rx, ry, ...r) => E(a, b, Math.abs(rx) + 1e-3, Math.abs(ry) + 1e-3, ...r); const A0 = x.arc.bind(x); x.arc = (a, b, r, ...q) => A0(a, b, Math.abs(r) + 1e-3, ...q); }
     const k = Math.min(1.5, g.devicePixelRatio || 1), rs = st.getBoundingClientRect(), rp = pv.getBoundingClientRect(), w = rs.width, h = rs.height;
