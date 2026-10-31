@@ -26,45 +26,71 @@
     for (let k = 0; k < 3; k++) { const tt = t - k * .35; if (tt <= 0) continue; const r = sp.s * (0.4 + tt * 1.4); x.globalAlpha = Math.max(0, 1 - tt / 2.2) * .8; x.beginPath(); x.ellipse(sp.px, sp.py, r, r * .16, 0, 0, 2 * PI); x.stroke(); }
     x.restore(); return true; }
   // =========================== HERON (resident; random behaviour queue) ===========================
-  const POSE = { S: [.2, .95, .08, .82, .3, .86, .6], lean: [.42, .72, .25, .74, .4, .8, .95], strike: [.52, .06, .3, .6, .52, .32, 1.4], up: [.3, .92, .15, .8, .36, .84, .15] };
-  const mix = (a, b, k) => a.map((v, i) => v + (b[i] - v) * k), ease = k => k < 0 ? 0 : k > 1 ? 1 : k * k * (3 - 2 * k);
+  // ---- Great blue heron: ~1.2 m; lit with the scene (true colours by day, silhouette only when strongly backlit near/after sunset).
+  // Behaviour after Cornell "All About Birds": slow stalking with the head held still while the body moves, long stand-and-wait,
+  // neck retracted in a kink then slowly extended, peering with the head tilted, strike = full-body lunge with the neck snapping
+  // straight, prey swallowed head-first (throat ripple), then a shake / feather fluff.
+  //            head x,y   neck c1      neck c2     bill  tilt
+  const POSE = { rest: [.2, .84, .07, .74, .27, .74, .12, 0], alert: [.3, 1, .17, .8, .22, .96, .08, 0], stalk: [.44, .8, .22, .7, .4, .82, .3, 0],
+    peer: [.43, .72, .22, .68, .36, .76, .95, 1], coil: [.22, .74, .09, .68, .3, .64, .75, 0], strike: [.66, .07, .34, .5, .55, .24, 1.25, 0], hold: [.34, .9, .18, .78, .34, .86, .05, 0] };
+  const mix = (a, b, k) => a.map((v, i) => v + (b[i] - v) * k), ease = k => k < 0 ? 0 : k > 1 ? 1 : k * k * (3 - 2 * k), cl = (v, a, b) => Math.max(a, Math.min(b, v));
+  function sunEl() { const st = d.querySelector(".stage"); const m = st && st.textContent.match(/sun ([−-]?\d+(?:\.\d+)?)°/); return m ? +m[1].replace("−", "-") : 10; }
   function heronAnchor() { const st = d.querySelector(".stage"); if (!st) return null; d.querySelectorAll(".stage img.pv-hr").forEach(el => el.style.visibility = "hidden");
     const h = Math.max(70, Math.min(H * .3, (g.innerHeight || H) * .15)); return { fx: W * .24, fy: Math.min(H - h * .08, Math.max(hz() + h * .5, H * .86)), h }; }
-  function newHeron() { return { dx: 0, queue: [{ k: "wade", dur: 4.5, dir: 1 }, { k: "freeze", dur: 3.5 }, { k: "hunt", dur: 5.5, hit: false }, { k: "freeze", dur: 3 }, { k: "hunt", dur: 12, hit: true }], act: null, t0: 0, pose: POSE.S, step: 0, fish: null, splash: null }; }
-  function heronPlan(hr) { const r = Math.random(); // random next behaviour
-    if (r < .3) return { k: "wade", dur: R(4, 10), dir: Math.random() < .5 ? -1 : 1 };
-    if (r < .6) return { k: "freeze", dur: R(5, 16) };
-    const hit = Math.random() < .25; return { k: "hunt", dur: hit ? 12 : 5.5, hit }; }
-  function drawHeron(now, lit) { const A = heronAnchor(); if (!A) return; const hr = heron || (heron = newHeron()); const h = A.h;
-    if (!hr.act || now - hr.t0 > hr.act.dur) { hr.act = hr.queue.length ? hr.queue.shift() : heronPlan(hr); hr.t0 = now; }
-    const a = hr.act, t = now - hr.t0; let pose = POSE.S, lift = 0, lean = 0, shake = 0, fish = null, bulge = -1;
-    if (a.k === "wade") { const st = t / 2.2, ph = st % 1; hr.dx = Math.max(-W * .06, Math.min(W * .1, hr.dx + a.dir * h * .0025)); lift = Math.sin(ph * PI) * (Math.floor(st) % 2 ? 1 : -1); pose = mix(POSE.S, POSE.lean, .25); }
-    else if (a.k === "hunt") { if (t < 2) pose = mix(POSE.S, POSE.lean, ease(t / 2)); else if (t < 2.18) pose = mix(POSE.lean, POSE.strike, (t - 2) / .18); else if (t < 2.8) pose = POSE.strike; else if (!a.hit) pose = mix(POSE.strike, POSE.S, ease((t - 2.8) / 1.4));
-      else { if (t < 4) pose = mix(POSE.strike, POSE.up, ease((t - 2.8) / 1.2)); else pose = POSE.up; const ft = t - 2.8;
-        if (ft < 2.2) fish = { ang: 0 }; else if (ft < 2.9) fish = { ang: (ft - 2.2) / .7 * PI * 1.0, hop: Math.sin((ft - 2.2) / .7 * PI) }; else if (ft < 3.8) fish = { ang: PI, swallow: (ft - 2.9) / .9 };
-        if (ft > 3.6 && ft < 5.8) bulge = (ft - 3.6) / 2.2; if (ft > 6 && ft < 7.2) shake = 1; if (ft > 7.2) pose = mix(POSE.up, POSE.S, ease((ft - 7.2) / 1.5)); }
-      if (t > 2.1 && !hr.sp) hr.sp = mkSplash(0, 0, h * .06, a.hit ? 10 : 7); if (t < 1) hr.sp = null; }
-    const fx = A.fx + hr.dx, fy = A.fy, U = (u, v) => [fx + u * h, fy - v * h];
-    const col = ink(lit, "#7f8b9b"); const draw = () => {
-      x.lineCap = "round"; x.lineJoin = "round"; x.strokeStyle = col; x.fillStyle = col; const jit = shake ? Math.sin(now * 60) * h * .012 : 0;
-      // legs (slow high step)
-      x.lineWidth = Math.max(1, h * .018); const lf = (s, l) => { const [hx, hy] = U(.02 * s, .5); const fyL = l > 0 ? .02 + l * .16 : 0, fxL = .02 * s + (l > 0 ? l * .06 : 0); const [kx, ky] = U(.03 * s + (l > 0 ? l * .1 : 0), .26 + (l > 0 ? l * .12 : 0)); const [ex, ey] = U(fxL, fyL); x.beginPath(); x.moveTo(hx, hy); x.lineTo(kx, ky); x.lineTo(ex, ey); x.stroke(); };
-      lf(-1, Math.max(0, -lift)); lf(1, Math.max(0, lift));
-      // body
-      x.save(); const [bx, by] = U(0, .6); x.translate(bx + jit, by); x.rotate(-.35 - (pose[6] - .6) * .15); x.beginPath(); x.ellipse(0, 0, h * .2, h * .072, 0, 0, 2 * PI); x.fill();
-      x.beginPath(); x.moveTo(-h * .2, -h * .02); x.lineTo(-h * .32, h * .07); x.lineTo(-h * .18, h * .05); x.fill(); if (shake) for (let i = 0; i < 7; i++) { x.beginPath(); x.moveTo(-h * .15 + i * h * .045, h * .05); x.lineTo(-h * .16 + i * h * .045 + R(-1, 1) * h * .02, h * .1 + R(0, 1) * h * .03); x.lineWidth = h * .012; x.stroke(); } x.restore();
-      // neck (S-curve bezier) + head + bill
-      const [n0x, n0y] = U(.16, .66), [c1x, c1y] = U(pose[2], pose[3]), [c2x, c2y] = U(pose[4], pose[5]), [hx, hy] = U(pose[0], pose[1]);
-      x.lineWidth = Math.max(1.5, h * .04); x.beginPath(); x.moveTo(n0x + jit, n0y); x.bezierCurveTo(c1x + jit, c1y, c2x + jit, c2y, hx + jit, hy); x.stroke();
-      if (bulge >= 0) { const k = bulge, it = 1 - k, P = [it ** 3 * hx + 3 * it * it * k * c2x + 3 * it * k * k * c1x + k ** 3 * n0x, it ** 3 * hy + 3 * it * it * k * c2y + 3 * it * k * k * c1y + k ** 3 * n0y]; x.beginPath(); x.ellipse(P[0], P[1], h * .03, h * .024, 0, 0, 2 * PI); x.fill(); }
-      x.beginPath(); x.ellipse(hx + jit, hy, h * .045, h * .028, pose[6] * .6, 0, 2 * PI); x.fill();
-      x.beginPath(); x.moveTo(hx - h * .02, hy - h * .012); x.lineTo(hx - h * .09, hy - h * .04); x.lineWidth = h * .01; x.stroke();   // plume
-      const ba = pose[6], bl = h * .15, tip = [hx + Math.cos(ba) * bl, hy + Math.sin(ba) * bl]; x.beginPath(); x.moveTo(hx + Math.cos(ba - .5) * h * .02, hy + Math.sin(ba - .5) * h * .02); x.lineTo(tip[0], tip[1]); x.lineTo(hx + Math.cos(ba + .5) * h * .02, hy + Math.sin(ba + .5) * h * .02); x.fill();
-      if (fish && !(fish.swallow > 1)) { const L = h * .1 * Math.max(0, 1 - (fish.swallow || 0)); x.save(); x.translate(tip[0] - Math.cos(ba) * L * .2 * (fish.swallow || 0), tip[1] - (fish.hop || 0) * h * .08); x.rotate(fish.swallow != null ? ba + PI : ba + PI / 2 + fish.ang);
-        x.fillStyle = lit ? "#cfd8e0" : "rgba(220,215,220,.85)"; x.beginPath(); x.ellipse(0, 0, L * .5, L * .14, 0, 0, 2 * PI); x.fill(); x.beginPath(); x.moveTo(-L * .45, 0); x.lineTo(-L * .65, -L * .12); x.lineTo(-L * .65, L * .12); x.fill(); x.restore(); }
-      if (hr.sp && hr.sp.px === 0) { hr.sp.px = tip[0]; hr.sp.py = fy; hr.sp.t0 = now; } };
-    draw(); x.save(); x.beginPath(); x.rect(0, fy, W, H - fy); x.clip(); x.translate(0, 2 * fy); x.scale(1, -1); x.globalAlpha = .22; draw(); x.restore();
-    if (hr.sp && !drawSplash(hr.sp, now, lit)) hr.sp = null;
+  function newHeron() { return { dx: 0, act: null, t0: 0, queue: [{ k: "stalk", dur: 5.5 }, { k: "wait", dur: 3, pose: "rest" }, { k: "hunt", dur: 6, hit: false }, { k: "wait", dur: 2.5, pose: "stalk" }, { k: "hunt", dur: 13, hit: true }] }; }
+  function heronPlan() { const r = Math.random();
+    if (r < .3) return { k: "stalk", dur: R(4, 11) }; if (r < .62) return { k: "wait", dur: R(5, 20), pose: Math.random() < .5 ? "rest" : "stalk" };
+    if (r < .72) return { k: "peerOnly", dur: R(3, 6) }; const hit = Math.random() < .3; return { k: "hunt", dur: hit ? 13 : 6, hit }; }
+  const C = (a, b, k) => `rgb(${a.map((v, i) => Math.round(v + (b[i] - v) * k)).join(",")})`;
+  function drawHeron(now) { const A = heronAnchor(); if (!A) return; const hr = heron || (heron = newHeron()); const h = A.h;
+    if (!hr.act || now - hr.t0 > hr.act.dur) { hr.act = hr.queue.length ? hr.queue.shift() : heronPlan(); hr.t0 = now; hr.sp = null; }
+    const a = hr.act, t = now - hr.t0; let P = POSE[a.pose || "stalk"], step = 0, lean = 0, fluff = 0, fish = null, bulge = -1, headLag = 0;
+    if (a.k === "stalk") { const T = 2.6, ph = (t % T) / T; hr.dx = cl(hr.dx + h * .0018, -W * .1, W * .45); if (hr.dx >= W * .45 - 1) hr.dx = -W * .05;
+      step = ph < .6 ? Math.sin(ph / .6 * PI) : 0; step *= (Math.floor(t / T) % 2 ? 1 : -1); headLag = -(ph < .7 ? ph / .7 : 1 - (ph - .7) / .3) * h * .05; P = POSE.stalk; }   // head held still while body advances, then catches up
+    else if (a.k === "wait") { P = POSE[a.pose]; }
+    else if (a.k === "peerOnly") { P = mix(POSE.stalk, POSE.peer, ease(t / 1) * (1 - ease((t - a.dur + 1) / 1))); }
+    else if (a.k === "hunt") {
+      if (t < 1.4) P = mix(POSE.stalk, POSE.peer, ease(t / 1.4)); else if (t < 2.4) P = mix(POSE.peer, POSE.coil, ease((t - 1.4) / 1)); else if (t < 2.55) { P = mix(POSE.coil, POSE.strike, (t - 2.4) / .15); lean = (t - 2.4) / .15; }
+      else if (t < 3.1) { P = POSE.strike; lean = 1; } else if (!a.hit) { const k = ease((t - 3.1) / 1.6); P = mix(POSE.strike, POSE.stalk, k); lean = 1 - k; }
+      else { const ft = t - 3.1; lean = 1 - ease(ft / 1); P = mix(POSE.strike, POSE.hold, ease(ft / 1.1));
+        if (ft < 2) fish = { a: 0 }; else if (ft < 2.7) fish = { a: (ft - 2) / .7 * PI, hop: Math.sin((ft - 2) / .7 * PI) }; else if (ft < 3.6) fish = { a: PI, sw: (ft - 2.7) / .9 };
+        if (ft > 3.4 && ft < 5.6) bulge = (ft - 3.4) / 2.2; if (ft > 6 && ft < 7.6) fluff = Math.sin((ft - 6) / 1.6 * PI); if (ft > 7.6) P = mix(POSE.hold, POSE.rest, ease((ft - 7.6) / 1.5)); }
+      if (t > 2.5 && !hr.sp) hr.sp = { pend: 1 }; }
+    // ---- light: true colours, fading to silhouette only when strongly backlit near/after sunset
+    const el = sunEl(), bl = backlit(); const sil = cl(bl ? 1 - (el - .5) / 5 : 1 - (el + 7) / 6, 0, 1) * .92, dk = [20, 16, 26], warm = el < 6 ? cl(1 - el / 6, 0, 1) * .25 : 0;
+    const col = (rgb, m = 1) => C(rgb.map((v, i) => v * m * (i === 0 ? 1 + warm * .5 : i === 2 ? 1 - warm * .4 : 1)), dk, sil);
+    const BODY = col([118, 132, 150]), WING = col([96, 110, 130]), DARK = col([40, 44, 56]), WHITE = col([232, 232, 228]), BILL = col([226, 170, 60]), RUST = col([150, 90, 60]), LEG = col([58, 52, 50]), NECK = col([128, 134, 148]);
+    const fx = A.fx + hr.dx, fy = A.fy, U = (u, v) => [fx + u * h, fy - v * h], jit = fluff ? Math.sin(now * 55) * h * .01 * fluff : 0;
+    const draw = (refl) => { x.lineCap = "round"; x.lineJoin = "round";
+      // legs: tarsus (foot→heel, heel bends backward) + tibia (heel→hip); one leg lifted high, toes trailing
+      const leg = (sx, lift) => { const hip = U(.0 + sx * .02 + lean * .05, .45), heel = U(-.035 + sx * .02 + lift * .07 + lean * .03, .22 + lift * .12), foot = U(sx * .02 + lift * .1, lift * .1);
+        x.strokeStyle = LEG; x.lineWidth = Math.max(1, h * .014); x.beginPath(); x.moveTo(hip[0], hip[1]); x.lineTo(heel[0], heel[1]); x.lineTo(foot[0], foot[1]); x.stroke();
+        if (lift > .05) { x.beginPath(); x.moveTo(foot[0], foot[1]); x.lineTo(foot[0] - h * .05, foot[1] + h * .03); x.stroke(); }
+        x.strokeStyle = RUST; x.lineWidth = Math.max(1.5, h * .03); const th = U(sx * .02 + lean * .05, .47), th2 = U(-.01 + sx * .02 + lean * .04 + lift * .02, .4); x.beginPath(); x.moveTo(th[0], th[1]); x.lineTo(th2[0], th2[1]); x.stroke(); };
+      leg(-1, Math.max(0, -step)); leg(1, Math.max(0, step));
+      // body: tear-drop, front raised; leans forward in the strike; fluffs in the shake
+      const [bx, by] = U(-.02 + lean * .07, .56 - lean * .05); x.save(); x.translate(bx + jit, by); x.rotate(-.32 + lean * .5);
+      const th = h * (.085 + fluff * .02); x.fillStyle = BODY; x.beginPath(); x.moveTo(h * .18, -th * .2); x.bezierCurveTo(h * .12, -th * 1.4, -h * .14, -th * 1.2, -h * .22, th * .1); x.bezierCurveTo(-h * .12, th * 1.2, h * .12, th * 1.2, h * .18, -th * .2); x.fill();
+      x.fillStyle = WING; x.beginPath(); x.ellipse(-h * .03, -th * .1, h * .15, th * .7, -.05, 0, 2 * PI); x.fill();   // folded wing
+      x.strokeStyle = WING; x.lineWidth = Math.max(1, h * .008); for (let i = 0; i < 5; i++) { x.beginPath(); x.moveTo(-h * .08 - i * h * .02, -th * .5); x.quadraticCurveTo(-h * .2 - i * h * .015, -th * .2 + jit, -h * .27 - i * h * .01, th * .4 + fluff * th * .6 * Math.sin(i + now * 30)); x.stroke(); }   // back plumes
+      x.fillStyle = DARK; x.beginPath(); x.ellipse(h * .12, -th * .25, h * .035, th * .45, .3, 0, 2 * PI); x.fill();   // dark shoulder patch
+      x.restore();
+      // neck (kinked S / straight in strike) with streaky foreneck
+      const base = U(.13 + lean * .08, .63 - lean * .06), c1 = U(P[2], P[3]), c2 = U(P[4], P[5]), hd = U(P[0] + headLag / h, P[1]);
+      x.strokeStyle = NECK; x.lineWidth = Math.max(2, h * .042 * (1 + fluff * .3)); x.beginPath(); x.moveTo(base[0] + jit, base[1]); x.bezierCurveTo(c1[0] + jit, c1[1], c2[0], c2[1], hd[0], hd[1]); x.stroke();
+      x.strokeStyle = WHITE; x.lineWidth = Math.max(1, h * .016); x.setLineDash([h * .02, h * .015]); x.beginPath(); x.moveTo(base[0] + h * .015, base[1] + h * .01); x.bezierCurveTo(c1[0] + h * .015, c1[1] + h * .01, c2[0] + h * .012, c2[1] + h * .008, hd[0] + h * .01, hd[1] + h * .01); x.stroke(); x.setLineDash([]);
+      x.strokeStyle = WHITE; x.lineWidth = Math.max(1, h * .008); for (let i = 0; i < 4; i++) { const p0 = U(.12 + lean * .08 + i * .01, .6 - i * .02); x.beginPath(); x.moveTo(p0[0], p0[1]); x.lineTo(p0[0] - h * .01, p0[1] + h * .07); x.stroke(); }   // lower-neck plumes
+      if (bulge >= 0) { const k = bulge, it = 1 - k, Q = [it ** 3 * hd[0] + 3 * it * it * k * c2[0] + 3 * it * k * k * c1[0] + k ** 3 * base[0], it ** 3 * hd[1] + 3 * it * it * k * c2[1] + 3 * it * k * k * c1[1] + k ** 3 * base[1]]; x.fillStyle = NECK; x.beginPath(); x.ellipse(Q[0], Q[1], h * .03, h * .025, 0, 0, 2 * PI); x.fill(); }
+      // head: white face/crown, black stripe → plume; tilted (foreshortened) when peering
+      const ba = P[6], tilt = P[7], hw = h * .045 * (1 - tilt * .35); x.save(); x.translate(hd[0], hd[1]); x.rotate(ba * .6);
+      x.fillStyle = WHITE; x.beginPath(); x.ellipse(0, 0, hw, h * .028, 0, 0, 2 * PI); x.fill();
+      x.fillStyle = DARK; x.beginPath(); x.ellipse(-hw * .2, -h * .014, hw * .9, h * .009, 0, 0, 2 * PI); x.fill(); x.strokeStyle = DARK; x.lineWidth = Math.max(1, h * .007); x.beginPath(); x.moveTo(-hw * .8, -h * .014); x.quadraticCurveTo(-hw * 1.8, -h * .02, -hw * 2.6, -h * .005 + jit); x.stroke(); x.restore();
+      const bl2 = h * .13 * (1 - tilt * .3), tip = [hd[0] + Math.cos(ba) * bl2, hd[1] + Math.sin(ba) * bl2]; x.fillStyle = BILL; x.beginPath(); x.moveTo(hd[0] + Math.cos(ba - 1.2) * h * .016, hd[1] + Math.sin(ba - 1.2) * h * .016); x.lineTo(tip[0], tip[1]); x.lineTo(hd[0] + Math.cos(ba + 1.2) * h * .014, hd[1] + Math.sin(ba + 1.2) * h * .014); x.fill();
+      if (fish && !refl) { const L = h * .1 * Math.max(0, 1 - (fish.sw || 0)); if (L > .5) { x.save(); x.translate(tip[0] - Math.cos(ba) * h * .1 * (fish.sw || 0), tip[1] - (fish.hop || 0) * h * .08); x.rotate(fish.sw != null ? ba + PI : ba + PI / 2 + fish.a);
+        x.fillStyle = col([200, 210, 220]); x.beginPath(); x.ellipse(0, 0, L * .5, L * .14, 0, 0, 2 * PI); x.fill(); x.beginPath(); x.moveTo(-L * .45, 0); x.lineTo(-L * .65, -L * .12); x.lineTo(-L * .65, L * .12); x.fill(); x.restore(); } }
+      if (!refl && hr.sp && hr.sp.pend) hr.sp = mkSplash(tip[0], fy, h * .07, a.hit ? 12 : 8); };
+    draw(false); x.save(); x.beginPath(); x.rect(0, fy, W, H - fy); x.clip(); x.translate(0, 2 * fy); x.scale(1, -1); x.globalAlpha = .22; draw(true); x.restore();
+    if (hr.sp && hr.sp.t0 && !drawSplash(hr.sp, now, sil < .5)) hr.sp = { done: 1 };
     return true; }
   // =========================== OSPREY ===========================
   function drawOsprey(px, py, S, hd, f, flap, opts, lit) { g.__agWildPos = [px, py, S, hd]; // hd = heading (rad, screen), f = lateral foreshortening, flap = 0..1 wing up-stroke
@@ -118,11 +144,11 @@
     raf = requestAnimationFrame(frame); if (ms - last < 33) return; last = ms; const now = NOW = ms / 1000, lit = !backlit();
     const key = spot() + w; if (key !== curKey) { curKey = key; ev = null; heron = null; nextAt = now + (FORCE() ? .5 : R(3, 12)); }
     x.clearRect(0, 0, W, H);
-    if (w === "heron") { drawHeron(now, lit); return; }
+    if (w === "heron") { drawHeron(now); return; }
     if (!ev && now > nextAt) ev = w === "osprey" ? ospreyEvent() : dolphinEvent();
     if (ev) { if (!ev.t0 || ev.t0 > now) ev.t0 = now; const alive = ev.k === "osprey" ? runOsprey(ev, now, lit) : runDolphins(ev, now, lit); if (!alive) { ev = null; const long = Math.random() < .25; nextAt = now + (FORCE() ? R(3, 8) : (w === "osprey" ? R(45, 90) : R(40, 80)) * (long ? R(1.5, 3) : 1)); } }
   }
   const kick = () => { if (!raf && which()) raf = requestAnimationFrame(frame); };
   setInterval(() => { if (!which()) d.querySelectorAll('.stage img.pv-fg,.stage img.pv-fg2').forEach(el => { if (el.style.visibility) el.style.visibility = ''; }); kick(); }, 1000); new MutationObserver(kick).observe(d.body, { childList: true, subtree: true });
-  g.__agWild = { seek: t => { const w = which(); if (!ev && w && w !== "heron") ev = w === "osprey" ? ospreyEvent() : dolphinEvent(); if (ev) ev.t0 = NOW - t; if (heron) heron.t0 = NOW - t; }, force: () => { nextAt = 0; ev = null; }, dbg: () => ({ w: which(), ev: ev && { k: ev.k, t: NOW - ev.t0, D: ev.D, dive: ev.dive }, W, H, nextAt, NOW, hz: hz(), ppm: pxPerM(100), raf }) };
+  g.__agWild = { restart: () => { heron = null; }, seek: t => { const w = which(); if (!ev && w && w !== "heron") ev = w === "osprey" ? ospreyEvent() : dolphinEvent(); if (ev) ev.t0 = NOW - t; if (heron) heron.t0 = NOW - t; }, force: () => { nextAt = 0; ev = null; }, dbg: () => ({ w: which(), ev: ev && { k: ev.k, t: NOW - ev.t0, D: ev.D, dive: ev.dive }, W, H, nextAt, NOW, hz: hz(), ppm: pxPerM(100), raf }) };
 })(window);
