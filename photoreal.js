@@ -28,7 +28,7 @@ uniform vec2 uMarsh;  // d28e: x = distance (m) where a tidal marsh plain starts
 uniform vec4 uReg;   // d28v regional architecture: x house style, y tree species, z tower share
 uniform vec4 uFSv;   // d23: x distance at the left edge (m), y at the right edge, z/w azimuth range (rad) where the shore exists
 uniform float uCamH;    // camera height km
-uniform float uPitch, uFov, uYaw;   // d28z4aa: 360° look turns the whole world (sky, clouds, sun, water, terrain)
+uniform float uPitch, uFov, uYaw;   // d28z4ba: 360° look turns the whole world (sky, clouds, sun, water, terrain)
 uniform vec2 uSeed;
 uniform float uWind;    // upper wind direction (rad) – cloud streak orientation
 uniform float uLQ;      // 1 = low quality (dragging)
@@ -933,7 +933,7 @@ void main(){
         pd = max(pd, g);
       }
       float a22 = acos(clamp(dot(rd, sa), -1., 1.)); pd += vec3(.9, .95, 1.) * exp(-pow((a22 - .384) / .008, 2.)) * .22 * smoothstep(.55, .9, uDog) * step(-.02, dy + .1);   // d28z: faint 22° halo arc when sun dogs are likely
-      col += pd * uDog * T * ESUN * sunAtm * sunVis * .4 * smoothstep(-.01, .02, sa.y);   // d28z4a: brighter parhelia (Sean saw very good sun dogs at Lions Bridge Oct 28)
+      col += pd * uDog * T * ESUN * sunAtm * sunVis * .4 * smoothstep(-.01, .02, sa.y);   // d28z4b: brighter parhelia (Sean saw very good sun dogs at Lions Bridge Oct 28)
     }
   } else if (uWater > .5 && elevR <= dip + .0002){
     // ocean
@@ -977,7 +977,7 @@ void main(){
     float sunUp = smoothstep(-.006, .004, sa.y);
     vec3 hv = normalize(-rd + sa);
     float nh = max(dot(n, hv), 0.);
-    float m = mix(.02, .07, uChop) + mix(.012, .07, uChop)*far;   // mirror-sharp sun reflection when slick, wide glitter when rough
+    float m = (mix(.02, .07, uChop) + mix(.012, .07, uChop)*far) * 1.5;   // d28z5: ×1.5 to match the 50 %-bigger sun disc (reflection/glitter was still the old size)   // mirror-sharp sun reflection when slick, wide glitter when rough
     float c2 = max(nh*nh, 1e-3); float D = min(exp((c2-1.)/(c2*m*m)) / (PI*m*m*c2*c2), 400.);
     float cosI = max(dot(-rd, n), .01);
     float F = .02 + .98*pow(1.-cosI, 5.);
@@ -1083,7 +1083,7 @@ void main(){
       vec3 sL = ESUN * sunAtm * sunVis * smoothstep(-.015, .02, uSunA.y) * .045 * uBack;
       float fwd = max(dot(rd, uSunA), 0.), front = max(dot(n, uSunA), 0.);
       c += sL * front * (.35 + .65 * faceZ) * vec3(1., .85, .62) * (1. - F) * .8;   // golden-hour light straight onto the face                         // front-lit face (sunset, sun at your back)
-      c += sL * pow(max(dot(reflect(rd, n), uSunA), 0.), 60.) * .8;                                      // golden glints on the groomed lines
+      c += sL * pow(max(dot(reflect(rd, n), uSunA), 0.), 27.) * .8;                                      // golden glints on the groomed lines
       c += sL * pow(fwd, 6.) * thin * vec3(.55, .8, .35) * 3.;   // sunrise: green-gold glow through the thin upper face                                           // sun shining THROUGH the thin face (sunrise)
       c *= mix(1., mix(.75, 1.2, smoothstep(.86, 1., x)), faceZ);                                          // shading gradient up the face: trough dark, lip bright
       fc += sL * (front * 1.2 + pow(fwd, 4.) * 2.5) * vec3(1., .82, .6);                                    // whitewater catches sun: lit (evening) / glowing rim (morning)
@@ -1151,7 +1151,7 @@ void main(){
         float thin = smoothstep(.55, 1., yr), rz = smoothstep(.6, 1.6, uSurf), relT = (mod(p.x * .927 + (p.z + gHD) * .375 - heroPX() + 9., 15.) - 9.) * 1.7;   // d20: real-water face from ~3 ft up; 2 ft keeps the v17 look
         vec3 trans = sky * olive * (.5 + 1.6 * thin) + sL * pow(fwd, 3.) * thin * vec3(.45, .65, .3) * 2.2;   // light through the upper third
         c = refl * F + trans * (1. - F);
-        c += sL * pow(max(dot(rv, uSunA), 0.), 120.) * 3. + refl * .12;   // wet: sun glint + sky sheen
+        c += sL * pow(max(dot(rv, uSunA), 0.), 53.) * 3. + refl * .12;   // wet: sun glint + sky sheen
         c *= .7 + .45 * fbm(vec2(p.x * 3.5 + y * .4, y * .7 - uSurfT * .3), 0., 4);   // streaks running down the face
         float pk = mix(1., .35, b * smoothstep(.3 * Hh, -.05, length(vec2(s, y) - heroC(Hh)) - .5 * heroR(Hh)));   // shadowed pocket
         c *= pk;
