@@ -1010,5 +1010,69 @@
   "ver": "d28y",
   "resid": -57,
   "cloudErr": 13
+ },
+ {
+  "group": "4135b487-96d5-4e07-bcc2-ce0a211a1e59",
+  "id": "02899de3-2690-4080-8c58-64d417f78a33",
+  "at": "2026-10-30T06:55:00",
+  "shot": "2026-10-30T06:55:00",
+  "saved": "2026-10-30T10:56:06.695831+00:00",
+  "spot": "saltponds",
+  "mode": "sunrise",
+  "rating": 60,
+  "raw": 55,
+  "sky": {
+   "t": 1793357700,
+   "low": 1,
+   "mid": 0,
+   "high": 0,
+   "total": 1,
+   "precip": 0
+  },
+  "photo": {
+   "w": 592,
+   "h": 1280,
+   "bright": 0.21,
+   "sat": 0.363,
+   "warm": 0.132,
+   "vivid": 0.085,
+   "cloud": 0.325,
+   "colorScore": 53
+  },
+  "ver": "d28y",
+  "resid": 3,
+  "cloudErr": 32
+ },
+ {
+  "group": "8ec2f746-227c-436c-a84a-3509a6f7cbed",
+  "id": "e66b734c-19bf-4425-a2f1-6ad41ff3feff",
+  "at": "2026-10-30T18:25:00",
+  "shot": "2026-10-30T18:25:00",
+  "saved": "2026-10-31T01:20:03.337672+00:00",
+  "spot": "oldpoint",
+  "mode": "sunset",
+  "rating": 60,
+  "raw": 55,
+  "sky": {
+   "t": 1793399100,
+   "low": 0,
+   "mid": 0,
+   "high": 0,
+   "total": 0,
+   "precip": 0
+  },
+  "photo": {
+   "w": 1280,
+   "h": 853,
+   "bright": 0.371,
+   "sat": 0.312,
+   "warm": 0.38,
+   "vivid": 0.174,
+   "cloud": 0.632,
+   "colorScore": 81
+  },
+  "ver": "d28zb",
+  "resid": 11,
+  "cloudErr": 63
  }
 ]

@@ -1,3 +1,10 @@
+## 2026-10-31T07:39:51.705Z
+new rows: 2
+- saltponds sunrise: rating 60, app 55, photo colour 53, cloud photo/forecast 33/1 → resid 3
+- oldpoint sunset: rating 60, app 55, photo colour 81, cloud photo/forecast 63/0 → resid 11
+sunset: n=14 global 2 spots {"oldpoint":-5} cloudBias -12 (n=17, logged only)
+sunrise: n=2 global 0 spots {} cloudBias 7 (n=8, logged only)
+
 ## 2026-10-30T07:44:59.823Z
 new rows: 5
 - grandview sunrise: rating 37, app 94, photo colour 5, cloud photo/forecast 86/93 → resid -67
