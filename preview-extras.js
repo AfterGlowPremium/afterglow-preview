@@ -1,4 +1,4 @@
-// PREVIEW-ONLY extras (d28z9). Not ported to Premium: (1) state-zoom chips on the map, (2) 360° pro gestures.
+// PREVIEW-ONLY extras (d28za). Not ported to Premium: (1) state-zoom chips on the map, (2) 360° pro gestures.
 (function (g) {
   const d = document, S = () => g.__agState || {}, Q = () => g.__agQueue && g.__agQueue();
   // (1) state zoom — tap a state chip, the map fits every spot in that state
@@ -8,33 +8,9 @@
     row.innerHTML = sts.map(s => `<button class="chip" data-st="${s}">${s}</button>`).join(""); reg.after(row);
     row.addEventListener("click", e => { const b = e.target.closest("[data-st]"); if (!b) return; row.querySelectorAll(".chip").forEach(x => x.classList.toggle("on", x === b));
       const pts = g.SPOTS.filter(s => s.state === b.dataset.st).map(s => [s.lat, s.lng]); if (pts.length === 1) m.flyTo(pts[0], 11, { duration: 1 }); else m.flyToBounds(pts, { padding: [40, 40], maxZoom: 12, duration: 1 }); }); }
-  // (2) 360° pro gestures: 1-finger swipe look (inertia), pinch zoom, 2-finger vertical drag tilt, double-tap zoom in, 2-finger tap zoom out, mouse drag
-  g.__agLookPro = true;
-  const zoomTo = z => { const zs = d.getElementById("pv-zoom"); if (!zs) return; zs.value = Math.max(0.55, Math.min(4, z)); zs.dispatchEvent(new Event("input")); S().zoom = +zs.value; };
-  const ppd = st => { const H = st.clientHeight || 600; return H / (st.clientWidth / H < 1 ? 62 : 50) * (S().zoom || 1); };
-  const P = new Map(); let one = null, two = null, vx = 0, lt = 0, raf = 0, lastTap = 0, twoT = 0, moved = false;
-  const skip = e => e.target.closest && e.target.closest(".stage-rail,.stage-bottom,.stage-top,button,input,a,details");
-  const inStage = e => { const st = e.target.closest && e.target.closest(".stage"); return st && S().look && !skip(e) ? st : null; };
-  const yawBy = dd => { const s = S(); s.yaw = (((s.yaw || 0) + dd) % 360 + 540) % 360 - 180; };
-  d.addEventListener("pointerdown", e => { const st = inStage(e); if (!st) return; cancelAnimationFrame(raf); P.set(e.pointerId, { x: e.clientX, y: e.clientY }); moved = false;
-    if (P.size === 1) { one = { x: e.clientX, y: e.clientY, t: performance.now() }; vx = 0; two = null; }
-    else if (P.size === 2) { const [a, b] = [...P.values()]; two = { d: Math.hypot(a.x - b.x, a.y - b.y), y: (a.y + b.y) / 2, z: S().zoom || 1, p: S().lpitch || 0, t: performance.now() }; one = null; } }, true);
-  d.addEventListener("pointermove", e => { if (!P.has(e.pointerId)) return; const st = d.querySelector(".stage"); if (!st) return; P.set(e.pointerId, { x: e.clientX, y: e.clientY }); const k = ppd(st);
-    if (one && P.size === 1) { const dx = e.clientX - one.x, dy = e.clientY - one.y, now = performance.now(); if (Math.abs(dx) + Math.abs(dy) > 4) moved = true;
-      yawBy(-dx / k); S().lpitch = Math.max(-8, Math.min(25, (S().lpitch || 0) + dy / k)); vx = -dx / k / Math.max(8, now - one.t) * 16; one = { x: e.clientX, y: e.clientY, t: now }; Q(); }
-    else if (two && P.size === 2) { const [a, b] = [...P.values()], dd = Math.hypot(a.x - b.x, a.y - b.y), my = (a.y + b.y) / 2; if (Math.abs(dd - two.d) > 6 || Math.abs(my - two.y) > 6) moved = true;
-      if (Math.abs(dd - two.d) > Math.abs(my - two.y)) zoomTo(two.z * dd / Math.max(1, two.d)); else { S().lpitch = Math.max(-8, Math.min(25, two.p + (my - two.y) / k)); Q(); } } }, true);
-  const up = e => { if (!P.has(e.pointerId)) return; const n = P.size; P.delete(e.pointerId); const now = performance.now();
-    if (n === 2 && two && !moved && now - two.t < 300) zoomTo((S().zoom || 1) * 0.8);   // two-finger tap → zoom out
-    if (n === 1 && one) { if (!moved) { if (now - lastTap < 320) { zoomTo((S().zoom || 1) * 1.25); lastTap = 0; } else lastTap = now; }   // double-tap → zoom in
-      else if (Math.abs(vx) > 0.05) { const spin = () => { vx *= 0.92; yawBy(vx); Q(); if (Math.abs(vx) > 0.02 && S().look) raf = requestAnimationFrame(spin); }; raf = requestAnimationFrame(spin); } }   // inertia
-    if (!P.size) { one = two = null; } };
-  d.addEventListener("pointerup", up, true); d.addEventListener("pointercancel", up, true);
-  d.addEventListener("dblclick", e => { if (inStage(e)) { e.stopPropagation(); e.preventDefault(); } }, true);   // handled by the double-tap above
-  d.addEventListener("touchmove", e => { if (inStage(e)) e.preventDefault(); }, { passive: false, capture: true });
   chips();
 
-  // ===== d28z9 preview-only features =====
+  // ===== d28za preview-only features =====
   const LS = { get: (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } }, set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} } };
   const curSpot = () => S().spot || (d.querySelector(".stage") && new URLSearchParams(location.search).get("spot"));
   const spotObj = id => (g.SPOTS || []).find(s => s.id === id);
@@ -109,7 +85,7 @@
   function help() { if (d.getElementById("ag-help")) return; const b = d.createElement("button"); b.id = "ag-help"; b.textContent = "?"; b.setAttribute("aria-label", "Help: what the controls do"); d.body.appendChild(b);
     const txt = (sel, t) => ({ el: () => typeof sel === "function" ? sel() : d.querySelector(sel), t });
     const byText = re => () => [...d.querySelectorAll("button,a")].find(x => re.test(x.textContent) && x.offsetParent);
-    const L = [txt("#pv-look", "360° view: swipe to look around · pinch to zoom · two-finger drag to tilt · double-tap zoom in · two-finger tap zoom out"),
+    const L = [txt(".rail-zoom", "Zoom: pinch, scroll or + / −"),
       txt(".mode-toggle", "Switch between Sunrise and Sunset forecasts"), txt(".tricard,.tri-badge", "Trifecta: epic sky + rainbow + lightning odds"),
       txt("#statezoom", "Tap a state to zoom the map to its spots"), txt("#scrub", "Drag the time slider to watch the sky change"),
       txt("#pv-turn", "Turn 180° to see the sky behind you (rainbows!)"), txt(byText(/archive/i), "Archive: past predictions"), txt("#pv-fb", "Send a photo + rating to teach the forecast"), txt(".ag-days", "Jump to yesterday (archive), today or tomorrow"), txt(".ag-fav", "Save this spot to your favorites row"), txt(".ag-bell", "Alert 30 min before golden hour + Trifecta heads-up"), txt(".ag-snap", "Save a high-res still of this view"), txt(".scrub-marks", "Slider snaps gently to golden hour, sunset, best color and twilight"), txt("#favrow", "Your favorite spots")];
