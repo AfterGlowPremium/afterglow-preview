@@ -128,7 +128,7 @@
 
   function draw(canvas, spot, ev, t, opt = {}) {
     const lit = g.Preview.state ? g.Preview.state(spot, ev, t) : null;
-    const P = params(spot, ev, t, opt); { const q = new URLSearchParams(location.search), ws = q.get("wind"); if (ws != null && !/surf/.test(q.get("demo") || "") && g.Model && Model.seaState && spot.water !== false) { const W = Model.seaState({ wind: +ws, gust: +ws * 1.4 }); P.chop = W.chop; P.caps = W.caps; } }   /* d28zc: ?wind=14 test override */ { const pq = new URLSearchParams(location.search).get("P"); if (pq) for (const kv of pq.split(",")) { const [k, v] = kv.split(":"); P[k] = v === "null" ? null : +v; } } g.PhotoStage && (g.PhotoStage.last = P);
+    const P = params(spot, ev, t, opt); { const q = new URLSearchParams(location.search), ws = q.get("wind"); if (ws != null && !/surf/.test(q.get("demo") || "") && g.Model && Model.seaState && spot.water !== false) { const W = Model.seaState({ wind: +ws, gust: +ws * 1.4 }); P.chop = W.chop; P.caps = W.caps; } }   /* d28zc: ?wind=14 test override */ { const pq = new URLSearchParams(location.search).get("P"); if (pq) for (const kv of pq.split(",")) { const [k, v] = kv.split(":"); if (k.startsWith("g.")) { P.ground = Object.assign({}, P.ground, { [k.slice(2)]: +v }); continue; } P[k] = v === "null" ? null : +v; } } g.PhotoStage && (g.PhotoStage.last = P);
     if (live() && g.Photoreal.render(canvas, P)) { g.PhotoStage && (g.PhotoStage.mode = "live"); return Object.assign({ mode: "live" }, lit); } g.PhotoStage && (g.PhotoStage.mode = "canvas");
     const o = g.Preview.draw(canvas, spot, ev, t); o.mode = "canvas"; return o;
   }

@@ -916,3 +916,6 @@ html.show-home #home-cv{top:0;height:100%}
 /* d28zc: iOS Safari zooms on focus when inputs are < 16px — keep all form fields at 16px (pinch-zoom left enabled) */
 input,textarea,select{font-size:16px!important}
 #fb-panel textarea{width:100%;min-height:6.5em;box-sizing:border-box}
+
+/* d28ze: Lions Bridge — whole lion + pedestal in the lower-left corner on phones (sunrise and sunset), clear of the sun */
+.stage .pv-fg.pv-fg2.pv-lb{inset:auto;left:0;bottom:0;width:auto;height:44%;max-width:46%;object-fit:contain;object-position:0 100%;transform:none}
