@@ -165,7 +165,7 @@ window.SCENE = {
   jockeys:["lowshore","Dunes","open"],
   avon:["town","Pier","open"],
   buxton:["open","Beach","open",["Haulover ocean beach, Buxton",35.2986,-75.5126]],
-  ocracoke:["lowshore","Beach","open",["Ocracoke Lifeguarded Beach (ocean)",35.1165,-75.9335]],
+  ocracoke:["open","Beach","open",["Ocracoke Lifeguarded Beach (ocean)",35.1165,-75.9335]],
   sunsetbeach:["lowshore","Beach","open"],
   shemcreek:["skyline","Marsh","trees"],
   harbourtown:["lowshore","Beach","open",["Coligny Beach, Hilton Head (ocean)",32.1400,-80.7505]],
