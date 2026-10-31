@@ -11,7 +11,7 @@
     // west = the beach, then Buckroe Beach Park lawn and the low line of 2–3 storey beach houses and loblolly pines along 1st St / Pembroke Ave.
     // d28z Buckroe Coffee Co. (1936 E Pembroke Ave, OSM node 12230776315): street scene both ways — Pembroke Ave lawns, 1–2 storey Hampton houses, loblolly/oak street trees
     buckroecoffee: { east: { land: true, near: LAWN, nearD: 14, far: LAWN, d: 40, dl: 35, dr: 50, th: 17, town: 0.75, camH: 0.0017 }, west: { land: true, near: LAWN, nearD: 14, far: LAWN, d: 45, dl: 40, dr: 55, th: 3, town: 0, camH: 0.0017 },   /* d28zc: generic storefront removed — the photo cut-out is the foreground */
-      front: { east: { land: true, near: LAWN, nearD: 14, far: LAWN, d: 40, th: 17, town: 0.75, camH: 0.0017 }, west: { land: true, near: LAWN, nearD: 14, far: LAWN, d: 45, th: 17, town: 0.7, camH: 0.0017 } } },
+      front: { east: { land: true, near: LAWN, nearD: 14, far: LAWN, d: 40, th: 17, town: 0.75, camH: 0.0017 }, west: { land: true, near: LAWN, nearD: 6, far: 0, d: 0, th: 0, town: 0, camH: 0.0017 } } },
     // d28z lighthouse spots (OSM man_made=lighthouse; viewpoints chosen so the tower sits in the default view — drawn by Wx lighthouses())
     oldpointlight: { east: { near: SAND, nearD: 6, water: true, d: 6000, dl: 4000, dr: 9000, th: 10, town: 0.3 }, west: { land: true, near: LAWN, nearD: 12, far: LAWN, d: 140, dl: 90, dr: 220, th: 16, town: 0.45, camH: 0.0017 },
       front: { east: { near: SAND, nearD: 6, water: true, d: 6000, th: 10, town: 0.3 }, west: { land: true, near: LAWN, nearD: 12, far: LAWN, d: 140, th: 16, town: 0.45, camH: 0.0017 } } },

@@ -232,8 +232,9 @@ vec3 cloudShade(int L, vec3 P, vec3 rd, float t, float pixA, out float alpha){
   vec2 xz = P.xz;
   float d = dens(L, xz, fp, t);
   if (d < .003){ alpha = 0.; return vec3(0.); }
-  float tauV = d * lh.z * min(1./cosv, 12.);
+  float tauV = d * lh.z * min(1./cosv, L == 2 ? 4. : 12.) * (L == 2 ? smoothstep(.0, .12, d) : 1.);   // d28zd: low deck at grazing view hit ~200× optical depth → razor-edged black slabs in horizontal strips (St. Simons); cap the slant path + soften edges
   alpha = 1. - exp(-tauV);
+  if (L == 2) alpha *= 1. - .65 * smoothstep(20., 90., t) * (1. - uGray);   // d28zd: distant low cloud (a thin 2-D layer seen edge-on) melts into the haze instead of hard black slabs on the horizon/in the water
   vec3 sun = uSunC;
   float mu = dot(up, sun);
   vec2 sh = normalize(sun.xz + 1e-5);
@@ -274,7 +275,7 @@ vec3 cloudShade(int L, vec3 P, vec3 rd, float t, float pixA, out float alpha){
   float skyLit = dot(hA, vec3(.25,.45,.3))*.75 + dot(hB, vec3(.25,.45,.3))*.25;
   float ntA = smoothstep(-.01, -.09, dot(up, uSun));   // d28u: blue hour / night — skylight on the cloud goes dim grey-violet, not saturated blue (blue blobs, Plum Tree Island)
   vec3 amb = ESUN * (mix(vec3(.007,.013,.028), vec3(.0075,.007,.0095), ntA) * (skyLit + .012) + .005*hA*vec3(1.,.75,.65));
-  amb *= L == 2 ? mix(1., .3, d*d*(1. - .4*face)) : mix(1., .45, d);   // d28o: deep shadowed bases/cores in thick low cloud
+  amb *= L == 2 ? mix(1., .55, d*d*(1. - .4*face)) : mix(1., .45, d);   // d28zd: was .3 — dusk stratocumulus read as pure-black slabs   // d28o: deep shadowed bases/cores in thick low cloud
   // once the deck is in Earth's shadow it is lit only by the dim twilight sky: let it sit just below the sky, not glow
   amb *= mix(L == 0 ? .6 : .8, 1., clamp(dot(Ts, vec3(.33)) * 25., 0., 1.));
   // internal texture: thin edges glow (silver lining), thick cores go darker when back-lit

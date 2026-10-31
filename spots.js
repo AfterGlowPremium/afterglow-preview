@@ -281,5 +281,6 @@ window.SCENE.lionsbridge = ["lowshore", "Park", "trees"];
   set("buckroecoffee", false, "town");   // parking lot / Hampton streets west (Sean's Oct 29 photos)
   rise("keywest", false, "town");        // Mallory Square faces W; east is Old Town
   set("capemay", null, "lowshore");      // Delaware shore (Cape Henlopen/Lewes) ~28 km
+  rise("windmillpt", null, "trees");     // d28zd satellite: ~3 km of marsh/peninsula east before the bay
   ["yorktown", "hoffler", "littlecreek", "northlanding", "plumtree"].forEach(id => set(id, null, "trees"));   // river/creek/marsh then treeline < 1 km
 })();
