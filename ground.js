@@ -84,13 +84,19 @@
     return Object.assign({ near: nearT, nearD: nearT === MARSH ? 18 : nearT === SAND ? 9 : 4, water: true }, FAR_W[B.far] || FAR_W.lowshore);
   }
   // sp = the app's spot (with .behind = { type, far, water }); rise = sunrise mode (behind = west)
+  // d28zg (Sean): scenery depends only on the FACING DIRECTION, never on the mode — sunrise default (east) == sunset Face East,
+  // sunrise Face West == sunset default (west). One source per direction:
+  //   east = GEO.front.east ▸ GEO.east ▸ GEO180.set.behind ▸ GEO180.rise.front      west = GEO.front.west ▸ GEO.west ▸ GEO180.set.front (land) ▸ normal horizon
+  const G180 = id => (window.GEO180 || {})[id] || {};
+  function eastO(sp) { const Gi = GEO[sp.id] || {}, F = Gi.front || {}, H = G180(sp.id); return F.east || Gi.east || (H.set && H.set.behind) || (H.rise && H.rise.front) || null; }
+  function westO(sp) { const Gi = GEO[sp.id] || {}, F = Gi.front || {}, H = G180(sp.id); return F.west || Gi.west || (H.set && H.set.front && H.set.front.land ? H.set.front : null); }
+  const fin = (sp, o) => { o = Object.assign({ reg: regOf(sp.id) }, o); o.water = !o.land; return o; };
+  // sp = the app's spot (with .behind = { type, far, water }); rise = sunrise mode (behind = west)
   function behind(sp, rise) {
-    const B = Object.assign({ type: "Beach", far: "lowshore", water: true }, sp.behind || {});
-    const G1 = ((window.GEO180 || {})[sp.id] || {})[rise ? "rise" : "set"];   // d28d: surveyed per-direction geography (no more mirrored copy of the forward view)
-    const o = Object.assign({}, (GEO[sp.id] || {})[rise ? "west" : "east"] || (G1 && G1.behind) || generic(B));
-    o.water = !o.land; if (!o.reg) o.reg = regOf(sp.id); return o;
+    const o = rise ? westO(sp) : eastO(sp);
+    return fin(sp, o || generic(Object.assign({ type: "Beach", far: "lowshore", water: true }, sp.behind || {})));
   }
-  // d24: what you face when the spot's own view is land (e.g. 1st Street Jetty at sunset = the hotels) — null = the usual horizon
-  function front(sp, rise) { const F = (GEO[sp.id] || {}).front; const G1 = ((window.GEO180 || {})[sp.id] || {})[rise ? "rise" : "set"]; const o = F ? F[rise ? "east" : "west"] : G1 && G1.front && G1.front.land ? G1.front : null; return o ? Object.assign({ reg: regOf(sp.id) }, o, { water: !o.land }) : null; }
+  // what you face (null = the usual horizon from the spot's SCENE far/water)
+  function front(sp, rise) { const o = rise ? eastO(sp) : westO(sp); return o ? fin(sp, o) : null; }
   g.Ground = { behind, front, GEO, REG };
 })(window);
