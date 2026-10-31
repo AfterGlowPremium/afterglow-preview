@@ -10,7 +10,7 @@
   const normal = sp => SHORE_NORMAL[sp.id] != null ? SHORE_NORMAL[sp.id] : FACE_EAST.has(sp.id) ? 90 : (sp.arc ? (sp.arc[0] + sp.arc[1]) / 2 : 270);
   const BAYPT = { saltponds: [37.04, -76.2], buckroecoffee: [37.04, -76.2] }, WMIN = { saltponds: 1.5, buckroecoffee: 1.5 };   // d28za: Buckroe — nearest open-bay marine grid (the default sea cell snaps to sheltered Hampton Roads), rideable bay windswell from 1.5 ft
   const LAT = s => (BAYPT[s.id] || [s.lat])[0], LNG = s => (BAYPT[s.id] || [0, s.lng])[1];
-  const SHELTER = new Set("pier45 bbpier1 terrapin capecharles yorktown huntington jamestown oceanview willoughby lesner stsimons keywest bahiahonda littlecreek plumtree grandview".split(" "));   // d28zb: no breaking hero wave (sheltered water)
+  const SHELTER = new Set("windmillpt pier45 bbpier1 terrapin capecharles yorktown huntington jamestown oceanview willoughby lesner stsimons keywest bahiahonda littlecreek plumtree grandview".split(" "));   // d28zb: no breaking hero wave (sheltered water)
   const M = {}, AL = {}, PM = {};   // d25p: PM = past-day marine hourly (archived), filled per past chunk
   const MV = "wave_height,wave_direction,wave_period,swell_wave_height,swell_wave_direction,swell_wave_period,wind_wave_height,wind_wave_direction,secondary_swell_wave_height,secondary_swell_wave_direction";
   const hrs = h => ({ t: h.time.map(x => Date.parse(x) / 1000), wh: h.wave_height, wd: h.wave_direction, wp: h.wave_period, sh: h.swell_wave_height, sd: h.swell_wave_direction, sp: h.swell_wave_period, ww: h.wind_wave_height, s2: h.secondary_swell_wave_height, d2: h.secondary_swell_wave_direction });
