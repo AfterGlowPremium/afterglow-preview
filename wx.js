@@ -335,7 +335,7 @@
     for (const L of LH) {
       const dy = (L.lat - C.lat) * 111320, dx = (L.lon - C.lng) * 111320 * Math.cos(la), d = Math.hypot(dx, dy); if (d > 26000 || d < 30) continue;
       const brg = (Math.atan2(dx, dy) * 180 / Math.PI + 360) % 360, dAz = ((brg - C.faceAz + 540) % 360) - 180; if (Math.abs(dAz) > base * a / 2 + 5) continue;
-      let wb; const D = r => Math.atan(r / d) * 180 / Math.PI * ppd, cx = W / 2 + dAz * ppd, y0 = hz + D(1.7) - D(d * d / 12.74e6), th = D(L.h), wt = Math.max(0.8, D(L.tp));
+      let wb; const dS = d / 1.75, D = r => Math.atan(r / dS) * 180 / Math.PI * ppd, D0 = r => Math.atan(r / d) * 180 / Math.PI * ppd, cx = W / 2 + dAz * ppd, y0 = hz + D0(1.7) - D0(d * d / 12.74e6),   /* d28zc: towers drawn 1.75× (Sean: lighthouses too small); base still sits at the true horizon/curvature drop */ th = D(L.h), wt = Math.max(0.8, D(L.tp));
       const day = clamp((se + 4) / 10), sRel = Math.sin((C.sunAz - brg) * Math.PI / 180), back = Math.cos((C.sunAz - brg) * Math.PI / 180), sil = clamp((back - 0.2) / 0.6) * clamp(1 - (se - 1) / 10);
       const haze = clamp(1 - d / 30000) * (0.55 + 0.45 * clamp(1 - d / 6000));
       x.save(); x.globalAlpha = 0.25 + 0.75 * haze;

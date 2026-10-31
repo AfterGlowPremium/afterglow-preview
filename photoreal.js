@@ -970,16 +970,16 @@ void main(){
     n = normalize(n + vec3(0., 0., uSwell * .22 * cos((wp.y * gSwC - wp.x * gSwS) * sk - uPhase * 2.2)) * smoothstep(3000., 300., tW) * (1. - smoothstep(.2, .5, tW * pixA / max(-rd.y, 1e-3) * sk * .159)));   // d19: fade the swell bands once a pixel spans ~1/3 of a crest (no scalloped aliasing near the horizon)
     float far = smoothstep(150., 2500., tW);
     // ripples that survive at distance: anchored to world x and inverse distance (perspective-compressed streaks)
-    vec2 rq = vec2(wp.x / tW * 55. + uSeed.x, 900. / tW + uSeed.y);
+    vec2 rq = vec2(wp.x / tW * 95. + uSeed.x, 900. / tW + uSeed.y);   // d28zc: shorter streaks (long ones read as blocky horizontal bands)
     float fq = max(fwidth(rq.x), fwidth(rq.y)) * 1.5;
     float rp = fbm(rq, fq, 5) - .5;
     float rp2 = fbm(rq * vec2(3., 2.7) + 11., fq*3., 4) - .5;
-    n = normalize(n + vec3(rp2*.03, 0., (rp*.11 + rp2*.05)) * (.4 + .6*far) * mix(.06, 1.7, uChop) * smoothstep(4., 30., tW));   // v17: fade the perspective ripple streaks near the camera (they formed rings)
+    n = normalize(n + vec3(rp2*.03, 0., (rp*.11 + rp2*.05)) * (.4 + .6*far) * mix(.06, .85, uChop) * smoothstep(4., 30., tW));   // d28zc: halved — with real chop reaching the shader (d28za) these smeared into striped bands   // v17: fade the perspective ripple streaks near the camera (they formed rings)
     vec3 rr = reflect(rd, n); rr.y = max(rr.y, .002); rr = normalize(rr);
     float tPr; float pr = uPier > 0. ? pierHit(pw*vec3(1,0,1) + vec3(0,-2.0+.0,0)*0. + vec3(0,-2.,0)*-0., rr, tPr) : 0.;
     vec3 Tr; vec3 refl = skyRay(ro, rr, pixA*2. + .03 * (1. - smoothstep(.002, .03, rr.y)), false, Tr);   // d28b: grazing reflections all sample ~the same sky elevation → the sky's azimuthal detail smeared into thin vertical lines; blur them
     refl = antiTw(refl, rr, asin(rr.y));
-    if (uFS.x > 0.){   // d23: the lit shoreline mirrored in the water
+    if (uFS.x > 0. && uChop < .35){   // d23: the lit shoreline mirrored in the water (d28zc: calm water only — with chop it shredded into black horizontal blocks)
       vec3 rL = reflect(rd, normalize(mix(vec3(0., 1., 0.), n, .45))); rL.y = max(rL.y, .0005);   // rough water smears the land's reflection vertically, it doesn't shred it
       float azr = atan(rL.x, -rL.z), Ds = fsDist(azr), Dr = Ds - tW;
       if (Dr > 1.){ float yr = rL.y * Dr, kk, hv2; vec2 lp2 = vec2(azr * Ds + uSeed.x * 3., yr); float tp2;
@@ -991,15 +991,23 @@ void main(){
     float sunUp = smoothstep(-.006, .004, sa.y);
     vec3 hv = normalize(-rd + sa);
     float nh = max(dot(n, hv), 0.);
-    float m = (mix(.02, .07, uChop) + mix(.012, .07, uChop)*far) * 2.6;   // d28za: ~1.75× wider again — glitter column ≈ the (big) sun disc at the horizon, wider toward the viewer
+    float m = (mix(.02, .07, uChop) + mix(.012, .07, uChop)*far) * 2.6 * (1. + 1.4 * smoothstep(.3, .8, uChop));   // d28zc: rough → wide sparkle field   // d28za: ~1.75× wider again — glitter column ≈ the (big) sun disc at the horizon, wider toward the viewer
     float c2 = max(nh*nh, 1e-3); float D = min(exp((c2-1.)/(c2*m*m)) / (PI*m*m*c2*c2), 400.);
     float cosI = max(dot(-rd, n), .01);
     float F = .02 + .98*pow(1.-cosI, 5.);
     float Fs = .02 + .98*pow(1.-max(dot(-rd, hv),0.), 5.);
     vec3 glit = sunUp > 0. ? ESUN * sunT(ro, sa) * sunVis * sunUp * D * Fs / (4.*cosI) * .9 : vec3(0.);
-    if (pr > .5) { refl = refl * mix(.03, .45, smoothstep(.3, .9, uChop) * (.5 + .5*abs(rp))); glit *= 1. - uChop; }   // rough water smears the pier's reflection
+    if (pr > .5) { refl = refl * mix(.05, .85, smoothstep(.12, .5, uChop)); glit *= 1. - .6*uChop; }   // d28zc: with chop the scattered rays hitting the pier painted near-black horizontal blocks across the water (Sean's St. Simons striping) — fade to a soft darkening   // rough water smears the pier's reflection
     vec3 body = vec3(.002,.006,.008) * (ESUN * .02) * (sunT(ro + vec3(0,20,0), uSun).g*.8 + .05);
-    col = refl * F * 1.0 + glit + body * (1.-F);
+    // d28zc: roughness look by wind (Sean): <3 mph mirror · 4-7 softened streaks · 8-12 wavelets break the sky into patches · 13-20 reflections mostly gone,
+    // muted grayer water, glitter = wide scattered sparkle field · 20+ whitecaps (uCaps). Rough water blurs/darkens/desaturates the environment reflection (Fresnel-weighted).
+    float rgh = smoothstep(.12, .7, uChop);
+    float wpat = fbm(wp * vec2(.9, 2.6) + vec2(uPhase * .4, -uPhase), fpW * 2.6, 4);
+    if (rgh > .01) { vec3 rBlur = skyRay(ro, normalize(vec3(rr.x, max(.02, rr.y * .5 + .03), rr.z)), .35, false, Tr); refl = mix(refl, rBlur, rgh * .85); }
+    refl = mix(refl, vec3(dot(refl, vec3(.3, .59, .11))), rgh * .55) * mix(1., .55 + .7 * wpat, smoothstep(.2, .55, uChop));
+    float sprk = step(.7 - .25 * rgh, fbm(wp * vec2(6., 14.) + uPhase * 3., fpW * 14., 3));
+    glit = mix(glit, glit * sprk * 2.2, rgh * .8);
+    col = refl * F * (1. - .45 * rgh) + glit + body * (1.-F) * (1. + 2.5 * rgh);
     col *= mix(1., .5 + .5*smoothstep(.32, .62, h0), uChop * .75 * (1. - .6*far));   // wind chop: shadowed wave backs break up the mirror
     // aerial perspective over the water
     vec3 Ta; vec3 hzS = antiTw(skyRay(ro, normalize(vec3(rd.x, .001, rd.z)), pixA + HZB, false, Ta), rd, .001);

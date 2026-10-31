@@ -10,12 +10,14 @@
     // Buckroe Beach: east = open Chesapeake Bay over the bay-mouth (no land in the view; the Eastern Shore is ~25 mi off, below the horizon).
     // west = the beach, then Buckroe Beach Park lawn and the low line of 2–3 storey beach houses and loblolly pines along 1st St / Pembroke Ave.
     // d28z Buckroe Coffee Co. (1936 E Pembroke Ave, OSM node 12230776315): street scene both ways — Pembroke Ave lawns, 1–2 storey Hampton houses, loblolly/oak street trees
-    buckroecoffee: { east: { land: true, near: LAWN, nearD: 14, far: LAWN, d: 40, dl: 35, dr: 50, th: 17, town: 0.75, camH: 0.0017 }, west: { land: true, near: LAWN, nearD: 14, far: LAWN, d: 45, dl: 40, dr: 55, th: 17, town: 0.7, camH: 0.0017 },
+    buckroecoffee: { east: { land: true, near: LAWN, nearD: 14, far: LAWN, d: 40, dl: 35, dr: 50, th: 17, town: 0.75, camH: 0.0017 }, west: { land: true, near: LAWN, nearD: 14, far: LAWN, d: 45, dl: 40, dr: 55, th: 3, town: 0, camH: 0.0017 },   /* d28zc: generic storefront removed — the photo cut-out is the foreground */
       front: { east: { land: true, near: LAWN, nearD: 14, far: LAWN, d: 40, th: 17, town: 0.75, camH: 0.0017 }, west: { land: true, near: LAWN, nearD: 14, far: LAWN, d: 45, th: 17, town: 0.7, camH: 0.0017 } } },
     // d28z lighthouse spots (OSM man_made=lighthouse; viewpoints chosen so the tower sits in the default view — drawn by Wx lighthouses())
     oldpointlight: { east: { near: SAND, nearD: 6, water: true, d: 6000, dl: 4000, dr: 9000, th: 10, town: 0.3 }, west: { land: true, near: LAWN, nearD: 12, far: LAWN, d: 140, dl: 90, dr: 220, th: 16, town: 0.45, camH: 0.0017 },
       front: { east: { near: SAND, nearD: 6, water: true, d: 6000, th: 10, town: 0.3 }, west: { land: true, near: LAWN, nearD: 12, far: LAWN, d: 140, th: 16, town: 0.45, camH: 0.0017 } } },
-    stsimons: { front: { west: { near: SAND, nearD: 6, water: true, d: 6000, dl: 4000, dr: 9000, th: 11, town: 0.12 } } },   // d28zb: west = St. Simons Sound → Jekyll/Brunswick marsh + treeline (OSM survey), not open Atlantic
+    hatteraslight: { front: { west: { land: true, near: SAND, nearD: 20, far: LAWN, d: 400, th: 22, town: 0.05, camH: 0.0017 } } },   // d28zc: Buxton Woods maritime forest
+    keywest: { front: { east: { land: true, near: LAWN, nearD: 15, far: LAWN, d: 150, th: 14, town: 0.8, camH: 0.0017 } } },   // d28zc: Mallory Sq east = Old Town
+    stsimons: { front: { west: { near: SAND, nearD: 6, water: true, d: 6000, dl: 4000, dr: 9000, th: 18, town: 0.12 } } },   // d28zb: west = St. Simons Sound → Jekyll/Brunswick marsh + treeline (OSM survey), not open Atlantic
     roanokemarshes: { east: { near: SAND, nearD: 4, water: true, d: 3200, dl: 2500, dr: 4500, th: 9, town: 0.05 }, west: { land: true, near: LAWN, nearD: 15, far: LAWN, d: 150, dl: 120, dr: 250, th: 12, town: 0.6, camH: 0.0017 },
       front: { east: { near: SAND, nearD: 4, water: true, d: 3200, th: 9, town: 0.05 }, west: { land: true, near: LAWN, nearD: 15, far: LAWN, d: 150, th: 12, town: 0.6, camH: 0.0017 } } },
     thimbleshoal: { east: { water: true, d: 0 }, west: { water: true, d: 6500, dl: 7000, dr: 9000, th: 9, town: 0.35 }, front: { east: { water: true, d: 0 }, west: { water: true, d: 6500, th: 9, town: 0.35 } } },

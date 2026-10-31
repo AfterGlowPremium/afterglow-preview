@@ -108,6 +108,7 @@
           j.forEach((d, k) => { if (!d.hourly) return; const H = hrs(d.hourly), id = b[k].id, o = PM[id]; if (!o) { PM[id] = H; return; }
             const map = new Map(o.t.map((x, i) => [x, i])); H.t.forEach((x, i) => { if (map.has(x)) return; for (const f of Object.keys(H)) (o[f] = o[f] || []).push(f === "t" ? x : H[f][i]); }); });
         } catch (e) { console.warn("past marine", e); } finally { clearTimeout(to); } })); },
+    faceEast: id => FACE_EAST.has(id),   // d28zc: restored (had been swallowed by a comment → 'AGX.faceEast is not a function' on land spots)
     normal, startTurned: (id, rise) => { const G1 = ((window.GEO180 || {})[id] || {})[rise ? "rise" : "set"]; return G1 ? !!G1.turn : !rise && FACE_EAST.has(id); },   // d28d: open toward the water side from the geography survey faceEast: id => FACE_EAST.has(id),
     badges: sp => { let h = ""; const m = M[sp.id], a = AL[sp.id]; if (m && m.max >= (WMIN[sp.id] || 3)) h += `<em class="pb wave" title="Waves to ${m.max.toFixed(1)} ft">🌊</em>`; if (a) h += `<em class="pb sev" title="${a.events.join(", ")}"></em>`; return h; },
     tip: sp => { const m = M[sp.id], a = AL[sp.id]; return (m && m.max != null ? `<br>🌊 Waves ${m.now != null ? m.now.toFixed(1) : "?"} ft now · up to ${m.max.toFixed(1)} ft / 48 h${m.per ? ` · ${Math.round(m.per)} s` : ""}` : "") + (a ? `<br><b style="color:#ff5a4a">▲ ${a.events.join(", ")}</b>` : ""); },
