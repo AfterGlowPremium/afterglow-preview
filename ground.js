@@ -88,6 +88,20 @@
   // sunrise Face West == sunset default (west). One source per direction:
   //   east = GEO.front.east ▸ GEO.east ▸ GEO180.set.behind ▸ GEO180.rise.front      west = GEO.front.west ▸ GEO.west ▸ GEO180.set.front (land) ▸ normal horizon
   const G180 = id => (window.GEO180 || {})[id] || {};
+  // d28zk: Sean-approved VA/NC audit fixes (Esri + OSM + 3DEP; woods 20 m, houses 9–12 m). East/west by direction only.
+  (function () { const O = (id, dir, o) => { const Gi = GEO[id] = GEO[id] || {}; Gi.front = Gi.front || {}; Gi.front[dir] = o; Gi[dir] = o; };
+    const OCEAN = { near: SAND, nearD: 40, water: true, d: 0, th: 0, town: 0 };
+    O("chincoteague", "east", OCEAN); O("duck", "east", OCEAN); O("ocracoke", "east", OCEAN);   // ocean-beach sunrise: beach + open Atlantic
+    O("sunsetbeach", "east", { near: SAND, nearD: 30, water: true, d: 20000, dl: 150, dr: 30000, th: 10, town: 0.6 });   // along a S-facing beach: houses/dunes left, ocean right
+    O("wrightsville", "west", { near: SAND, nearD: 20, water: true, d: 350, dl: 300, dr: 400, th: 12, town: 0.7 });   // Banks Channel ~0.3 km, Harbor Island rooftops
+    O("yorktown", "west", { near: SAND, nearD: 30, water: true, d: 150, dl: 120, dr: 3000, th: 20, town: 0.3 });   // wooded bluff ahead, York River opening right
+    O("littlecreek", "west", { near: SAND, nearD: 30, water: true, d: 250, dl: 200, dr: 15000, th: 10, town: 0.6 });   // beach/dunes + base buildings, bay right
+    O("willoughby", "west", { near: SAND, nearD: 20, water: true, d: 6000, dl: 5000, dr: 8000, th: 12, town: 0.3 });   // Hampton Roads water, HRBT/Hampton shore beyond
+    O("oldpointlight", "west", { near: SAND, nearD: 8, water: true, d: 1500, dl: 600, dr: 6000, th: 14, town: 0.4 });   // Mill Creek mouth / Hampton Roads
+    if (GEO.grandview && GEO.grandview.west) { GEO.grandview.west = Object.assign({}, GEO.grandview.west, { nearD: 700, d: 900, dl: 1200, dr: 800 }); if (GEO.grandview.front) GEO.grandview.front.west = GEO.grandview.west; }   // marsh ~0.7 km, creek, low trees
+    O("plumtree", "east", { near: MARSH, nearD: 1000, water: true, d: 0, th: 0, town: 0, lake: 0.3 });   // refuge marsh ~1 km, then open bay
+    O("northlanding", "east", { near: SAND, nearD: 12, water: true, d: 300, dl: 200, dr: 300, th: 20, town: 0, lake: 0.3 });   // river ~0.3 km, then 20 m treeline
+  })();
   function eastO(sp) { const Gi = GEO[sp.id] || {}, F = Gi.front || {}, H = G180(sp.id); return F.east || Gi.east || (H.set && H.set.behind) || (H.rise && H.rise.front) || null; }
   function westO(sp) { const Gi = GEO[sp.id] || {}, F = Gi.front || {}, H = G180(sp.id); return F.west || Gi.west || (H.set && H.set.front && H.set.front.land ? H.set.front : null); }
   const fin = (sp, o) => { o = Object.assign({ reg: regOf(sp.id) }, o); o.water = !o.land; return o; };
