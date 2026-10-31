@@ -906,4 +906,5 @@ html.show-home #home-cv{top:0;height:100%}
 .pv-moon:empty{display:none}
 
 .stage.looking{touch-action:none;cursor:grab}.play.look.on{background:#ffb347;color:#222}
+.statezoom{margin-top:6px}
 .stage.looking canvas{touch-action:none}
