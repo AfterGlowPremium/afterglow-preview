@@ -101,6 +101,16 @@
     if (GEO.grandview && GEO.grandview.west) { GEO.grandview.west = Object.assign({}, GEO.grandview.west, { nearD: 700, d: 900, dl: 1200, dr: 800 }); if (GEO.grandview.front) GEO.grandview.front.west = GEO.grandview.west; }   // marsh ~0.7 km, creek, low trees
     O("plumtree", "east", { near: MARSH, nearD: 1000, water: true, d: 0, th: 0, town: 0, lake: 0.3 });   // refuge marsh ~1 km, then open bay
     O("northlanding", "east", { near: SAND, nearD: 12, water: true, d: 300, dl: 200, dr: 300, th: 20, town: 0, lake: 0.3 });   // river ~0.3 km, then 20 m treeline
+    // d28zo: single-pin model for former two-vantage spots — east = what is really east of the named spot (Esri/OSM-checked)
+    const LANDV = (d0, th, town, near) => ({ land: true, near: near || LAWN, nearD: 25, far: 3, d: d0, th, town, camH: 0.0017 });
+    O("westprom", "east", LANDV(80, 12, 0.8)); O("herring", "east", LANDV(60, 6, 0, SAND)); O("menemsha", "east", LANDV(150, 15, 0.2)); O("capemay", "east", LANDV(100, 15, 0.3, SAND));
+    O("assateague", "east", LANDV(300, 6, 0.1, MARSH)); O("harbourtown", "east", LANDV(60, 14, 0.6)); O("stsimons", "east", LANDV(60, 12, 0.6)); O("fernandina", "east", LANDV(40, 10, 0.9));
+    O("laketrail", "east", LANDV(80, 12, 0.7)); O("miamibeach", "east", LANDV(60, 30, 1));
+    O("firstenc", "west", { near: SAND, nearD: 30, water: true, d: 0, th: 0, town: 0 });   // open Cape Cod Bay
+    O("tybee", "west", { near: SAND, nearD: 20, water: true, d: 1000, dl: 800, dr: 1500, th: 6, town: 0, marsh: 1 });   // Back River, marsh beyond
+    O("titusville", "west", LANDV(60, 12, 0.7)); O("annapolis", "west", LANDV(50, 12, 0.9));   // town behind the waterfront
+    O("shemcreek", "west", { near: MARSH, nearD: 600, water: true, d: 4000, dl: 3000, dr: 5000, th: 8, town: 0.6, marsh: 1 });   // marsh, Charleston skyline far
+    O("newsmyrna", "west", LANDV(300, 5, 0.1, SAND));   // dunes / park, river hidden
   })();
   function eastO(sp) { const Gi = GEO[sp.id] || {}, F = Gi.front || {}, H = G180(sp.id); return F.east || Gi.east || (H.set && H.set.behind) || (H.rise && H.rise.front) || null; }
   function westO(sp) { const Gi = GEO[sp.id] || {}, F = Gi.front || {}, H = G180(sp.id); return F.west || Gi.west || (H.set && H.set.front && H.set.front.land ? H.set.front : null); }

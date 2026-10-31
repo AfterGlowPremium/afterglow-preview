@@ -102,3 +102,65 @@
   const css = d.createElement("style"); css.textContent = "#ag-help{position:fixed;left:10px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:9000;width:28px;height:28px;border-radius:50%;border:1px solid rgba(255,255,255,.35);background:rgba(20,22,35,.7);color:#fff;font:600 15px system-ui;opacity:.75}#ag-helpov{position:fixed;inset:0;z-index:9001;background:rgba(5,6,15,.45)}#ag-helpov .c{position:fixed;background:#fff8ec;color:#222;font:13px/1.3 system-ui;padding:7px 9px;border-radius:10px;box-shadow:0 4px 14px rgba(0,0,0,.4)}#ag-helpov .hl{position:fixed;border:2px solid #ffb347;border-radius:10px;pointer-events:none}#ag-helpov .x{position:fixed;right:12px;top:calc(12px + env(safe-area-inset-top));width:34px;height:34px;border-radius:50%;border:0;background:#fff;font-size:16px}"; d.head.appendChild(css);
   help();
 })(window);
+// d28zl (PREVIEW ONLY): Share button (link / screenshot / video) + embossed-glass on-scene controls
+(function (g) {
+  const d = document, S = () => g.__agState || {};
+  const ICON = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3"/><path d="M7.5 7.5 12 3l4.5 4.5"/><path d="M8 10H6a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1h-2"/></svg>';
+  const q = () => new URLSearchParams(location.search);
+  const spot = () => S().spot || q().get("spot") || "";
+  const mode = () => S().mode || q().get("mode") || (d.querySelector('.ev-toggle a.on') || {}).dataset?.ev || "sunset";
+  const dayISO = () => { const t = new Date(); t.setDate(t.getDate() + (S().arch ? -1 : (S().day || 0))); return t.toLocaleDateString("en-CA"); };
+  const link = () => { const u = new URL(location.href.split("#")[0]); u.search = ""; u.searchParams.set("spot", spot()); u.searchParams.set("mode", mode()); u.searchParams.set("date", dayISO()); if (!S().arch && S().day) u.searchParams.set("day", S().day); return u.toString(); };
+  const spotName = () => { const sp = (g.SPOTS || []).find(x => x.id === spot()); return sp ? sp.name : spot(); };
+  const score = () => { const st = d.querySelector(".stage"); const el = st && st.querySelector('[class*="score"],[class*="ring"]'); const m = el && el.textContent.match(/\d{1,3}/); return m ? m[0] : ""; };
+  const fname = ext => `afterglow-${spot() || "view"}-${dayISO()}-${mode()}.${ext}`;
+  // compose the live scene: WebGL canvas + overlay canvases + foreground photos
+  function compose(x, W, H, k) { const cv = d.getElementById("pv"); if (!cv) return false; const r0 = cv.getBoundingClientRect(); x.drawImage(cv, 0, 0, W, H);
+    cv.parentElement.querySelectorAll("canvas:not(#pv), img.pv-fg").forEach(el => { if (el.hidden || getComputedStyle(el).display === "none" || el.classList.contains("ag-xfade")) return; const r = el.getBoundingClientRect(); try { x.drawImage(el, (r.left - r0.left) * k, (r.top - r0.top) * k, r.width * k, r.height * k); } catch (e) {} });
+    return true; }
+  function caption(x, W, H) { const f = Math.max(11, Math.round(H * 0.02)); x.save(); x.shadowColor = "rgba(0,0,0,.65)"; x.shadowBlur = 5; x.fillStyle = "rgba(255,255,255,.9)";
+    x.font = `600 ${f}px system-ui`; x.textAlign = "left"; const s = score(); x.fillText(`Afterglow · ${spotName()}`, f, H - f * 2.4); x.font = `${Math.round(f * .85)}px system-ui`;
+    x.fillText(`${dayISO()} ${mode()}${s ? " · score " + s : ""}`, f, H - f * 1.1); x.textAlign = "right"; x.fillText("© Sean Tuttle 2026", W - f, H - f * 1.1); x.restore(); }
+  async function deliver(blob, name, type) { const file = new File([blob], name, { type });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file], title: "Afterglow", text: spotName(), url: link() }); return; } catch (e) { if (e && e.name === "AbortError") return; } }
+    const a = d.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; d.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+    try { await navigator.clipboard.writeText(link()); toast("Saved — link copied"); } catch (e) { toast("Saved"); } }
+  function toast(t) { const el = d.createElement("div"); el.className = "ag-toast"; el.textContent = t; d.body.appendChild(el); setTimeout(() => el.remove(), 2200); }
+  async function shot() { const cv = d.getElementById("pv"); if (!cv) return; const k = 2, W = cv.clientWidth * k, H = cv.clientHeight * k, o = d.createElement("canvas"); o.width = W; o.height = H; const x = o.getContext("2d");
+    compose(x, W, H, k); caption(x, W, H); const b = await new Promise(r => o.toBlob(r, "image/png")); await deliver(b, fname("png"), "image/png"); }
+  async function shareLink() { const u = link(); if (navigator.share) { try { await navigator.share({ title: "Afterglow · " + spotName(), url: u }); return; } catch (e) { if (e && e.name === "AbortError") return; } }
+    try { await navigator.clipboard.writeText(u); toast("Link copied"); } catch (e) { prompt("Copy link", u); } }
+  async function video(btn) { const cv = d.getElementById("pv"); const MR = g.MediaRecorder;
+    const types = ["video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm"]; const type = MR && types.find(t => MR.isTypeSupported && MR.isTypeSupported(t));
+    const o = d.createElement("canvas"); if (!cv || !MR || !type || !o.captureStream) { toast("Video not supported here — sharing a screenshot"); return shot(); }
+    const k = Math.min(2, g.devicePixelRatio || 1), W = Math.round(cv.clientWidth * k / 2) * 2, H = Math.round(cv.clientHeight * k / 2) * 2; o.width = W; o.height = H; const x = o.getContext("2d");
+    const stream = o.captureStream(30), rec = new MR(stream, { mimeType: type, videoBitsPerSecond: 5e6 }), parts = []; rec.ondataavailable = e => e.data && e.data.size && parts.push(e.data);
+    let on = true; const loop = () => { if (!on) return; compose(x, W, H, k); caption(x, W, H); requestAnimationFrame(loop); }; loop();
+    const T = 8000; btn.classList.add("rec"); const t0 = Date.now(); const tick = setInterval(() => { btn.dataset.t = Math.ceil((T - (Date.now() - t0)) / 1000) + "s"; }, 250);
+    const done = new Promise(r => rec.onstop = r); rec.start(500); await new Promise(r => setTimeout(r, T)); rec.stop(); await done; on = false; clearInterval(tick); btn.classList.remove("rec"); delete btn.dataset.t; stream.getTracks().forEach(t => t.stop());
+    const mt = type.split(";")[0]; await deliver(new Blob(parts, { type: mt }), fname(mt === "video/mp4" ? "mp4" : "webm"), mt); }
+  function menu(anchor) { let m = d.getElementById("ag-share-menu"); if (m) { m.remove(); return; }
+    m = d.createElement("div"); m.id = "ag-share-menu"; m.innerHTML = '<button data-a="link">🔗 Link</button><button data-a="shot">🖼 Screenshot</button><button data-a="video">🎬 Video (8 s)</button>';
+    const r = anchor.getBoundingClientRect(); m.style.top = (r.bottom + 6) + "px"; m.style.left = Math.max(8, Math.min(r.left, innerWidth - 170)) + "px"; d.body.appendChild(m);
+    m.addEventListener("click", async e => { const b = e.target.closest("button"); if (!b) return; e.stopPropagation(); m.remove(); const a = b.dataset.a; try { if (a === "link") await shareLink(); else if (a === "shot") await shot(); else await video(anchor); } catch (err) { console.warn("share", err); toast("Share failed"); } });
+    setTimeout(() => d.addEventListener("click", function off(e) { if (!m.contains(e.target)) { m.remove(); d.removeEventListener("click", off); } }), 0); }
+  function add() { const box = d.querySelector(".ag-tools"); if (!box || box.querySelector(".ag-share")) return; const b = d.createElement("button"); b.className = "ag-share"; b.setAttribute("aria-label", "Share"); b.innerHTML = ICON;
+    b.addEventListener("click", e => { e.stopPropagation(); if (!b.classList.contains("rec")) menu(b); }); box.appendChild(b); }
+  new MutationObserver(add).observe(d.body, { childList: true, subtree: true }); add();
+  const GL = "background:rgba(255,255,255,.08)!important;border:1px solid rgba(255,255,255,.45)!important;-webkit-backdrop-filter:blur(10px) saturate(160%);backdrop-filter:blur(10px) saturate(160%);box-shadow:inset 0 1px 0 rgba(255,255,255,.35),inset 0 -2px 4px rgba(0,0,0,.22),0 1px 3px rgba(0,0,0,.18)!important;color:#fff!important;text-shadow:0 1px 2px rgba(0,0,0,.55)";
+  const sel = ".stage .play,.stage .close,.stage .rail-zoom button,.stage .ev-toggle,.ag-tools>button,.ag-days,#ag-help,.stage .pv-mode,#ag-share-menu";
+  const css = d.createElement("style"); css.textContent = `${sel}{${GL}}
+.stage .play{padding:5px 11px!important;font-size:12px!important}.stage .close{width:32px!important;height:32px!important}
+.ag-tools>button{padding:3px 8px!important;font-size:12px!important;line-height:1;display:inline-flex;align-items:center;justify-content:center;min-height:26px}
+.ag-days{border-radius:999px;padding:2px;display:inline-flex}.ag-days button{background:transparent!important;border:0!important;color:#fff!important;padding:3px 8px!important;font-size:12px!important;border-radius:999px;text-shadow:0 1px 2px rgba(0,0,0,.55)}
+.ag-days button.on,.ag-tools>button.on{background:rgba(255,255,255,.28)!important}
+.stage .ev-toggle a{text-shadow:0 1px 2px rgba(0,0,0,.5)}.stage .ev-toggle a:not(.on){color:#fff!important}
+.stage .rail-zoom{background:transparent!important;border:0!important;box-shadow:none!important}
+.ag-share svg{display:block;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.55))}
+.ag-share.rec{border-color:rgba(255,80,80,.9)!important;animation:agrec 1s infinite}.ag-share.rec::after{content:attr(data-t);font-size:10px;margin-left:3px}
+@keyframes agrec{50%{box-shadow:0 0 0 3px rgba(255,80,80,.35)}}
+#ag-share-menu{position:fixed;z-index:60;display:flex;flex-direction:column;gap:2px;padding:4px;border-radius:12px;background:rgba(20,20,30,.35)!important}
+#ag-share-menu button{all:unset;cursor:pointer;color:#fff;font:600 13px system-ui;padding:8px 12px;border-radius:8px;text-shadow:0 1px 2px rgba(0,0,0,.6)}#ag-share-menu button:hover{background:rgba(255,255,255,.15)}
+.ag-toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);z-index:70;color:#fff;font:600 13px system-ui;padding:8px 14px;border-radius:999px;${GL}}`;
+  d.head.appendChild(css);
+})(window);
