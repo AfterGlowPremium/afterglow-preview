@@ -156,27 +156,47 @@
   function boarderEvent() { return { k: "boarder", t0: NOW, dir: Math.random() < .5 ? 1 : -1, x0: R(.38, .62), Dout: R(22, 26), Dbreak: R(13, 15), dur: 22, spin: Math.random() < .55 }; }
   const eyeM = () => { const L = g.PhotoStage && g.PhotoStage.last; return L && L.surf > 0.2 ? (L.heroCam || 0.0025) * 1000 : 2.5; };
   // d28zq: side-view prone bodyboarder, s = px per metre. Colours lit by day; silhouette only when low sun is in front.
-  function drawBoarder(s, ang, sil, o) { x.save(); x.rotate(ang);
-    const SUIT = sil ? "#140f16" : "#1b1d24", PANEL = sil ? "#140f16" : "#2b78c4", SKIN = sil ? "#140f16" : "#c99070", BRD = sil ? "#1a1418" : "#f2c21b", RAIL = sil ? "#100c10" : "#d2462e", FIN = sil ? "#120e12" : "#e8433a";
-    const L = 1.05 * s, T = .07 * s;   // board 1.05 m x 7 cm
-    x.fillStyle = RAIL; x.beginPath(); x.roundRect ? x.roundRect(-L * .5, -T * .5, L, T, T * .5) : x.rect(-L * .5, -T * .5, L, T); x.fill();
-    x.fillStyle = BRD; x.fillRect(-L * .48, -T * .5, L * .96, T * .45);
-    const by = -T * .5, kk = o.kick ? Math.sin(NOW * 13) : 0, pd = o.paddle ? NOW * 5.5 : 0;
-    // torso + hips (chest on the board nose, hips at the tail)
-    x.fillStyle = SUIT; x.beginPath(); x.ellipse(-L * .02, by - .13 * s, .42 * s, .13 * s, -.05, 0, 2 * PI); x.fill();
-    x.fillStyle = PANEL; x.beginPath(); x.ellipse(.05 * s, by - .2 * s, .2 * s, .045 * s, -.08, 0, 2 * PI); x.fill();
-    // legs: thighs off the tail, kicking
-    x.strokeStyle = SUIT; x.lineCap = "round"; x.lineWidth = .13 * s;
-    const lg = (ph) => { const a = .12 + (o.kick ? .35 * Math.sin(NOW * 13 + ph) : .05); x.beginPath(); x.moveTo(-.38 * s, by - .1 * s); x.lineTo(-.82 * s, by - .1 * s - Math.sin(a) * .35 * s); x.stroke();
-      x.fillStyle = FIN; x.beginPath(); x.ellipse(-1.0 * s, by - .1 * s - Math.sin(a) * .5 * s, .16 * s, .045 * s, -a, 0, 2 * PI); x.fill(); };
-    lg(0); lg(PI);
-    // head up
-    x.fillStyle = SUIT; x.beginPath(); x.arc(.46 * s, by - .27 * s, .11 * s, 0, 2 * PI); x.fill();
-    x.fillStyle = SKIN; x.beginPath(); x.arc(.53 * s, by - .26 * s, .065 * s, -1.2, 1.4); x.fill();
-    // arm: paddling stroke or holding the nose
-    x.strokeStyle = SUIT; x.lineWidth = .09 * s; x.beginPath(); x.moveTo(.28 * s, by - .17 * s);
-    if (o.paddle) { const a = pd % (2 * PI); x.lineTo(.28 * s + Math.cos(a) * .5 * s, by - .1 * s + Math.max(-.25, Math.sin(a)) * .45 * s); } else x.lineTo(.5 * s, by - .02 * s);
-    x.stroke(); x.fillStyle = SKIN; x.restore(); }
+  // d28zt: prone bodyboarder, side view, built from reference photos (groundtruth/bodyboard). s = px per metre; +x = toward the nose / where he's heading.
+  // o.arch 0..1 (trim: chest up, back arched), o.comp 0..1 (drop: body compressed onto the board), o.paddle / o.kick.
+  function drawBoarder(s, ang, sil, o) { x.save(); x.rotate(ang); x.lineCap = "round"; x.lineJoin = "round";
+    const SUIT = sil ? "#120d14" : "#1a1c22", PANEL = sil ? SUIT : "#2a6fb8", SKIN = sil ? SUIT : "#c08a68", BRD = sil ? "#160f15" : "#f1c21c", BOT = sil ? "#160f15" : "#d6412c", FIN = sil ? "#130e13" : "#e23d33";
+    const arch = o.arch != null ? o.arch : .5, comp = o.comp || 0, T = NOW;
+    const L = 1.07, bt = .07, nx = L / 2, tx = -L / 2;   // 42" board, squared tail, slight nose kick
+    const P = (a, b) => [a * s, b * s];
+    const shape = (fill) => {
+      // board: deck + bottom, rocker toward the nose
+      x.fillStyle = fill || BOT; x.beginPath(); x.moveTo(...P(tx, -bt * .2)); x.lineTo(...P(tx, bt * .55)); x.quadraticCurveTo(...P(.1, bt * .9), ...P(nx - .06, bt * .2)); x.quadraticCurveTo(...P(nx + .015, -.01), ...P(nx, -bt * .9)); x.lineTo(...P(nx - .05, -bt * .55)); x.quadraticCurveTo(...P(0, -bt * .45), ...P(tx, -bt * .45)); x.closePath(); x.fill();
+      if (!fill) { x.fillStyle = BRD; x.beginPath(); x.moveTo(...P(tx, -bt * .45)); x.quadraticCurveTo(...P(0, -bt * .45), ...P(nx - .05, -bt * .55)); x.lineTo(...P(nx, -bt * .9)); x.lineTo(...P(nx - .04, -bt * .2)); x.quadraticCurveTo(...P(0, -bt * .05), ...P(tx, -bt * .05)); x.closePath(); x.fill(); }
+      const deck = -bt * .5, lift = .07 + .13 * arch - .07 * comp;   // chest height off the deck
+      // legs: hips at the tail, thighs trailing off it, knees bent, shins + fins angled up (alternating kick)
+      const kk = o.kick ? Math.sin(T * 11) : Math.sin(T * 2) * .15;
+      const leg = (ph, w) => { const a1 = .1 + .06 * Math.sin(ph), kx = tx - .3, ky = deck - .03 + .04 * Math.sin(ph), sh = 1.0 + .3 * comp + .3 * Math.sin(ph);   // knee bend
+        const ax = kx - .3 * Math.cos(sh), ay = ky - .3 * Math.sin(sh);
+        x.strokeStyle = fill || SUIT; x.lineWidth = w * s; x.beginPath(); x.moveTo(...P(tx + .1, deck - .1)); x.lineTo(...P(kx, ky)); x.lineTo(...P(ax, ay)); x.stroke();
+        x.fillStyle = fill || FIN; x.beginPath(); x.moveTo(...P(ax + .02, ay + .03)); x.lineTo(...P(ax - .2 * Math.cos(sh + .5), ay - .2 * Math.sin(sh + .5) - .02)); x.lineTo(...P(ax - .23 * Math.cos(sh + .2), ay - .23 * Math.sin(sh + .2) + .03)); x.lineTo(...P(ax - .03, ay + .05)); x.closePath(); x.fill(); };
+      leg(kk * 1.2 + PI, .1); leg(-kk * 1.2, .11);
+      // torso: hips on the tail half, chest on the upper half, back arched up toward the shoulders
+      const hx = tx + .08, sx = .2 - .06 * comp, sy = deck - .12 - lift, hy = deck - .1;
+      x.fillStyle = fill || SUIT; x.beginPath(); x.moveTo(...P(hx - .05, deck - .02)); x.quadraticCurveTo(...P(hx - .1, hy - .14), ...P(hx + .05, hy - .16));   // buttocks
+      x.quadraticCurveTo(...P((hx + sx) / 2, hy - .12 - lift * .55 - .03 * arch), ...P(sx - .02, sy - .08));   // lower back → shoulder blades (arch)
+      x.quadraticCurveTo(...P(sx + .1, sy - .07), ...P(sx + .13, sy + .02));   // shoulder
+      x.quadraticCurveTo(...P(sx + .05, deck - .03), ...P(sx - .12, deck - .02));   // chest onto the deck
+      x.lineTo(...P(hx - .05, deck - .02)); x.closePath(); x.fill();
+      if (!fill && !sil) { x.fillStyle = PANEL; x.beginPath(); x.ellipse(...P((hx + sx) / 2 + .05, hy - .1 - lift * .4), .16 * s, .03 * s, -lift * .9, 0, 2 * PI); x.fill(); }
+      // neck + head: raised, looking down the line
+      const hdx = sx + .19 - .04 * comp, hdy = sy - .1 + .04 * comp;
+      x.strokeStyle = fill || SUIT; x.lineWidth = .085 * s; x.beginPath(); x.moveTo(...P(sx + .07, sy - .02)); x.lineTo(...P(hdx - .05, hdy + .03)); x.stroke();
+      x.fillStyle = fill || SUIT; x.beginPath(); x.ellipse(...P(hdx, hdy), .1 * s, .085 * s, -.25, 0, 2 * PI); x.fill();
+      if (!fill && !sil) { x.fillStyle = SKIN; x.beginPath(); x.ellipse(...P(hdx + .05, hdy + .015), .05 * s, .06 * s, -.2, -1.3, 1.6); x.fill(); }
+      // arms: paddling = alternating strokes; riding = front hand on the nose, inside elbow on the rail
+      x.strokeStyle = fill || SUIT; x.lineWidth = .075 * s;
+      const arm = (a) => { x.beginPath(); x.moveTo(...P(sx + .06, sy + .02)); x.lineTo(...P(a[0], a[1])); x.lineTo(...P(a[2], a[3])); x.stroke(); x.fillStyle = fill || SKIN; x.beginPath(); x.arc(...P(a[2], a[3]), .04 * s, 0, 2 * PI); x.fill(); };
+      if (o.paddle) { for (const ph of [0, PI]) { const a = (T * 5.2 + ph) % (2 * PI), rx = sx + .1 + .32 * Math.cos(a), ry = deck + .08 + .3 * Math.max(-.35, Math.sin(a)); arm([(sx + rx) / 2 + .05, (sy + ry) / 2, rx, ry]); } }
+      else { arm([sx + .12, deck - .06, sx + .02, deck + .02]);   // inside elbow down on the rail
+        arm([sx + .3, sy + .1, nx - .03, -bt * .9]); }   // outside hand gripping the nose
+    };
+    if (sil) { x.save(); x.translate(0, -.7); x.globalAlpha = .4; shape("rgba(255,214,160,.8)"); x.restore(); }   // subtle rim light from the low sun behind
+    shape(null); x.restore(); }
   // d28zr: the ride is locked to the shader's hero wave (same peel phase/geometry as photoreal.js heroSDF): take off at the peak,
   // drop in, ride the face in the pocket just ahead of the curl as it peels right→left across the frame, then kick out over the back.
   function heroGeo() { const c = g.__agCam; if (!c || !c.hero || !(c.surf > .2)) return null; const gK = Math.max(1, c.surf / 1.524);
@@ -200,8 +220,8 @@
     if (ph === "take" || ph === "ride") { e.off = e.off || 0; let pk = pocket(e.pki) + e.off; if (e.lastPk != null && pk > e.lastPk + 5) { e.off -= 15; pk -= 15; } e.lastPk = pk;
       const rt = t - e.tt, xr = pk - 3.3;   // just ahead of the curl (the visible curl edge sits ~3 crest units left of rel=0; measured on renders), on the unbroken face
       if (ph === "take") { const k = Math.min(1, rt / .7); // drop in: from the crest down to the middle of the face
-        P = waveToScreen(G2, xr, -.15 + .45 * k, G2.H * (1 - .55 * k)); ang = .55 * (1 - k) + .15; o.kick = k < .5; if (!e.sp) e.sp = mkSplash(P.x, P.y, P.pm * .9, 14); if (rt >= .7) e.ph = "ride"; }
-      else { const wob = Math.sin(rt * 3.1); P = waveToScreen(G2, xr, .3 + .05 * wob, G2.H * (.45 + .12 * wob)); ang = .12 + .1 * wob;
+        P = waveToScreen(G2, xr, -.15 + .45 * k, G2.H * (1 - .55 * k)); ang = .55 * (1 - k) + .15; o.kick = k < .5; o.comp = Math.sin(k * PI) * .9 + .1; o.arch = .2; if (!e.sp) e.sp = mkSplash(P.x, P.y, P.pm * .9, 14); if (rt >= .7) e.ph = "ride"; }
+      else { const wob = Math.sin(rt * 3.1); P = waveToScreen(G2, xr, .3 + .05 * wob, G2.H * (.45 + .12 * wob)); ang = .12 + .1 * wob; o.arch = .75 + .2 * wob;
         if (e.spin && rt > 1.4 && rt < 1.9) spinA = ((rt - 1.4) / .5) * 2 * PI;
         if (!e.trail || now - e.trail.t0 > .25) e.trail = mkSplash(P.x + P.pm * .8, P.y + P.pm * .1, P.pm * .6, 6);
         if (P.x < G.l + P.pm * 1.6 || rt > 4.6) { e.ph = "kick"; e.tk = t; e.xk = xr; } } }
