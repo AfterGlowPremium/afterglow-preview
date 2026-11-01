@@ -391,7 +391,6 @@ float surfH(vec2 p){
   float d = -p.y, x = surfX(p), sec = surfSec(p);
   float brk = smoothstep(110., 40., d) * sec * smoothstep(.35, 1.7, uSurf);   // closer in = steeper, about to pitch
   float fw = mix(.1, mix(.06, .022, clamp(uOff + 1. - uChop, 0., 1.)), brk);                                    // face width as a fraction of the spacing
-  fw = mix(fw, .26, (1. - step(.5, uHero)) * smoothstep(1.2, 1.6, uSurf));   // d28zq: bay surf (Buckroe) = short-period spilling waves, sloped faces not vertical walls
   float back = pow(1. - smoothstep(0., .78, x), 1.7);
   float face = pow(smoothstep(1. - fw, 1., x), 1.1 + 2.2 * brk);
   float h = max(back, face);
@@ -1050,7 +1049,7 @@ void main(){
       { float x = surfX(p.xz), d = -p.z, sec = surfSec(p.xz), brk = smoothstep(110., 40., d) * sec * smoothstep(.35, 1.7, uSurf), fw = mix(.1, .022, brk);
         float pl = surfPeel(p.xz), curl = smoothstep(-1., -.15, pl) * (1. - smoothstep(.15, .6, pl)) * brk * smoothstep(.15, .5, uOff + (1. - uChop) * .4);
         float u = (x - (1. - fw * 2.6)) / (fw * 2.6);
-        if (curl > .25 && uSurf > 1.05 && uSurf < 2.2 && (uHero > .5 || uSurf < 1.2) && u > .05 && u < 1.){   // d19: big surf seen from the beach = whitewater, not a solid thrown sheet
+        if (curl > .25 && uSurf > 1.05 && uSurf < 2.2 && u > .05 && u < 1.){   // d19: big surf seen from the beach = whitewater, not a solid thrown sheet
           float Ht = uSurf * surfEnv(p.xz) * sec * (1. + .35 * brk) * .68;
           float yl = -camM + Ht * (1. - .55 * pow(1. - u, 2.)) , th = (.12 + .5 * u) * curl;
           if (p.y < yl && p.y > yl - th){ hitT = t; lipHit = 1.; lipU = u; break; } } }
@@ -1078,12 +1077,11 @@ void main(){
       float x = surfX(q), d = -q.y, sec = surfSec(q), brk = smoothstep(150., 70., d) * sec;
       float faceZ = smoothstep(.8, .97, x), thin = smoothstep(.93, 1., x) * smoothstep(.0, .6, n.z);
       vec3 body = hz2 * uTint * .22;                                             // deep water body under a dusk sky
-      vec3 trans = (hz2 * .7 + vec3(dot(hz2, vec3(.33)))) * uTint * mix(.85, .45, (1. - step(.5, uHero)) * smoothstep(1.2, 1.6, uSurf)) * thin * (.5 + .5 * brk);                       // sky light glowing through the thin face
+      vec3 trans = (hz2 * .7 + vec3(dot(hz2, vec3(.33)))) * uTint * .85 * thin * (.5 + .5 * brk);                       // sky light glowing through the thin face
       vec3 c = refl * F + body * (1. - F) + trans;
       c *= mix(1., .55, faceZ * (1. - thin) * smoothstep(.2, .8, n.z));                     // face turned away from the bright sky reads darker
       // whitewater: feathering lip (offshore = thin, clean), pitching/broken sections, soup on the inside
-      float bayK = (1. - step(.5, uHero)) * smoothstep(1.2, 1.6, uSurf);   // d28zq: no-hero big surf (Buckroe) — isotropic whitewater, no vertical curtain streaks on the faces
-      float tex = fbm(q * mix(vec2(.45, 1.6), vec2(1.4, 1.1), bayK) + vec2(uSurfT * .3, 0.), 0., 5) * .65 + fbm(q * mix(vec2(2.2, 3.2), vec2(3.5, 3.), bayK) + 7., 0., 4) * .35;
+      float tex = fbm(q * vec2(.45, 1.6) + vec2(uSurfT * .3, 0.), 0., 5) * .65 + fbm(q * vec2(2.2, 3.2) + 7., 0., 4) * .35;
       float lip = smoothstep(.975, .995, x) * smoothstep(.45, .7, tex) * brk * mix(.9, .55, uOff);
       float broke = smoothstep(60., 30., d) * smoothstep(.55, .8, fbm(vec2(q.x * .05 + uSeed.x, 2.), 0., 3));
       float onF = (1. - uOff) * clamp(uChop, 0., 1.) * smoothstep(.15, .5, uCaps);   // v16: onshore / cross-shore — sections close out and crumble
@@ -1330,7 +1328,7 @@ void main(){
     gl.uniform1f(U.uWater, P.water ? 1 : 0); gl.uniform1f(U.uPier, P.pier ? 1 : 0); gl.uniform1f(U.uShore, P.shore || 0); gl.uniform1f(U.uHills, P.hills || 0); if (U.uCity) gl.uniform1f(U.uCity, P.city || 0); if (U.uBridge) gl.uniform1f(U.uBridge, P.bridge || 0); { const G = P.ground || {}; if (U.uGnd) gl.uniform4f(U.uGnd, G.near || 0, G.nearD || 0, G.far || 0, G.land ? 1 : 0); if (U.uFS) gl.uniform4f(U.uFS, G.d || 0, G.th || 0, G.town || 0, G.dune || 0); if (U.uMarsh) gl.uniform2f(U.uMarsh, G.marsh || 0, G.swamp ? 1 : 0); if (U.uReg) { const R = G.reg || [0, 0, 0]; gl.uniform4f(U.uReg, R[0], R[1], R[2] || 0, 0); } if (U.uFSv) gl.uniform4f(U.uFSv, G.dl != null ? G.dl : (G.d || 0), G.dr != null ? G.dr : (G.d || 0), G.a0 != null ? G.a0 : -9, G.a1 != null ? G.a1 : 9); }
     gl.uniform1f(U.uCamH, P.heroCam || P.camH || 0.002);
     const cam = camera(P, W, H), vfov = cam.vfov; P.hz = cam.hz; P.vfov = vfov;   // d24u: horizon line shared with the 2D overlays (storm towers)
-    gl.uniform1f(U.uFov, vfov * d2r); gl.uniform1f(U.uPitch, cam.pitch); if (canvas && canvas.id === "pv") window.__agCam = { pitch: cam.pitch, vfov: vfov, fovMul: (P && P.fovMul) || 1, hz: cam.hz, W: W, H: H }; if (U.uYaw) gl.uniform1f(U.uYaw, (P.lookYaw || 0) * d2r);
+    gl.uniform1f(U.uFov, vfov * d2r); gl.uniform1f(U.uPitch, cam.pitch); if (canvas && canvas.id === "pv") window.__agCam = { pitch: cam.pitch, vfov: vfov, fovMul: (P && P.fovMul) || 1, hz: cam.hz, W: W, H: H, st: P.surfT || 0, pt: performance.now(), hero: P.hero ? 1 : 0, surf: P.surf || 0, heroD: P.heroD || 26, faceK: P.faceK || 1.15, camH: P.heroCam || P.camH || 0.002 }; if (U.uYaw) gl.uniform1f(U.uYaw, (P.lookYaw || 0) * d2r);
     gl.uniform2f(U.uSeed, P.seed * 977 % 500, P.seed * 613 % 500); gl.uniform1f(U.uWind, P.wind || 0);
     gl.uniform1f(U.uLQ, P.lq ? 1 : 0); gl.uniform1f(U.uDog, P.dog || 0); if (U.uRays) gl.uniform1f(U.uRays, P.rays || 0); gl.uniform1f(U.uPixScale, 1);
     gl.uniform1f(U.uTwi, Math.max(0, Math.min(1, (1.5 - P.elev) / 3)) * Math.max(0, Math.min(1, (P.elev + 8) / 3)) * (1 - clamp(P.gray || 0))); gl.uniform1f(U.uGrainT, P.grain || 0.37);

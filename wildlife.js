@@ -177,7 +177,41 @@
     x.strokeStyle = SUIT; x.lineWidth = .09 * s; x.beginPath(); x.moveTo(.28 * s, by - .17 * s);
     if (o.paddle) { const a = pd % (2 * PI); x.lineTo(.28 * s + Math.cos(a) * .5 * s, by - .1 * s + Math.max(-.25, Math.sin(a)) * .45 * s); } else x.lineTo(.5 * s, by - .02 * s);
     x.stroke(); x.fillStyle = SKIN; x.restore(); }
-  function runBoarder(e, now, litIn) { const t = now - e.t0; if (t > e.dur) return false; const d0 = e.dir, cx = ZX(W * .5) - d0 * W * Zf() * .12, WZ = W * Zf(), EY = eyeM();
+  // d28zr: the ride is locked to the shader's hero wave (same peel phase/geometry as photoreal.js heroSDF): take off at the peak,
+  // drop in, ride the face in the pocket just ahead of the curl as it peels right→left across the frame, then kick out over the back.
+  function heroGeo() { const c = g.__agCam; if (!c || !c.hero || !(c.surf > .2)) return null; const gK = Math.max(1, c.surf / 1.524);
+    const ST = c.st + (g.__agFix != null ? 0 : Math.min(.25, Math.max(0, (performance.now() - c.pt) / 1000)));
+    return { gK, gHD: c.heroD / gK, H: (c.surf / gK) * Math.max(c.faceK, 1) * .88, camM: c.camH * 1000 / gK, eye: c.camH * 1000, hpx: -(((ST * 3.75) % 15) + 15) % 15 }; }
+  // rotated wave frame (xr along the crest, s across: + = toward the camera, yy = height above still water, all normalised) → screen
+  function waveToScreen(G2, xr, s, yy) { const Dd = G2.gHD + .003 * xr * xr, zr = s - Dd, cz = zr + G2.gHD;
+    const px = xr * .927 - cz * .375, pz = xr * .375 + cz * .927 - G2.gHD, X = px * G2.gK, Dm = Math.max(2, -pz * G2.gK), pm = pxPerM(Dm);
+    const R0 = D0(); return { x: G.l + G.w / 2 + X * pm, y: waterY(Dm, G2.eye) - yy * G2.gK * pm, pm, D: Dm }; }
+  function runBoarder(e, now, litIn) { const t = now - e.t0; if (t > 40) return false; const G2 = heroGeo(); if (!G2) return runBoarderFlat(e, now, litIn);
+    const sil = !q().get("bboarderlit") && !q().get("bblit") && !litIn && sunEl() < 14; /* ?bblit=1 = test the daylight colours */
+    const hwN = ((G.w / 2) / pxPerM(G2.gHD * G2.gK)) / G2.gK / .927, xSeat = hwN * .7;   // sit on the right of the frame, where the peak comes through
+    let P, ang = 0, o = {}, face = -1, spinA = 0, ph = e.ph || "out", bob = Math.sin(t * 1.7) * .05 / G2.gK;
+    // pocket position along the crest (rotated frame); pick the copy of the periodic peel that is right of the seat when we take off
+    const pocket = k => G2.hpx + 15 * k;
+    if (ph === "out") { const k = Math.min(1, t / 6); P = waveToScreen(G2, xSeat * (.4 + .6 * k), 3.2 * (1 - k) - 1.1 * k, .02 + bob); o.paddle = 1; o.kick = 1; face = 1; ang = -.04;   // paddling out to the back of the peak (seen from behind)
+      if (t >= 6) e.ph = "wait"; }
+    else if (ph === "wait") { P = waveToScreen(G2, xSeat, -1.1, .05 + bob); face = t % 3 < 1.5 ? 1 : -1; ang = Math.sin(t * 1.6) * .06;
+      // the peak arrives: the curl copy just right of the seat moving left → turn & go
+      for (let k = -2; k <= 3; k++) { const pk = pocket(k); if (pk - 3.3 > xSeat - .5 && pk - 3.3 - xSeat < 1.7 && t > 6.5) { e.ph = "take"; e.pki = k; e.tt = t; e.spin = Math.random() < .5; } } }
+    if (ph === "take" || ph === "ride") { e.off = e.off || 0; let pk = pocket(e.pki) + e.off; if (e.lastPk != null && pk > e.lastPk + 5) { e.off -= 15; pk -= 15; } e.lastPk = pk;
+      const rt = t - e.tt, xr = pk - 3.3;   // just ahead of the curl (the visible curl edge sits ~3 crest units left of rel=0; measured on renders), on the unbroken face
+      if (ph === "take") { const k = Math.min(1, rt / .7); // drop in: from the crest down to the middle of the face
+        P = waveToScreen(G2, xr, -.15 + .45 * k, G2.H * (1 - .55 * k)); ang = .55 * (1 - k) + .15; o.kick = k < .5; if (!e.sp) e.sp = mkSplash(P.x, P.y, P.pm * .9, 14); if (rt >= .7) e.ph = "ride"; }
+      else { const wob = Math.sin(rt * 3.1); P = waveToScreen(G2, xr, .3 + .05 * wob, G2.H * (.45 + .12 * wob)); ang = .12 + .1 * wob;
+        if (e.spin && rt > 1.4 && rt < 1.9) spinA = ((rt - 1.4) / .5) * 2 * PI;
+        if (!e.trail || now - e.trail.t0 > .25) e.trail = mkSplash(P.x + P.pm * .8, P.y + P.pm * .1, P.pm * .6, 6);
+        if (P.x < G.l + P.pm * 1.6 || rt > 4.6) { e.ph = "kick"; e.tk = t; e.xk = xr; } } }
+    if (ph === "kick") { const k = Math.min(1, (t - e.tk) / 1.4); P = waveToScreen(G2, e.xk - .3 * k, .3 - 1.6 * k, G2.H * (.45 + .6 * Math.sin(k * PI * .6)) * (1 - k * .9)); ang = -.6 * Math.min(1, k * 2) + .25 * k; o.kick = 1; if (k >= 1) return false; e.fade = 1 - Math.max(0, (k - .6) / .4); }
+    if (!P) return true;
+    if (q().get("bbdbg")) { x.save(); for (let k = -2; k <= 2; k++) { const pk = G2.hpx + 15 * k; for (const [dx, col] of [[-3.3, "#f0f"]]) { for (const yy of [0, .5, 1]) { const Q = waveToScreen(G2, pk + dx, 0, G2.H * yy); x.fillStyle = col; x.fillRect(Q.x - 3, Q.y - 3, 6, 6); } } } x.restore(); }
+    if (e.sp) drawSplash(e.sp, now, litIn || !sil); if (e.trail) drawSplash(e.trail, now, litIn || !sil);
+    x.save(); if (e.fade != null) x.globalAlpha = Math.max(0, e.fade); x.translate(P.x, P.y); x.scale(face * Math.cos(spinA) || .05, 1); drawBoarder(P.pm, ang, sil, o); x.restore();
+    g.__agBB = { ph: e.ph, tt: e.tt, tk: e.tk, hpx: G2.hpx, D: P.D, h: (P.pm * .55) / H, X: P.x, Y: P.y, t }; return true; }
+  function runBoarderFlat(e, now, litIn) { const t = now - e.t0; if (t > e.dur) return false; const d0 = e.dir, cx = ZX(W * .5) - d0 * W * Zf() * .12, WZ = W * Zf(), EY = eyeM();
     const sil = !q().get("bblit") && !litIn && sunEl() < 14; /* ?bblit=1 = test the daylight colours */ let D, X, ang = 0, o = {}, face = d0, lift = 0, spinA = 0, bob = Math.sin(t * 1.7) * .06;
     if (t < 6) { const k = t / 6; D = e.Dbreak - 4 + (e.Dout - e.Dbreak + 4) * k; X = cx - d0 * WZ * .06 * k; o.paddle = 1; o.kick = 1; face = -d0; ang = -.04; if (t > 2.4 && t < 3.6) lift = -.25; }   // paddle out, duck-dive through a line
     else if (t < 8.5) { D = e.Dout; X = cx - d0 * WZ * .06; face = -d0; ang = Math.sin(t * 1.6) * .06; }   // sit in the lineup
@@ -202,7 +236,7 @@
     G = { l: rp.left - rs.left, t: rp.top - rs.top, w: rp.width, h: rp.height };
     if (cv.width !== Math.round(w * k) || cv.height !== Math.round(h * k)) { cv.width = Math.round(w * k); cv.height = Math.round(h * k); } W = w; H = h; x.setTransform(k, 0, 0, k, 0, 0); return true; }
   function frame(ms) { raf = 0; const w = which(); if (w !== "heron") d.querySelectorAll(".stage img.pv-fg,.stage img.pv-fg2").forEach(el => { if (el.style.visibility) el.style.visibility = ""; }); if (!w || !size()) { if (cv) x && x.clearRect(0, 0, cv.width, cv.height); ev = null; heron = null; return; }
-    raf = requestAnimationFrame(frame); if (ms - last < 33) return; last = ms; const now = NOW = ms / 1000, lit = !backlit();
+    raf = requestAnimationFrame(frame); if (ms - last < 33) return; last = ms; const now = NOW = g.__agFix != null ? g.__agFix : ms / 1000, lit = !backlit();
     const key = spot() + w; if (key !== curKey) { curKey = key; ev = null; heron = null; nextAt = now + (FORCE() ? .5 : R(3, 12)); }
     x.clearRect(0, 0, W, H);
     if (w === "heron") { drawHeron(now); return; }
@@ -211,5 +245,5 @@
   }
   const kick = () => { if (!raf && which()) raf = requestAnimationFrame(frame); };
   setInterval(() => { if (!which()) d.querySelectorAll('.stage img.pv-fg,.stage img.pv-fg2').forEach(el => { if (el.style.visibility) el.style.visibility = ''; }); kick(); }, 1000); new MutationObserver(kick).observe(d.body, { childList: true, subtree: true });
-  g.__agWild = { restart: () => { heron = null; }, seek: t => { const w = which(); if (!ev && w && w !== "heron") ev = w === "osprey" ? (q().get("waves") ? boarderEvent() : ospreyEvent()) : dolphinEvent(); if (ev) ev.t0 = NOW - t; if (heron) heron.t0 = NOW - t; }, force: () => { nextAt = 0; ev = null; }, dbg: () => ({ w: which(), ev: ev && { k: ev.k, t: NOW - ev.t0, D: ev.D, dive: ev.dive }, W, H, nextAt, NOW, hz: hz(), ppm: pxPerM(100), raf }) };
+  g.__agWild = { step: (dt, t0) => { if (g.__agFix == null) { g.__agFix = performance.now() / 1000; g.__agSurfT = t0 || 100; } g.__agFix += dt; g.__agSurfT += dt; g.__agQueue && g.__agQueue(); }, restart: () => { heron = null; }, seek: t => { const w = which(); if (ev && ev.k === "boarder") ev = null; if (!ev && w && w !== "heron") ev = w === "osprey" ? (q().get("waves") ? boarderEvent() : ospreyEvent()) : dolphinEvent(); if (ev) ev.t0 = NOW - t; if (heron) heron.t0 = NOW - t; }, force: () => { nextAt = 0; ev = null; }, dbg: () => ({ w: which(), ev: ev && { k: ev.k, t: NOW - ev.t0, D: ev.D, dive: ev.dive }, W, H, nextAt, NOW, hz: hz(), ppm: pxPerM(100), raf }) };
 })(window);
