@@ -121,29 +121,44 @@
   function caption(x, W, H) { const f = Math.max(11, Math.round(H * 0.02)); x.save(); x.shadowColor = "rgba(0,0,0,.65)"; x.shadowBlur = 5; x.fillStyle = "rgba(255,255,255,.9)";
     x.font = `600 ${f}px system-ui`; x.textAlign = "left"; const s = score(); x.fillText(`Afterglow · ${spotName()}`, f, H - f * 2.4); x.font = `${Math.round(f * .85)}px system-ui`;
     x.fillText(`${dayISO()} ${mode()}${s ? " · score " + s : ""}`, f, H - f * 1.1); x.textAlign = "right"; x.fillText("© Sean Tuttle 2026", W - f, H - f * 1.1); x.restore(); }
-  async function deliver(blob, name, type) { const file = new File([blob], name, { type });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file], title: "Afterglow", text: spotName(), url: link() }); return; } catch (e) { if (e && e.name === "AbortError") return; } }
-    const a = d.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; d.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
-    try { await navigator.clipboard.writeText(link()); toast("Saved — link copied"); } catch (e) { toast("Saved"); } }
+  // d28zs: iOS Safari — navigator.share() must run synchronously inside the tap (no await before it), so files are prepared BEFORE the share tap.
+  function fallback(blob, name) { if (blob) { const a = d.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; d.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000); }
+    const u = link(); (navigator.clipboard ? navigator.clipboard.writeText(u) : Promise.reject()).then(() => toast(blob ? "Saved — link copied" : "Link copied"), () => { if (blob) toast("Saved"); else prompt("Copy link", u); }); }
+  function shareNow(file, blob) {   // call directly from a click handler
+    const lk = { title: "Afterglow · " + spotName(), url: link() };
+    if (file && navigator.canShare && navigator.canShare({ files: [file] })) { navigator.share({ files: [file], title: lk.title, url: lk.url }).catch(e => { if (!e || e.name !== "AbortError") fallback(blob, file.name); }); return; }
+    if (!file && navigator.share) { navigator.share(lk).catch(e => { if (!e || e.name !== "AbortError") fallback(null); }); return; }
+    if (file && navigator.share) { navigator.share(lk).catch(() => {}); fallback(blob, file.name); return; }   // files unsupported → share the link, save the file
+    fallback(blob, file && file.name); }
   function toast(t) { const el = d.createElement("div"); el.className = "ag-toast"; el.textContent = t; d.body.appendChild(el); setTimeout(() => el.remove(), 2200); }
-  async function shot() { const cv = d.getElementById("pv"); if (!cv) return; const k = 2, W = cv.clientWidth * k, H = cv.clientHeight * k, o = d.createElement("canvas"); o.width = W; o.height = H; const x = o.getContext("2d");
-    compose(x, W, H, k); caption(x, W, H); const b = await new Promise(r => o.toBlob(r, "image/png")); await deliver(b, fname("png"), "image/png"); }
-  async function shareLink() { const u = link(); if (navigator.share) { try { await navigator.share({ title: "Afterglow · " + spotName(), url: u }); return; } catch (e) { if (e && e.name === "AbortError") return; } }
-    try { await navigator.clipboard.writeText(u); toast("Link copied"); } catch (e) { prompt("Copy link", u); } }
-  async function video(btn) { const cv = d.getElementById("pv"); const MR = g.MediaRecorder;
-    const types = ["video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm"]; const type = MR && types.find(t => MR.isTypeSupported && MR.isTypeSupported(t));
-    const o = d.createElement("canvas"); if (!cv || !MR || !type || !o.captureStream) { toast("Video not supported here — sharing a screenshot"); return shot(); }
-    const k = Math.min(2, g.devicePixelRatio || 1), W = Math.round(cv.clientWidth * k / 2) * 2, H = Math.round(cv.clientHeight * k / 2) * 2; o.width = W; o.height = H; const x = o.getContext("2d");
+  function shotBlob() { const cv = d.getElementById("pv"); if (!cv) return Promise.resolve(null); const k = 2, W = cv.clientWidth * k, H = cv.clientHeight * k, o = d.createElement("canvas"); o.width = W; o.height = H; const x = o.getContext("2d");
+    compose(x, W, H, k); caption(x, W, H); return new Promise(r => o.toBlob(r, "image/png")); }
+  const MR = g.MediaRecorder, isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const vType = () => { if (!MR || !MR.isTypeSupported || !HTMLCanvasElement.prototype.captureStream) return null; const T = isIOS ? ["video/mp4;codecs=avc1", "video/mp4"] : ["video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm"]; return T.find(t => MR.isTypeSupported(t)) || null; };
+  function record(btn) { const cv = d.getElementById("pv"), type = vType(); if (!cv || !type) return Promise.resolve(null);
+    const o = d.createElement("canvas"), k = Math.min(2, g.devicePixelRatio || 1), W = Math.round(cv.clientWidth * k / 2) * 2, H = Math.round(cv.clientHeight * k / 2) * 2; o.width = W; o.height = H; const x = o.getContext("2d");
     const stream = o.captureStream(30), rec = new MR(stream, { mimeType: type, videoBitsPerSecond: 5e6 }), parts = []; rec.ondataavailable = e => e.data && e.data.size && parts.push(e.data);
     let on = true; const loop = () => { if (!on) return; compose(x, W, H, k); caption(x, W, H); requestAnimationFrame(loop); }; loop();
     const T = 8000; btn.classList.add("rec"); const t0 = Date.now(); const tick = setInterval(() => { btn.dataset.t = Math.ceil((T - (Date.now() - t0)) / 1000) + "s"; }, 250);
-    const done = new Promise(r => rec.onstop = r); rec.start(500); await new Promise(r => setTimeout(r, T)); rec.stop(); await done; on = false; clearInterval(tick); btn.classList.remove("rec"); delete btn.dataset.t; stream.getTracks().forEach(t => t.stop());
-    const mt = type.split(";")[0]; await deliver(new Blob(parts, { type: mt }), fname(mt === "video/mp4" ? "mp4" : "webm"), mt); }
-  function menu(anchor) { let m = d.getElementById("ag-share-menu"); if (m) { m.remove(); return; }
-    m = d.createElement("div"); m.id = "ag-share-menu"; m.innerHTML = '<button data-a="link">🔗 Link</button><button data-a="shot">🖼 Screenshot</button><button data-a="video">🎬 Video (8 s)</button>';
-    const r = anchor.getBoundingClientRect(); m.style.top = (r.bottom + 6) + "px"; m.style.left = Math.max(8, Math.min(r.left, innerWidth - 170)) + "px"; d.body.appendChild(m);
-    m.addEventListener("click", async e => { const b = e.target.closest("button"); if (!b) return; e.stopPropagation(); m.remove(); const a = b.dataset.a; try { if (a === "link") await shareLink(); else if (a === "shot") await shot(); else await video(anchor); } catch (err) { console.warn("share", err); toast("Share failed"); } });
-    setTimeout(() => d.addEventListener("click", function off(e) { if (!m.contains(e.target)) { m.remove(); d.removeEventListener("click", off); } }), 0); }
+    return new Promise(res => { rec.onstop = () => { on = false; clearInterval(tick); btn.classList.remove("rec"); delete btn.dataset.t; stream.getTracks().forEach(t => t.stop()); const mt = type.split(";")[0]; res({ blob: new Blob(parts, { type: mt }), ext: mt === "video/mp4" ? "mp4" : "webm", mt }); };
+      rec.start(500); setTimeout(() => rec.stop(), T); }); }
+  function place(m, anchor) { const r = anchor.getBoundingClientRect(); m.style.top = (r.bottom + 6) + "px"; m.style.left = Math.max(8, Math.min(r.left, innerWidth - 170)) + "px"; }
+  function closeMenu() { const m = d.getElementById("ag-share-menu"); if (m) m.remove(); }
+  function menu(anchor) { if (d.getElementById("ag-share-menu")) return closeMenu();
+    const m = d.createElement("div"); m.id = "ag-share-menu"; const vt = vType();
+    m.innerHTML = '<button data-a="link">🔗 Link</button><button data-a="shot" disabled>🖼 Screenshot…</button>' + (vt ? '<button data-a="video">🎬 Video (8 s)</button>' : "");
+    place(m, anchor); d.body.appendChild(m);
+    let png = null; shotBlob().then(b => { if (!b) return; png = { blob: b, file: new File([b], fname("png"), { type: "image/png" }) }; const sb = m.querySelector('[data-a="shot"]'); if (sb) { sb.disabled = false; sb.textContent = "🖼 Screenshot"; } }).catch(() => {});
+    m.addEventListener("click", e => { const b = e.target.closest("button"); if (!b || b.disabled) return; e.stopPropagation(); const a = b.dataset.a;
+      try {
+        if (a === "link") { closeMenu(); shareNow(null, null); }
+        else if (a === "shot") { closeMenu(); shareNow(png.file, png.blob); }
+        else if (a === "video") { closeMenu(); toast("Recording 8 s…"); record(anchor).then(v => { if (!v) return toast("Video not supported here");
+            const m2 = d.createElement("div"); m2.id = "ag-share-menu"; m2.innerHTML = '<button data-a="sv">🎬 Share video</button><button data-a="x">Cancel</button>'; place(m2, anchor); d.body.appendChild(m2);
+            const file = new File([v.blob], fname(v.ext), { type: v.mt });
+            m2.addEventListener("click", ev => { const bb = ev.target.closest("button"); if (!bb) return; ev.stopPropagation(); m2.remove(); if (bb.dataset.a === "sv") shareNow(file, v.blob); }); }); }
+      } catch (err) { console.warn("share", err); toast("Share failed"); } });
+    setTimeout(() => d.addEventListener("click", function off(e) { const mm = d.getElementById("ag-share-menu"); if (!mm || !mm.contains(e.target)) { if (mm && !e.target.closest(".ag-share")) mm.remove(); d.removeEventListener("click", off); } }), 0); }
   function add() { const box = d.querySelector(".ag-tools"); if (!box || box.querySelector(".ag-share")) return; const b = d.createElement("button"); b.className = "ag-share"; b.setAttribute("aria-label", "Share"); b.innerHTML = ICON;
     b.addEventListener("click", e => { e.stopPropagation(); if (!b.classList.contains("rec")) menu(b); }); box.appendChild(b); }
   new MutationObserver(add).observe(d.body, { childList: true, subtree: true }); add();
@@ -159,8 +174,8 @@
 .ag-share svg{display:block;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.55))}
 .ag-share.rec{border-color:rgba(255,80,80,.9)!important;animation:agrec 1s infinite}.ag-share.rec::after{content:attr(data-t);font-size:10px;margin-left:3px}
 @keyframes agrec{50%{box-shadow:0 0 0 3px rgba(255,80,80,.35)}}
-#ag-share-menu{position:fixed;z-index:60;display:flex;flex-direction:column;gap:2px;padding:4px;border-radius:12px;background:rgba(20,20,30,.35)!important}
+#ag-share-menu{position:fixed;z-index:2147483000;display:flex;flex-direction:column;gap:2px;padding:4px;border-radius:12px;background:rgba(20,20,30,.35)!important}
 #ag-share-menu button{all:unset;cursor:pointer;color:#fff;font:600 13px system-ui;padding:8px 12px;border-radius:8px;text-shadow:0 1px 2px rgba(0,0,0,.6)}#ag-share-menu button:hover{background:rgba(255,255,255,.15)}
-.ag-toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);z-index:70;color:#fff;font:600 13px system-ui;padding:8px 14px;border-radius:999px;${GL}}`;
+.ag-toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);z-index:2147483001;color:#fff;font:600 13px system-ui;padding:8px 14px;border-radius:999px;${GL}}`;
   d.head.appendChild(css);
 })(window);
