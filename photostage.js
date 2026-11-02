@@ -104,6 +104,7 @@
       ...seaP(spot, ev, t),
       seed, wind: seed * 6.283, dog: dogAt(ev, C, pos.elev), rays: raysAt(C, pos.elev, aod, ev),   // d28z: ?sundogs=strong test; shown from 8 %, up to 25° sun
     }, DEMO || {}, opt);
+    { const K = ev.con; if (K && K.cat !== "none") P.con = { pers: K.cat === "high" ? clamp(0.45 + 0.6 * K.pers) : 0, short: K.cat === "short" ? 0.85 : 0.5 * (K.cat === "high" ? 1 : 0), spread: K.cat === "high" ? clamp(0.3 + K.spread) : 0, ang: (seed - 0.5) * 0.5 }; if (P.con && P.gray > 0.5 && !/[?&]contrails=/.test(location.search)) P.con = null; }   // d28zzb: ang = small jitter; lanes are laid out relative to the sun azimuth in the shader; forced ?contrails= survives gray   // d28zv contrails
     if (P.gray > 0.5 && !/[?&]rays=strong/.test(location.search)) P.rays = 0;
     if (P.dog > 0) P.high = Math.max(P.high || 0, 0.3 * P.dog);   // d28za: sun dogs come with streaky cirrus/cirrostratus (photo)
     if (opt.turned) P.sunAzOff = ((off + 180 + 540) % 360) - 180;
@@ -132,7 +133,7 @@
     // lit clouds only far out → horizon band (under/tops scaled down, colour stays low); nothing lit → plain twilight (glow 1, no boosts).
     { const LO = g.AGLos && ev.sunsetAz != null ? g.AGLos.get(spot, ev.sunsetAz, t, pos.elev) : null; if (LO && !DEMO && !skq && !wxq && !g.__agForce) { P.los = LO;
       const lit = Math.max(LO.overhead, 0.6 * LO.far); if (LO.wall > 0.6) P.gap = Math.min(P.gap || 1, 1 - LO.wall);
-      P.under *= clamp(LO.overhead / 0.4) * clamp(1 - (LO.wall - 0.5) / 0.4); P.tops *= clamp(lit / 0.3); if (lit < 0.05) P.glow = Math.min(P.glow, 1); } }
+      P.under *= clamp(Math.max(LO.overhead, LO.far) / 0.4)   /* d28zx: a far, sunward deck under-lit through the gap is still under-lighting; the shader’s sunT() limits it per pixel to where the solar ray clears the Earth */ * clamp(1 - (LO.wall - 0.5) / 0.4); P.tops *= clamp(lit / 0.3); if (lit < 0.05) P.glow = Math.min(P.glow, 1); } }
     return P;
   }
 

@@ -22,8 +22,11 @@
     const out = { lit: {}, overhead: 0, far: 0, band: 0, wall: 0 }; let ws = 0, es = 0;
     for (const L in H) { const h = H[L], dvis = Math.sqrt(2 * R * eyeKm) + Math.sqrt(2 * R * h), dep = Math.max(0, -sunEl), dmax = Math.acos(R / (R + h)) * 180 / Math.PI, tan = Math.sqrt(2 * R * h);
       let block = 0; rows.forEach((r, i) => { if (D[i] < tan * 0.6 || D[i] > tan * 1.6) return; block = Math.max(block, at(r, "low", t) || 0, L === "low" ? 0 : 0.7 * (at(r, "mid", t) || 0)); });
-      out.lit[L] = clamp(1 - dep / dmax) * clamp(1 - (block - 0.3) / 0.5);
-      rows.forEach((r, i) => { const km = D[i]; if (km > dvis) return; const cov = at(r, L, t); if (cov == null) return; const w = cov * out.lit[L];
+      // d28zx ROOT CAUSE: lit used the overhead depression for every sample. The sample km toward the sun sees the sun km/R higher:
+      // local depression d_loc = dep − (km/R)·57.3; lit while d_loc < dmax + 0.6° refraction (soft over ±0.6°). Gap term unchanged.
+      const gapK = clamp(1 - (block - 0.3) / 0.5), litX = km => clamp((dmax + 0.6 - (dep - km / R * 180 / Math.PI)) / 1.2 + 0.5) * gapK;
+      out.lit[L] = clamp(1 - dep / dmax) * gapK;
+      rows.forEach((r, i) => { const km = D[i]; if (km > dvis) return; const cov = at(r, L, t); if (cov == null) return; const w = cov * Math.max(out.lit[L], litX(km));
         if (km <= 30) out.overhead = Math.max(out.overhead, w); else out.far = Math.max(out.far, w); ws += w; es += w * elevOf(km, h); }); }
     rows.forEach((r, i) => { if (D[i] >= 60 && D[i] <= 220) out.wall = Math.max(out.wall, at(r, "low", t) || 0); });
     out.band = ws > 0 ? es / ws : 0; return out; }

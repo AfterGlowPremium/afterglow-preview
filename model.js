@@ -46,6 +46,30 @@
   }
 
   // linear interpolation of an hourly series at unix time t
+
+  // d28zv CONTRAILS. Formation: Schmidt-Appleman criterion (Schumann 1996) — exhaust mixing line slope G = EI·cp·p/(ε·Q·(1-η));
+  // threshold temperature T_LM ≈ -46.46 + 9.43 ln(G-0.053) + 0.72 ln²(G-0.053) °C. Persistence/spreading: ambient air ice-supersaturated
+  // (RHi ≥ 100 %, "ISSR"). NWP is dry-biased in ISSRs, so RHi ≥ ~85 % is treated as likely-persistent. ECMWF IFS RH at T < -23 °C is
+  // already w.r.t. ice; GFS RH is converted water→ice. Traffic = static US East Coast corridor factor (FlightRadar24 is paid; no live feed).
+  const esw = t => 6.112 * Math.exp(17.62 * t / (243.12 + t)), esi = t => 6.112 * Math.exp(22.46 * t / (272.62 + t));
+  function contrails(S, tSet, lat) {
+    const F = q => q == null ? null : (q - 32) * 5 / 9, L = [];
+    const src = [[S.ua, true, "ECMWF"], [S.hourly, false, "GFS"]];
+    for (const p of [200, 250, 300]) for (const [h, ice, nm] of src) { if (!h) continue;
+      const T = F(at(h, `temperature_${p}hPa`, tSet)), rh = at(h, `relative_humidity_${p}hPa`, tSet); if (T == null || rh == null || isNaN(T) || isNaN(rh)) continue;
+      const rhi = ice ? rh : rh * esw(T) / esi(T), rhw = ice ? rh * esi(T) / esw(T) : rh;
+      const G = 1.25 * 1004 * p * 100 / (0.622 * 43.2e6 * 0.7), x = Math.log(G - 0.053), Tlm = -46.46 + 9.43 * x + 0.72 * x * x;
+      const Tc = Tlm + 1.5 * clamp(rhw / 100);   // moister ambient air raises the threshold a little
+      const form = clamp((Tc - T) / 3), pers = form * clamp((rhi - 80) / 18), spread = form * clamp((rhi - 95) / 15);
+      L.push({ p, T: +T.toFixed(1), rhi: Math.round(rhi), src: nm, form, pers, spread }); }
+    if (!L.length) return null;
+    const best = L.reduce((a, b) => (b.pers + 0.1 * b.form > a.pers + 0.1 * a.form ? b : a));
+    const traffic = lat > 33 && lat < 42.5 ? 1 : 0.85;
+    const cat = best.pers >= 0.45 ? "high" : best.form >= 0.5 ? "short" : "none";
+    return { cat, p: best.p, T: best.T, rhi: best.rhi, src: best.src, form: +best.form.toFixed(2), pers: +(best.pers * traffic).toFixed(2), spread: +(best.spread * traffic).toFixed(2), q: +(cat === "high" ? best.pers * traffic : cat === "short" ? 0.12 : 0).toFixed(2), levels: L };
+  }
+  g.__agContrails = contrails;
+
   function at(h, key, t) {
     const T = h.time, v = h[key]; if (!v) return null;
     let i = Math.floor((t - T[0]) / 3600);
@@ -123,6 +147,8 @@
       aod: aqh ? at(aqh, "aerosol_optical_depth", tSet) : null, pm25: aqh ? at(aqh, "pm2_5", tSet) : null, dust: aqh ? at(aqh, "dust", tSet) : null,
     };
     const priorRain = sumRange(h, "precipitation", tSet - 24 * 3600, tSet - 3600);
+    let con = null; try { con = contrails(S, tSet, lat); } catch (e) {}
+    { const cq = new URLSearchParams(location.search).get("contrails"); if (cq) con = Object.assign(con || { p: 250, T: -50, rhi: 0, src: "test", levels: [] }, { cat: cq, pers: cq === "high" ? 0.9 : 0, spread: cq === "high" ? 0.7 : 0, form: cq === "none" ? 0 : 1, q: cq === "high" ? 0.9 : cq === "short" ? 0.12 : 0 }); }
     // d28j: steam-fog inputs (SteamFog.calc): overnight mean cloud (radiational cooling) + 7-day mean air temp (documented water-temp fallback)
     const steamIn = (() => { const mean = (k, t0, t1) => { let n = 0, z = 0; for (let t = t0; t <= t1; t += 3600) { const v = at(h, k, t); if (v != null) { z += v; n++; } } return n ? z / n : null; };
       const t0 = h.time && h.time[0]; return { temp: s.temp, dew: s.dew, wind: s.wind, gust: s.gust, night: mean("cloud_cover", tSet - 9 * 3600, tSet), air7: t0 != null && t0 <= tSet - 7 * 86400 ? mean("temperature_2m", tSet - 7 * 86400, tSet) : null }; })();
@@ -231,6 +257,7 @@
       { k: "Low cloud (overhead)", w: 10, q: lowQ },
       { k: "Moisture aloft", w: 5, q: upQ },
       { k: "Smoke / aerosol aloft", w: 5, q: smokeQ },
+      { k: "Contrails" + (con ? ` (${con.cat === "high" ? "persistent, spreading" : con.cat === "short" ? "short, fading" : "none"})` : ""), w: 6, q: con ? con.q * clamp(1 - lo * 0.8) : 0 },   // d28zv: contrail-cirrus is a high-cloud canvas
     ];
     let sky = comp.reduce((a, c) => a + c.w * c.q, 0);
     if (underQ > 0) sky += 12 * underQ * (0.5 + 0.5 * clean);   // d28 #3 bonus
@@ -244,7 +271,7 @@
     const covX = Math.max(lo, 0.95 * md), brkQ = clamp((covX - 0.35) / 0.15) * (1 - clamp((covX - 0.85) / 0.1));   // broken (not solid): lit edges + purple gaps everywhere
     if (gapLit > 0.05) { gapSky = (48 + 38 * gapLit * (0.6 + 0.4 * clean) + 6 * syn + 7 * brkQ * gapOpen) * season; if (gapSky > sky) sky += (gapSky - sky) * clamp(gapLit * 1.4); }
     const gates = [];
-    if (hi + md < 0.1) { sky = Math.min(sky, 55); gates.push("Clear sky: capped at 55 — pretty gradient, nothing to paint."); }
+    if (hi + md + 0.35 * (con ? con.q : 0) < 0.1) { sky = Math.min(sky, 55); gates.push("Clear sky: capped at 55 — pretty gradient, nothing to paint."); }
     if (s.vis != null && s.vis < 4830) { sky = Math.min(sky, 45); gates.push("Visibility under ~3 mi: capped at Fair."); }
     // d23: a low deck at 40 km alone is the deck being lit, not a wall (Wickham/Windmill Pt Oct 17) — it blocks only with low cloud at 120 km too
     if (pathLow >= 90 || path[1].low >= 95 || (path[0].low >= 95 && path[1].low >= 60)) { sky = Math.min(sky, 20); gates.push(`Low overcast along the ${EV} path (out to ~200 km): light can't reach the clouds — Poor.`); }
@@ -277,6 +304,7 @@
     if (slotBlock < 0.25) R.push(`${DIR} light path is open — sunlight can reach the clouds.`);
     else if (slotBlock < 0.55) R.push(`Partial ${dir} gap (${Math.round(slotBlock * 100)}% blocked along the ${EV} line).`);
     else R.push(`${DIR} light path mostly blocked (${Math.round(slotBlock * 100)}%) by low/mid cloud — biggest risk.`);
+    if (con && con.cat !== "none") R.push(con.cat === "high" ? `Contrails: air at ${con.p} hPa is ${con.T}°C and ${con.rhi}% humidity over ice (${con.src}) — jet trails should persist and spread into wispy contrail-cirrus that catches the color.` : `Contrails: cold enough at ${con.p} hPa (${con.T}°C) for trails to form, but dry (${con.rhi}% over ice) — short trails that fade fast.`);
     if (hi + md < 0.1) R.push("Almost no high or mid cloud — clean gradient but no canvas.");
     else if (screen > 0.75) R.push(`Good screen: ${Math.round(s.high)}% high, ${Math.round(s.mid)}% mid cloud${dom === "high" ? " (cirrus-level, glows longest)" : ""}.`);
     else if (hi > 0.85 && md > 0.6) R.push("Thick, layered deck overhead — tends to go grey unless the sun slips under it.");
@@ -418,7 +446,7 @@
     else if (Math.abs(age - 14.77) <= 1.6) badges.push({ id: "moon", name: "Full moon rise", p: 80, t: tSet, icon: "🌕", why: `Moon ${age < 14.77 ? "rises shortly before" : "rises shortly after"} sunset, opposite the sun.` });
     else if (age >= 1.2 && age <= 4.5) badges.push({ id: "moon", name: "Crescent moon", p: 60, t: tSet + 20 * 60, icon: "🌒", why: "Thin crescent low in the west in the afterglow." });
 
-    return { tSet, score, sky, site, s, path, priorRain, steamIn, reasons: R, gates, comp, badges, bonus, wx, tri, dog: { p: pct(dog.p), t: dog.t }, bow: { p: pct(bow.p), t: bow.t },
+    return { tSet, score, sky, site, s, path, con, priorRain, steamIn, reasons: R, gates, comp, badges, bonus, wx, tri, dog: { p: pct(dog.p), t: dog.t }, bow: { p: pct(bow.p), t: bow.t },
       sea, clouds: cloudTypes(s), sunsetAz: az, canvasCover, slotBlock, pathLit, underQ, cBias, geoBlock, gapOpen, gapLit, deckQ, scoreDry, clean, rhLow, dewDep, dP6, dP24, dDew, fropaH, front, timing,
       windSer, siteInfo: { inArc, off, alignQ, obst: sp.obst, water: sp.water, surface, arc: sp.arc }, season, screen };
   }

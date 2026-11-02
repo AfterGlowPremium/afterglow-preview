@@ -20,6 +20,8 @@ uniform float uBlock;   // western low-cloud blockage along the sunset line 0..1
 uniform float uAod;     // aerosol optical depth (550 nm)
 uniform float uRH;      // low-level relative humidity 0..1
 uniform float uExpo;
+uniform float uEV;      // d28zv user exposure (EV stops, -2..+1)
+uniform vec4 uCon;      // d28zv contrails: x persistent/spreading strength, y short-trail strength, z seed angle, w spread (contrail-cirrus)
 uniform float uWater, uPier, uShore, uHills;
 uniform float uCity, uBridge;
 uniform vec4 uGnd;   // d23 ground: x near-ground type (0 none, 1 sand beach, 2 marsh grass, 3 lawn/park), y near depth m, z far-ground type (land views), w 1 = land-only view
@@ -154,7 +156,34 @@ void seg(inout Acc A, vec3 ro, vec3 rd, float t0, float t1, int n, float cs){
 
 // ---------- clouds ----------
 mat2 rot(float a){ float c = cos(a), s = sin(a); return mat2(c,-s,s,c); }
+// d28zv: aircraft contrails in the cirrus deck (Schmidt-Appleman formation + ice-supersaturation persistence from the forecast)
+float contrail(vec2 p, float tdist){
+  if (max(uCon.x, uCon.y) < .01) return 0.;
+  float fp = clamp(tdist * .0012, 0., 2.), acc = 0.;
+  for (int i = 0; i < 6; i++){
+    float fi = float(i);
+    vec2 r = h22(vec2(fi*17.3 + 3.1, fi*5.1 + uCon.z*41.7)); float r3 = h12(vec2(fi*5.7 + 1.3, uCon.z*13.1 + 2.));
+    float a = atan(uSun.z, uSun.x) + uCon.z + (mod(fi, 2.) - .5) * 1.05 + (r.x - .5)*.3;   // d28zzb: two lanes crossing the view toward the sun (azimuth-relative) → crisscross in frame
+    vec2 dv = vec2(cos(a), sin(a)), nv = vec2(-dv.y, dv.x);
+    float pers = step(fi, .5 + 5.*uCon.x) * step(.01, uCon.x);
+    float str = mix(uCon.y, uCon.x, pers);
+    float along = dot(p, dv) - (r3 - .5)*80.;
+    float age = clamp(120. + r.y*90. - along, -1., 600.);   // aircraft ahead, trail behind it
+    float Lm = mix(10. + 10.*r.y, 260. + 200.*r3, pers);
+    float life = step(0., age) * (1. - smoothstep(Lm*.35, Lm, age));
+    float w = mix(.1, .18 + uCon.w * clamp(age, 0., 160.) * (.006 + .012*r.x), pers);   // fresh ~0.2 km line → spreads to ~1–3 km contrail-cirrus
+    float dd = dot(p, nv) - (fract(fi*.618 + r.y*.3) - .5)*60. + (vn(vec2(along*.015, fi*7.)) - .5) * (w*2. + .3);
+    float ww = max(w, fp*1.2);
+    float q = clamp(dd / ww, -6., 6.);
+    float core = exp(-q*q) * min(1., max(w / ww * 1.5, .45));   // d28zzb: sub-pixel trails stay ≥ ~1 px wide and visible
+    float fib = mix(1., .35 + .9*vn(vec2(along*.3/max(w,.2), q*2.5 + fi*3.)), smoothstep(.3, 1.2, w));   // spread sheets go streaky / fibrous
+    float gaps = mix(1., smoothstep(.25, .45, vn(vec2(along*.02 + fi*9., 1.))) * .6 + .4, pers);   // patchy ISSRs: trails break up and restart
+    acc += core * life * str * fib * gaps * mix(.55, mix(.7, .38, smoothstep(.3, 2., w)), pers);
+  }
+  return clamp(acc, 0., .9);
+}
 float dens(int L, vec2 p, float fp, float dist){
+  vec2 p0 = p;
   p += uSeed * (float(L)+1.);
   if (L == 0){ // cirrus / cirrostratus
     float cov = uCov.x;
@@ -199,7 +228,10 @@ float dens(int L, vec2 p, float fp, float dist){
     // thin, translucent fill between the cells (so gaps glow instead of showing open sky) + slow undulation rolls
     float roll = .5 + .5*sin(dot(q, vec2(.9, .25)) * .55 + fbm(q*.2, fp*.2, 3)*5.);
     float sheet = (.12 + .30*fbm(q*.12 + 4., fp*.12, 5) + .12*roll) * (.75 + .25*det);
-    return clamp(max(cells, sheet * sheetW), 0., 1.);
+    // d28zx: altostratus (≥50 % mid) is a stratiform sheet: long wind-aligned bands/streaks, cells (mackerel puffs) fade out as the sheet takes over
+    float band = fbm(vec2(q.x*.035, q.y*.42) + wq*.6, fp*.42, 5);
+    float strk = (.18 + .55*smoothstep(.3, .75, band)) * (.8 + .2*det);
+    return clamp(max(cells * (1. - .8*sheetW), mix(sheet, strk, sheetW) * sheetW), 0., 1.);
   } else { // low: cumulus / stratocumulus + western bank
     float cov = uCov.z;
     cov = mix(cov, max(cov, uBlock*1.05), smoothstep(30., 150., dist));
@@ -231,6 +263,7 @@ vec3 cloudShade(int L, vec3 P, vec3 rd, float t, float pixA, out float alpha){
   float fp = t * pixA / cosv;              // pixel footprint in km on the layer
   vec2 xz = P.xz;
   float d = dens(L, xz, fp, t);
+  if (L == 0 && uLQ < .5 && t > 0. && t < 1400.) d = max(d, contrail(xz, t));   // d28zv: contrails (primary sample only — keeps the shader light)
   if (d < .003){ alpha = 0.; return vec3(0.); }
   float tauV = d * lh.z * min(1./cosv, L == 2 ? 4. : 12.) * (L == 2 ? smoothstep(.0, .12, d) : 1.);   // d28zd: low deck at grazing view hit ~200× optical depth → razor-edged black slabs in horizontal strips (St. Simons); cap the slant path + soften edges
   alpha = 1. - exp(-tauV);
@@ -253,7 +286,7 @@ vec3 cloudShade(int L, vec3 P, vec3 rd, float t, float pixA, out float alpha){
   if (L > 0 && uLQ < .5 && mu > .015){
     for (int k = 0; k < 2; k++){
       if (k >= L) break;
-      float ck = k == 0 ? uCov.x : uCov.y; if (ck < .08) continue;
+      float ck = k == 0 ? max(uCov.x, .3*max(uCon.x, uCon.y)) : uCov.y; if (ck < .08) continue;
       float dh = layerH(k).x - lh.x, off = min(dh * sqrt(1. - mu*mu) / mu, 220.);
       upT *= exp(-dens(k, xz + sh*off, fp*2. + 1., t) * layerH(k).z * .5 / max(mu, .08));
     }
@@ -306,7 +339,7 @@ vec3 skyRay(vec3 ro, vec3 rd, float pixA, bool full, out vec3 Tout){
     float tk = tc[k];
     seg(A, ro, rd, prev, tk, ns, cs);
     prev = tk;
-    float cov = k == 0 ? uCov.x : k == 1 ? uCov.y : max(uCov.z, uBlock);
+    float cov = k == 0 ? max(uCov.x, .3*max(uCon.x, uCon.y)) : k == 1 ? uCov.y : max(uCov.z, uBlock);
     if (cov > .02 && tk < 1400. && rd.y < .0045){   // d28b: grazing rays (the fixed-elevation horizon-colour samples used for water/wave/fog colour) hit the cloud deck edge-on;
       float lum = dot(A.L, vec3(.2126,.7152,.0722)); float al = cov * .55 * mix(1., .55, uBlockGap);   // per-azimuth cloud detail there turned into thin vertical lines down the water — use a smooth coverage veil instead
       A.L = mix(A.L, mix(vec3(lum), A.L, .6), al * .5); A.T *= 1. - al * .3;
@@ -340,7 +373,7 @@ vec3 skyRay(vec3 ro, vec3 rd, float pixA, bool full, out vec3 Tout){
 float cloudTowardSun(vec3 ro, vec3 rd){
   float T = 1.;
   for (int k = 2; k >= 0; k--){
-    float cov = k == 0 ? uCov.x : k == 1 ? uCov.y : max(uCov.z, uBlock);
+    float cov = k == 0 ? max(uCov.x, .3*max(uCon.x, uCon.y)) : k == 1 ? uCov.y : max(uCov.z, uBlock);
     if (cov < .02) continue;
     float a = R0 + layerH(k).x;
     float t = sph(ro, rd, a).y;
@@ -1253,7 +1286,8 @@ void main(){
 
   if (uMeter > 1.5){ o = vec4(sqrt(clamp(col * uExpo / 4., 0., 1.)), 1.); return; }
   if (uMeter > .5){ float L = max(max(col.r, max(col.g, col.b)) * .8 + dot(col, vec3(.2126,.7152,.0722)) * .2, 1e-6); o = vec4(clamp((log2(L) + 16.) / 24., 0., 1.), 0., 0., 1.); return; }
-  col *= uExpo;
+  col *= uExpo * exp2(uEV);
+  float evK = clamp(-uEV, 0., 2.);   // d28zv: under-exposing like a camera: highlights pull back into range, so cloud colour + contrast come out
   if (uGray > 0.){ float lg = dot(col, vec3(.2126,.7152,.0722)); col = mix(col, mix(vec3(lg), col, mix(.36, .8, gGnd)) * mix(uOvcT, vec3(1.), gGnd * .5) * 1.08, uGray); }   // d15/d22: overcast → muted (not zero) saturation + soft time-of-day tint, no glow
   { float lm = dot(col, vec3(.2126,.7152,.0722)); col = max(mix(vec3(lm), col, 1.3), 0.); }  // film-like colour separation
   // twilight colour response (calibrated against reference sunset photos): long-path warm light reads orange-red/pink
@@ -1267,8 +1301,9 @@ void main(){
   vec3 hp = mx > 1e-5 ? col * (aces(vec3(mx)).r / mx) : col;
   col = mix(aces(col), hp, .55);
   float l = dot(col, vec3(.2126,.7152,.0722));
-  col = mix(vec3(l), col, 1.1);
-  col = pow(clamp(col, 0., 1.), vec3(1./2.2));
+  col = mix(vec3(l), col, 1.1 + .14*evK);
+  col = clamp(col, 0., 1.); col = mix(col, col*col*(3. - 2.*col), .22*evK);   // gentle S-curve deepens contrast
+  col = pow(col, vec3(1./2.2));
   // vignette + grain
   vec2 q = frag / uRes;
   col *= .78 + .22*pow(16.*q.x*q.y*(1.-q.x)*(1.-q.y), .25);
@@ -1341,7 +1376,7 @@ void main(){
     const ovc = clamp((Math.max(P.mid, P.low, P.high * 0.6) - 0.5) / 0.45), gy = clamp(P.gray || 0);
     if (U.uOvcT) gl.uniform3fv(U.uOvcT, ovcTint(P.elev));
     const ex = P.expo != null ? P.expo : meter(gl, U, w, h, P) * (1 - 0.3 * ovc * (1 - gy)) * (1 + gy * (0.15 - 0.4 * clamp((2 - P.elev) / 6)));   // d22: overcast exposed bright, not moody-dark
-    gl.viewport(0, 0, w, h); gl.uniform2f(U.uRes, w, h); gl.uniform1f(U.uMeter, 0); gl.uniform1f(U.uExpo, ex);
+    gl.viewport(0, 0, w, h); gl.uniform2f(U.uRes, w, h); gl.uniform1f(U.uMeter, 0); gl.uniform1f(U.uExpo, ex); if (U.uEV) gl.uniform1f(U.uEV, P.ev != null ? P.ev : (g.__agEV || 0)); if (U.uCon) { const C = P.con || {}; gl.uniform4f(U.uCon, C.pers || 0, C.short || 0, C.ang != null ? C.ang : 0.6, C.spread || 0); }
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     render.lastExpo = ex;
     return true;
@@ -1357,7 +1392,7 @@ void main(){
   // the way a photographer exposes a sunset (protect highlights, keep saturation). Blended with a twilight curve.
   const mcache = {};
   function meter(gl, U, w, h, P) {
-    const key = [P.rays || 0, P.dog || 0, P.lookYaw || 0, P.lookPitch || 0, P.fovMul || 1, P.elev, P.high, P.mid, P.low, P.block, P.aod, P.seed, P.water, P.pier, P.shore || 0, P.city || 0, P.bridge || 0, P.midKm || 4.5, P.gap || 0, Math.round((P.chop || 0) * 5)].map(v => typeof v === "number" ? v.toFixed(3) : v).join("|") + "|" + (w / h).toFixed(2);
+    const key = [P.con ? P.con.pers + 2 * P.con.short : 0, P.rays || 0, P.dog || 0, P.lookYaw || 0, P.lookPitch || 0, P.fovMul || 1, P.elev, P.high, P.mid, P.low, P.block, P.aod, P.seed, P.water, P.pier, P.shore || 0, P.city || 0, P.bridge || 0, P.midKm || 4.5, P.gap || 0, Math.round((P.chop || 0) * 5)].map(v => typeof v === "number" ? v.toFixed(3) : v).join("|") + "|" + (w / h).toFixed(2);
     if (mcache[key]) return mcache[key];
     const mw = 64, mh = Math.max(24, Math.round(64 * h / w));
     gl.viewport(0, 0, mw, mh); gl.uniform2f(U.uRes, mw, mh); gl.uniform1f(U.uMeter, 1); gl.uniform1f(U.uLQ, 0); gl.uniform1f(U.uPixScale, w / mw);
