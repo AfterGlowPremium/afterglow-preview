@@ -21,6 +21,7 @@ uniform float uAod;     // aerosol optical depth (550 nm)
 uniform float uRH;      // low-level relative humidity 0..1
 uniform float uExpo;
 uniform float uEV;      // d28zv user exposure (EV stops, -2..+1)
+uniform vec4 uConW;     // d28zzd: xy drift (km, scene frame), z/w spread rate lane 0/1 (km/h); z < 0 → legacy spread
 uniform vec4 uCon;      // d28zv contrails: x persistent/spreading strength, y short-trail strength, z seed angle, w spread (contrail-cirrus)
 uniform float uWater, uPier, uShore, uHills;
 uniform float uCity, uBridge;
@@ -159,6 +160,7 @@ mat2 rot(float a){ float c = cos(a), s = sin(a); return mat2(c,-s,s,c); }
 // d28zv: aircraft contrails in the cirrus deck (Schmidt-Appleman formation + ice-supersaturation persistence from the forecast)
 float contrail(vec2 p, float tdist){
   if (max(uCon.x, uCon.y) < .01) return 0.;
+  p -= uConW.xy;   // d28zzd: trails advect with the upper wind over slider time
   float fp = clamp(tdist * .0012, 0., 2.), acc = 0.;
   for (int i = 0; i < 6; i++){
     float fi = float(i);
@@ -171,14 +173,15 @@ float contrail(vec2 p, float tdist){
     float age = clamp(120. + r.y*90. - along, -1., 600.);   // aircraft ahead, trail behind it
     float Lm = mix(10. + 10.*r.y, 260. + 200.*r3, pers);
     float life = step(0., age) * (1. - smoothstep(Lm*.35, Lm, age));
-    float w = mix(.1, .18 + uCon.w * clamp(age, 0., 160.) * (.006 + .012*r.x), pers);   // fresh ~0.2 km line → spreads to ~1–3 km contrail-cirrus
+    float rl = mod(fi, 2.) < .5 ? uConW.z : uConW.w;
+    float w = mix(.1, uConW.z < 0. ? .18 + uCon.w * clamp(age, 0., 160.) * (.006 + .012*r.x) : min(12., .18 + rl * (max(age, 0.) / 830.) * (.8 + .4*r.x)), pers);   // d28zzd: age (km behind the aircraft ÷ 830 km/h) × forecast spread rate   // fresh ~0.2 km line → spreads to ~1–3 km contrail-cirrus
     float dd = dot(p, nv) - (fract(fi*.618 + r.y*.3) - .5)*60. + (vn(vec2(along*.015, fi*7.)) - .5) * (w*2. + .3);
     float ww = max(w, fp*1.2);
     float q = clamp(dd / ww, -6., 6.);
     float core = exp(-q*q) * min(1., max(w / ww * 1.5, .45));   // d28zzb: sub-pixel trails stay ≥ ~1 px wide and visible
     float fib = mix(1., .35 + .9*vn(vec2(along*.3/max(w,.2), q*2.5 + fi*3.)), smoothstep(.3, 1.2, w));   // spread sheets go streaky / fibrous
     float gaps = mix(1., smoothstep(.25, .45, vn(vec2(along*.02 + fi*9., 1.))) * .6 + .4, pers);   // patchy ISSRs: trails break up and restart
-    acc += core * life * str * fib * gaps * mix(.55, mix(.7, .38, smoothstep(.3, 2., w)), pers);
+    acc += core * life * str * fib * gaps * mix(.55, mix(.7, .38, smoothstep(.3, 2., w)) * mix(1., .55, smoothstep(2.5, 9., w)), pers);   // d28zzd: wide spread sheets go diffuse
   }
   return clamp(acc, 0., .9);
 }
@@ -263,7 +266,7 @@ vec3 cloudShade(int L, vec3 P, vec3 rd, float t, float pixA, out float alpha){
   float fp = t * pixA / cosv;              // pixel footprint in km on the layer
   vec2 xz = P.xz;
   float d = dens(L, xz, fp, t);
-  if (L == 0 && uLQ < .5 && t > 0. && t < 1400.) d = max(d, contrail(xz, t));   // d28zv: contrails (primary sample only — keeps the shader light)
+  if (L == 0 && t > 0. && t < 1400.) d = max(d, contrail(xz, t));   // d28zzd: also in LQ drag frames (same positions/widths → no pop on release)   // d28zv: contrails (primary sample only — keeps the shader light)
   if (d < .003){ alpha = 0.; return vec3(0.); }
   float tauV = d * lh.z * min(1./cosv, L == 2 ? 4. : 12.) * (L == 2 ? smoothstep(.0, .12, d) : 1.);   // d28zd: low deck at grazing view hit ~200× optical depth → razor-edged black slabs in horizontal strips (St. Simons); cap the slant path + soften edges
   alpha = 1. - exp(-tauV);
@@ -1376,7 +1379,7 @@ void main(){
     const ovc = clamp((Math.max(P.mid, P.low, P.high * 0.6) - 0.5) / 0.45), gy = clamp(P.gray || 0);
     if (U.uOvcT) gl.uniform3fv(U.uOvcT, ovcTint(P.elev));
     const ex = P.expo != null ? P.expo : meter(gl, U, w, h, P) * (1 - 0.3 * ovc * (1 - gy)) * (1 + gy * (0.15 - 0.4 * clamp((2 - P.elev) / 6)));   // d22: overcast exposed bright, not moody-dark
-    gl.viewport(0, 0, w, h); gl.uniform2f(U.uRes, w, h); gl.uniform1f(U.uMeter, 0); gl.uniform1f(U.uExpo, ex); if (U.uEV) gl.uniform1f(U.uEV, P.ev != null ? P.ev : (g.__agEV || 0)); if (U.uCon) { const C = P.con || {}; gl.uniform4f(U.uCon, C.pers || 0, C.short || 0, C.ang != null ? C.ang : 0.6, C.spread || 0); }
+    gl.viewport(0, 0, w, h); gl.uniform2f(U.uRes, w, h); gl.uniform1f(U.uMeter, 0); gl.uniform1f(U.uExpo, ex); if (U.uEV) gl.uniform1f(U.uEV, P.ev != null ? P.ev : (g.__agEV || 0)); if (U.uCon) { const C = P.con || {}; gl.uniform4f(U.uCon, C.pers || 0, C.short || 0, C.ang != null ? C.ang : 0.6, C.spread || 0); if (U.uConW) { const W = C.w; gl.uniform4f(U.uConW, W ? W.dx : 0, W ? W.dz : 0, W ? W.r0 : -1, W ? W.r1 : -1); } }
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     render.lastExpo = ex;
     return true;

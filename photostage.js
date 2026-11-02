@@ -108,6 +108,18 @@
     if (P.gray > 0.5 && !/[?&]rays=strong/.test(location.search)) P.rays = 0;
     if (P.dog > 0) P.high = Math.max(P.high || 0, 0.3 * P.dog);   // d28za: sun dogs come with streaky cirrus/cirrostratus (photo)
     if (opt.turned) P.sunAzOff = ((off + 180 + 540) % 360) - 180;
+    // d28zzd: contrail drift + spreading from the forecast upper wind (snapshots without wind → no drift, legacy spread)
+    if (P.con) { const K = ev.con, Wd = K && K.wind; P.con.w = null;
+      if (Wd && !opt.turned) { const r = Math.PI / 180, vAz = (pos.az - (P.sunAzOff || 0)) * r, toS = (u, v) => { const B = Math.atan2(u, v) - vAz, m = Math.hypot(u, v); return [m * Math.sin(B), -m * Math.cos(B)]; };
+        const V = toS(Wd.u, Wd.v), Sh = K.shear ? toS(K.shear.su, K.shear.sv) : [0, 0], dtH = (t - ev.tSet) / 3600, sA = P.sunAzOff * r, aS = Math.atan2(-Math.cos(sA), Math.sin(sA)) + P.con.ang;
+        const H = 0.5, pe = P.con.pers, lanes = [-0.525, 0.525].map(o => { const a = aS + o, n = [-Math.sin(a), Math.cos(a)], vx = Math.abs(V[0] * n[0] + V[1] * n[1]), sx = Math.abs(Sh[0] * n[0] + Sh[1] * n[1]), Vm = Math.hypot(V[0], V[1]);
+          const th = Math.round(Math.acos(Math.max(-1, Math.min(1, (V[0] * Math.cos(a) + V[1] * Math.sin(a)) / (Vm || 1)))) / r);
+          // width growth (km/h): vertical shear across a ~0.5 km deep trail (Freudenthaler/Schumann: dB/dt ≈ s⊥·H) + 2 % cross-flow entrainment of |V·sinθ|, × ice-supersaturation persistence
+          return { th, rate: +(3.6 * (sx * H + 0.02 * vx) * pe).toFixed(2) }; });
+        P.con.w = { dx: V[0] * 3.6 * dtH, dz: V[1] * 3.6 * dtH, r0: lanes[0].rate, r1: lanes[1].rate, lanes };
+        const mW = 0.18 + (lanes[0].rate + lanes[1].rate) / 2 * 0.35, ccf = clamp(pe * 6 * mW / 60 * (1 - P.gray));   // spread contrail-cirrus fraction: 6 trails over the 60 km lane band at ~0.35 h mean age
+        if (ccf > 0.01) { const h0 = P.high || 0; P.high = 1 - (1 - h0) * (1 - ccf); const d0 = P.dog || 0; P.dog = Math.max(d0, dogAt(ev, Object.assign({}, C, { high: Math.max(C.high || 0, P.high) }), pos.elev)); if (P.dog > 0) P.high = Math.max(P.high, 0.3 * P.dog); P.con.w.ccf = +ccf.toFixed(3); P.con.w.dog0 = d0; } }
+      g.__agConW = P.con.w; }
     // d23: 180° Turn — the real sun azimuth relative to the view behind you
     // d17 afterglow regimes (renderer reads glow / under / tops):
     //  (a) UNDER-LIT: a low/mid deck with an open slot on the horizon toward the sun → light filters underneath, deck bases glow

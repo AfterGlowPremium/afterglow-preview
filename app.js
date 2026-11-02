@@ -45,7 +45,7 @@
   const $ = s => document.querySelector(s);
   const dayIs = i => !state.arch && state.day === i;
   const API = "https://api.open-meteo.com/v1/forecast";
-  const SPOT_VARS = "cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,relative_humidity_2m,dew_point_2m,temperature_2m,visibility,wind_speed_10m,wind_direction_10m,wind_gusts_10m,precipitation,precipitation_probability,weather_code,cape,pressure_msl,relative_humidity_850hPa,relative_humidity_500hPa,relative_humidity_300hPa,temperature_300hPa";
+  const SPOT_VARS = "cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,relative_humidity_2m,dew_point_2m,temperature_2m,visibility,wind_speed_10m,wind_direction_10m,wind_gusts_10m,precipitation,precipitation_probability,weather_code,cape,pressure_msl,relative_humidity_850hPa,relative_humidity_500hPa,relative_humidity_300hPa,temperature_300hPa,wind_speed_200hPa,wind_speed_250hPa,wind_speed_300hPa,wind_direction_200hPa,wind_direction_250hPa,wind_direction_300hPa";   /* d28zzd: GFS fallback for contrail drift/shear */
   const SPOT_VARS_LITE = "cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,relative_humidity_2m,visibility,wind_speed_10m,wind_direction_10m,precipitation,weather_code";   // d22f fallback
   const WEST_VARS = "cloud_cover_low,cloud_cover_mid,cloud_cover_high,precipitation";
   const EAST_VARS = "precipitation,precipitation_probability,weather_code,cloud_cover_low,cloud_cover_mid";
@@ -131,7 +131,7 @@
       const S = await fetchBatch(SPOTS, lite ? SPOT_VARS_LITE : SPOT_VARS, "sunset,sunrise", API, models, lite ? 2 : 3);
       let AQ = null; try { AQ = await fetchBatch(SPOTS, "aerosol_optical_depth,pm2_5,dust", null, "https://air-quality-api.open-meteo.com/v1/air-quality", null, 1); } catch (e) { console.warn("AQ unavailable", e); }
       // d28zv: upper air for contrails (ECMWF IFS — far better than GFS at ice-supersaturated layers); optional, never blocks
-      if (!lite) try { const UA = await fetchBatch(SPOTS, "temperature_200hPa,temperature_250hPa,relative_humidity_200hPa,relative_humidity_250hPa", null, API, "ecmwf_ifs025", 1); UA.forEach((u, i) => { if (S[i] && u && u.hourly) S[i].ua = u.hourly; }); } catch (e) { console.warn("upper-air (contrails) unavailable", e); }
+      if (!lite) try { const UA = await fetchBatch(SPOTS, "temperature_200hPa,temperature_250hPa,relative_humidity_200hPa,relative_humidity_250hPa,wind_speed_200hPa,wind_speed_250hPa,wind_speed_300hPa,wind_direction_200hPa,wind_direction_250hPa,wind_direction_300hPa", null, API, "ecmwf_ifs025", 1); UA.forEach((u, i) => { if (S[i] && u && u.hourly) S[i].ua = u.hourly; }); } catch (e) { console.warn("upper-air (contrails) unavailable", e); }
       return { at: Date.now(), sig, S, AQ, fcModel: models ? "noaa" : "fallback", lite: !!lite };
     };
     const getD = async models => { const [W, E, WF] = await Promise.all([fetchBatch(SPOTS.flatMap(s => s.path), WEST_VARS, null, API, models), fetchBatch(SPOTS.flatMap(s => s.eastPts), EAST_VARS, null, API, models).then(mergeE), fetchBatch(SPOTS.map(s => s.far), "cloud_cover_low,cloud_cover_mid,cloud_cover_high", null, API, models, 1).catch(() => null)]); return { at: Date.now(), sig, W, E, WF }; };
