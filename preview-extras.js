@@ -38,7 +38,7 @@
     st.querySelectorAll("canvas:not(#pv), img.pv-fg").forEach(el => { if (el.hidden || getComputedStyle(el).display === "none" || el.classList.contains("ag-xfade")) return; const r = el.getBoundingClientRect(), r0 = cv.getBoundingClientRect(); try { x.save(); x.filter = el.style.filter || "none"; x.drawImage(el, (r.left - r0.left) * 2, (r.top - r0.top) * 2, r.width * 2, r.height * 2); x.restore(); } catch (e) {} });
     x.font = `${Math.round(H * 0.018)}px system-ui`; x.textAlign = "right"; x.fillStyle = "rgba(255,255,255,.75)"; x.shadowColor = "rgba(0,0,0,.6)"; x.shadowBlur = 4; x.fillText("© Sean Tuttle Afterglow", W - H * 0.02, H - H * 0.02);
     const blob = await new Promise(r => out.toBlob(r, "image/jpeg", 0.92)), name = `afterglow-${curSpot() || "view"}-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, "")}.jpg`, file = new File([blob], name, { type: "image/jpeg" });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file], title: "Afterglow" }); return; } catch (e) {} }
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file] }); return; } catch (e) {} }
     const a = d.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; d.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000); }
   // (6) golden-hour / Trifecta alerts (local notifications while the page/PWA is open; service-worker showNotification when one is registered)
   const notify = async (title, body) => { try { const r = navigator.serviceWorker && await navigator.serviceWorker.getRegistration(); if (r) return r.showNotification(title, { body, icon: "icons/icon-192.png" }); new Notification(title, { body }); } catch (e) {} };
@@ -126,9 +126,9 @@
     const u = link(); (navigator.clipboard ? navigator.clipboard.writeText(u) : Promise.reject()).then(() => toast(blob ? "Saved — link copied" : "Link copied"), () => { if (blob) toast("Saved"); else prompt("Copy link", u); }); }
   function shareNow(file, blob) {   // call directly from a click handler
     const lk = { title: "Afterglow · " + spotName(), url: link() };
-    if (file && navigator.canShare && navigator.canShare({ files: [file] })) { navigator.share({ files: [file], title: lk.title, url: lk.url }).catch(e => { if (!e || e.name !== "AbortError") fallback(blob, file.name); }); return; }
+    if (file && navigator.canShare && navigator.canShare({ files: [file] })) { navigator.share({ files: [file] }).catch(e => { if (!e || e.name !== "AbortError") fallback(blob, file.name); }); return; }
     if (!file && navigator.share) { navigator.share(lk).catch(e => { if (!e || e.name !== "AbortError") fallback(null); }); return; }
-    if (file && navigator.share) { navigator.share(lk).catch(() => {}); fallback(blob, file.name); return; }   // files unsupported → share the link, save the file
+    if (file) { fallback(blob, file.name); return; }
     fallback(blob, file && file.name); }
   function toast(t) { const el = d.createElement("div"); el.className = "ag-toast"; el.textContent = t; d.body.appendChild(el); setTimeout(() => el.remove(), 2200); }
   function shotBlob() { const cv = d.getElementById("pv"); if (!cv) return Promise.resolve(null); const k = 2, W = cv.clientWidth * k, H = cv.clientHeight * k, o = d.createElement("canvas"); o.width = W; o.height = H; const x = o.getContext("2d");
@@ -139,21 +139,21 @@
     const o = d.createElement("canvas"), k = Math.min(2, g.devicePixelRatio || 1), W = Math.round(cv.clientWidth * k / 2) * 2, H = Math.round(cv.clientHeight * k / 2) * 2; o.width = W; o.height = H; const x = o.getContext("2d");
     const stream = o.captureStream(30), rec = new MR(stream, { mimeType: type, videoBitsPerSecond: 5e6 }), parts = []; rec.ondataavailable = e => e.data && e.data.size && parts.push(e.data);
     let on = true; const loop = () => { if (!on) return; compose(x, W, H, k); caption(x, W, H); requestAnimationFrame(loop); }; loop();
-    const T = 8000; btn.classList.add("rec"); const t0 = Date.now(); const tick = setInterval(() => { btn.dataset.t = Math.ceil((T - (Date.now() - t0)) / 1000) + "s"; }, 250);
+    const T = 15000; btn.classList.add("rec"); const t0 = Date.now(); const tick = setInterval(() => { btn.dataset.t = Math.ceil((T - (Date.now() - t0)) / 1000) + "s"; }, 250);
     return new Promise(res => { rec.onstop = () => { on = false; clearInterval(tick); btn.classList.remove("rec"); delete btn.dataset.t; stream.getTracks().forEach(t => t.stop()); const mt = type.split(";")[0]; res({ blob: new Blob(parts, { type: mt }), ext: mt === "video/mp4" ? "mp4" : "webm", mt }); };
       rec.start(500); setTimeout(() => rec.stop(), T); }); }
   function place(m, anchor) { const r = anchor.getBoundingClientRect(); m.style.top = (r.bottom + 6) + "px"; m.style.left = Math.max(8, Math.min(r.left, innerWidth - 170)) + "px"; }
   function closeMenu() { const m = d.getElementById("ag-share-menu"); if (m) m.remove(); }
   function menu(anchor) { if (d.getElementById("ag-share-menu")) return closeMenu();
     const m = d.createElement("div"); m.id = "ag-share-menu"; const vt = vType();
-    m.innerHTML = '<button data-a="link">🔗 Link</button><button data-a="shot" disabled>🖼 Screenshot…</button>' + (vt ? '<button data-a="video">🎬 Video (8 s)</button>' : "");
+    m.innerHTML = '<button data-a="link">🔗 Link</button><button data-a="shot" disabled>🖼 Screenshot…</button>' + (vt ? '<button data-a="video">🎬 Video (15 s)</button>' : "");
     place(m, anchor); d.body.appendChild(m);
     let png = null; shotBlob().then(b => { if (!b) return; png = { blob: b, file: new File([b], fname("png"), { type: "image/png" }) }; const sb = m.querySelector('[data-a="shot"]'); if (sb) { sb.disabled = false; sb.textContent = "🖼 Screenshot"; } }).catch(() => {});
     m.addEventListener("click", e => { const b = e.target.closest("button"); if (!b || b.disabled) return; e.stopPropagation(); const a = b.dataset.a;
       try {
         if (a === "link") { closeMenu(); shareNow(null, null); }
         else if (a === "shot") { closeMenu(); shareNow(png.file, png.blob); }
-        else if (a === "video") { closeMenu(); toast("Recording 8 s…"); record(anchor).then(v => { if (!v) return toast("Video not supported here");
+        else if (a === "video") { closeMenu(); toast("Recording 15 s…"); record(anchor).then(v => { if (!v) return toast("Video not supported here");
             const m2 = d.createElement("div"); m2.id = "ag-share-menu"; m2.innerHTML = '<button data-a="sv">🎬 Share video</button><button data-a="x">Cancel</button>'; place(m2, anchor); d.body.appendChild(m2);
             const file = new File([v.blob], fname(v.ext), { type: v.mt });
             m2.addEventListener("click", ev => { const bb = ev.target.closest("button"); if (!bb) return; ev.stopPropagation(); m2.remove(); if (bb.dataset.a === "sv") shareNow(file, v.blob); }); }); }

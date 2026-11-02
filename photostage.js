@@ -50,7 +50,7 @@
   function seaP(spot, ev, t) {
     if (spot.water === false) return { chop: 0, swell: 0, caps: 0, phase: 0, sea: null };
     const W = (g.Model.seaAt && g.Model.seaAt(ev, t)) || g.Model.seaState({ wind: ev.s.wind || 0, gust: ev.s.gust || 0 }, 0.5);
-    return { chop: W.chop, swell: W.swell, caps: W.caps, phase: (t % 86400) / 420 + performance.now() / 1000 * 0.25, sea: W };   // d25o: continuous drift
+    return { chop: W.chop, swell: W.swell, caps: W.caps, phase: performance.now() / 1000 * 0.25, sea: W };   // d25o: continuous drift
   }
   // d28za sun-dog GATE (render only; model.js forecast math untouched). Renders if A OR B, intensity = max(A, B); only ?sundogs=strong overrides.
   //  A: existing forecast sun-dog signal ev.dog.p (model.js §7.1) ≥ 8 % → clamp(p / 50)   (same threshold/scale as before)
