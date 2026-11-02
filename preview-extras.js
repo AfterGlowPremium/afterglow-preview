@@ -180,28 +180,58 @@
   d.head.appendChild(css);
 })(window);
 // d28zv (PREVIEW ONLY): exposure slider (-2..+1 EV) — photographic: applied in the renderer before the filmic curve, so captures include it
+// d28zz: Sean — vertical, bottom-left of the scene, 1:1 finger tracking. The old native range called __agQueue() on every
+// input event, which ran the whole full-res render() (shader pass + metering + DOM/weather/labels) per finger move, plus a
+// localStorage write per move and 0.1 EV step snapping → pauses and skips on iPhone. Now: pointer events + touch-action:none,
+// thumb moved by CSS immediately, the scene previewed by a GPU-composited CSS brightness on the canvas (no re-render), the
+// EV uniform committed with ONE coalesced rAF render when the finger pauses or lifts, and saved to localStorage on release only.
 (function (g) {
-  const d = document, KEY = "ag-ev";
-  let ev = 0; try { ev = Math.max(-2, Math.min(1, parseFloat(localStorage.getItem(KEY)) || 0)); } catch (e) {}
+  const d = document, KEY = "ag-ev", MIN = -2, MAX = 1;
+  let ev = 0; try { ev = Math.max(MIN, Math.min(MAX, parseFloat(localStorage.getItem(KEY)) || 0)); } catch (e) {}
   g.__agEV = ev;
   const fmt = v => (v > 0 ? "+" : v < 0 ? "−" : "±") + Math.abs(v).toFixed(1);
-  function add() { const box = d.querySelector(".ag-tools"); if (!box || box.querySelector(".ag-ev")) return;
+  const cv = () => d.getElementById("pv");
+  function add() { const st = d.querySelector(".stage"); if (!st || st.querySelector(".ag-ev")) return;
+    const old = d.querySelector(".ag-tools .ag-ev"); if (old) old.remove();
     const w = d.createElement("label"); w.className = "ag-ev"; w.title = "Exposure (double-tap to reset)";
-    w.innerHTML = '<span aria-hidden="true">☀︎</span><input type="range" min="-2" max="1" step="0.1" aria-label="Exposure"><b></b>';
-    const r = w.querySelector("input"), b = w.querySelector("b"); r.value = g.__agEV; b.textContent = fmt(g.__agEV);
-    const set = v => { g.__agEV = v; b.textContent = fmt(v); try { localStorage.setItem(KEY, String(v)); } catch (e) {} g.__agQueue && g.__agQueue(); };
-    r.addEventListener("input", () => set(+r.value));
-    ["pointerdown", "pointermove", "touchstart", "touchmove", "mousedown", "click", "wheel"].forEach(t => w.addEventListener(t, e => e.stopPropagation(), { passive: true }));
-    w.addEventListener("dblclick", () => { r.value = 0; set(0); });
-    box.appendChild(w); }
-  new MutationObserver(add).observe(d.body, { childList: true, subtree: true }); add();
-  const css = d.createElement("style"); css.textContent = `.ag-ev{display:inline-flex;align-items:center;gap:4px;min-height:26px;padding:0 8px;border-radius:999px;box-sizing:border-box;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.45);-webkit-backdrop-filter:blur(10px) saturate(160%);backdrop-filter:blur(10px) saturate(160%);box-shadow:inset 0 1px 0 rgba(255,255,255,.35),inset 0 -2px 4px rgba(0,0,0,.22),0 1px 3px rgba(0,0,0,.18);color:#fff;font:600 11px system-ui;text-shadow:0 1px 2px rgba(0,0,0,.55);touch-action:none;vertical-align:middle}
-.ag-ev b{min-width:26px;text-align:right;font-weight:600}
-.ag-ev input{-webkit-appearance:none;appearance:none;width:78px;height:22px;margin:0;background:transparent;touch-action:none}
-.ag-ev input::-webkit-slider-runnable-track{height:3px;border-radius:2px;background:rgba(255,255,255,.55)}
-.ag-ev input::-moz-range-track{height:3px;border-radius:2px;background:rgba(255,255,255,.55)}
-.ag-ev input::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;margin-top:-6.5px;border-radius:50%;background:rgba(255,255,255,.35);border:1px solid rgba(255,255,255,.85);box-shadow:0 1px 3px rgba(0,0,0,.35)}
-.ag-ev input::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:rgba(255,255,255,.35);border:1px solid rgba(255,255,255,.85)}`;
+    w.setAttribute("role", "slider"); w.setAttribute("aria-label", "Exposure"); w.setAttribute("aria-orientation", "vertical");
+    w.setAttribute("aria-valuemin", MIN); w.setAttribute("aria-valuemax", MAX); w.tabIndex = 0;
+    w.innerHTML = '<b></b><span class="ag-ev-tr"><i class="ag-ev-fill"></i><i class="ag-ev-th"></i></span><span class="ag-ev-ic" aria-hidden="true">☀︎</span>';
+    const tr = w.querySelector(".ag-ev-tr"), b = w.querySelector("b");
+    let cur = g.__agEV, shown = g.__agEV, idT = 0, raf = 0, drag = null;
+    const paint = v => { w.style.setProperty("--f", ((v - MIN) / (MAX - MIN)).toFixed(4)); b.textContent = fmt(v); w.setAttribute("aria-valuenow", v.toFixed(1)); };
+    const preview = () => { const c = cv(); if (!c) return; const k = Math.pow(2, cur - shown); c.style.filter = Math.abs(k - 1) < 0.004 ? "" : `brightness(${k.toFixed(3)})`; };
+    const commit = () => { clearTimeout(idT); idT = 0; if (raf) return; raf = requestAnimationFrame(() => { raf = 0; if (Math.abs(g.__agEV - cur) < 1e-4) return preview();
+      g.__agEV = cur; shown = cur; const c = cv(); if (c) c.style.filter = ""; g.__agQueue && g.__agQueue(); }); };
+    const save = () => { try { localStorage.setItem(KEY, String(Math.round(cur * 100) / 100)); } catch (e) {} };
+    const fromY = y => { const R = tr.getBoundingClientRect(); return MIN + (MAX - MIN) * Math.max(0, Math.min(1, (R.bottom - y) / Math.max(1, R.height))); };
+    const move = y => { cur = Math.round(fromY(y) * 100) / 100; if (Math.abs(cur) < 0.06) cur = 0; paint(cur); preview(); clearTimeout(idT); idT = setTimeout(commit, 140); };
+    w.addEventListener("pointerdown", e => { e.stopPropagation(); e.preventDefault(); drag = e.pointerId; try { w.setPointerCapture(e.pointerId); } catch (x) {} w.classList.add("on"); move(e.clientY); });
+    w.addEventListener("pointermove", e => { e.stopPropagation(); if (drag !== e.pointerId) return; const L = e.getCoalescedEvents ? e.getCoalescedEvents() : null; move((L && L.length ? L[L.length - 1] : e).clientY); });
+    const end = e => { e.stopPropagation(); if (drag !== e.pointerId) return; drag = null; w.classList.remove("on"); commit(); save(); };
+    w.addEventListener("pointerup", end); w.addEventListener("pointercancel", end);
+    ["touchstart", "touchmove", "touchend", "mousedown", "click", "wheel", "dblclick"].forEach(t => w.addEventListener(t, e => e.stopPropagation(), { passive: t === "wheel" }));
+    w.addEventListener("touchmove", e => e.preventDefault(), { passive: false });   // no page scroll / rubber-band under the finger
+    let lastTap = 0; w.addEventListener("pointerup", () => { const n = performance.now(); if (n - lastTap < 300) { cur = 0; paint(0); preview(); commit(); save(); } lastTap = n; });
+    w.addEventListener("keydown", e => { const k = { ArrowUp: 0.1, ArrowRight: 0.1, ArrowDown: -0.1, ArrowLeft: -0.1 }[e.key]; if (!k) return; e.preventDefault(); cur = Math.max(MIN, Math.min(MAX, Math.round((cur + k) * 10) / 10)); paint(cur); preview(); commit(); save(); });
+    paint(cur); st.appendChild(w); place(); }
+  // bottom-left of the scene, just above the caption block (normal) or the time slider (full screen); clear of the right-side zoom ± rail
+  function place() { const st = d.querySelector(".stage"), w = st && st.querySelector(".ag-ev"); if (!w) return; const fs = d.body.classList.contains("ag-fs");
+    const ref = fs ? d.querySelector(".scrub") : st.querySelector(".stage-bottom"); const h = ref && ref.offsetParent !== null ? ref.offsetHeight : 0;
+    const px = fs ? h + 10 : h + (ref ? 22 : 12); if (w._px !== px) { w._px = px; w.style.setProperty("--evb", px + "px"); } }
+  new MutationObserver(() => { add(); place(); }).observe(d.body, { childList: true, subtree: true }); new MutationObserver(place).observe(d.body, { attributes: true, attributeFilter: ["class"] }); add();
+  g.addEventListener("resize", place);
+  const css = d.createElement("style"); css.textContent = `.ag-ev{position:absolute;z-index:5;left:calc(10px + env(safe-area-inset-left));bottom:var(--evb,120px);display:flex;flex-direction:column;align-items:center;gap:4px;width:30px;padding:6px 0 5px;border-radius:999px;box-sizing:border-box;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.45);-webkit-backdrop-filter:blur(10px) saturate(160%);backdrop-filter:blur(10px) saturate(160%);box-shadow:inset 0 1px 0 rgba(255,255,255,.35),inset 0 -2px 4px rgba(0,0,0,.22),0 1px 3px rgba(0,0,0,.18);color:#fff;font:600 9.5px system-ui;text-shadow:0 1px 2px rgba(0,0,0,.55);touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;cursor:ns-resize;outline:none}
+.ag-ev::before{content:"";position:absolute;inset:-8px -10px}   /* bigger hit area than the drawn pill */
+.ag-ev b{font-weight:600;line-height:1;letter-spacing:-.2px}
+.ag-ev-ic{font-size:11px;line-height:1}
+.ag-ev-tr{position:relative;width:3px;height:84px;border-radius:2px;background:rgba(255,255,255,.4)}
+.ag-ev-fill{position:absolute;left:0;right:0;bottom:0;height:calc(var(--f,.6667) * 100%);border-radius:2px;background:rgba(255,255,255,.85)}
+.ag-ev-th{position:absolute;left:50%;bottom:calc(var(--f,.6667) * 100%);width:16px;height:16px;margin:0 0 -8px -8px;border-radius:50%;background:rgba(255,255,255,.35);border:1px solid rgba(255,255,255,.9);box-shadow:0 1px 3px rgba(0,0,0,.35);will-change:bottom}
+.ag-ev.on .ag-ev-th{background:rgba(255,255,255,.6);transform:scale(1.15)}
+.ag-ev:focus-visible{box-shadow:0 0 0 2px rgba(255,255,255,.8)}
+@media (max-height:420px){.ag-ev-tr{height:60px}}
+body.ag-fs .ag-ev{position:fixed;z-index:2147482002;opacity:.45;transition:opacity .2s}body.ag-fs .ag-ev.on,body.ag-fs .ag-ev:hover{opacity:.95}`;
   d.head.appendChild(css);
 })(window);
 // d28zw (PREVIEW ONLY): Full screen — only the scene + time slider; exit by the button, the faint ✕, a tap on the scene, or a fast upward flick
