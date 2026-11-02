@@ -4,7 +4,7 @@
 // A layer is LIT while sun depression < acos(R/(R+h)) ≈ √(2h/R) (low ≈ 1.2°, mid ≈ 2.2°, high ≈ 3.2°) AND the low/mid cloud near the
 // grazing point (≈ √(2R·h) toward the sun, 0.6–1.6×) is not a wall. Output drives photostage glow regimes.
 (function (g) {
-  const R = 6371, D = [10, 30, 60, 100, 150, 220, 300, 380], H = { low: 1.5, mid: 4.5, high: 10 }, C = {}, clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+  const R = 6371, D = [10, 30, 60, 100, 150, 220, 300, 380], H = { low: 1.4, mid: 4.5, high: 9 } /* d28zz unified heights */, C = {}, clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
   const dest = (lat, lon, az, km) => { const d = km / R, a = az * Math.PI / 180, p1 = lat * Math.PI / 180, l1 = lon * Math.PI / 180;
     const p2 = Math.asin(Math.sin(p1) * Math.cos(d) + Math.cos(p1) * Math.sin(d) * Math.cos(a)), l2 = l1 + Math.atan2(Math.sin(a) * Math.sin(d) * Math.cos(p1), Math.cos(d) - Math.sin(p1) * Math.sin(p2));
     return [p2 * 180 / Math.PI, l2 * 180 / Math.PI]; };
@@ -21,7 +21,8 @@
     if (!(key in C)) fetchRow(key, spot.lat, spot.lng, a5); const rows = C[key]; if (!rows) return null;
     const out = { lit: {}, overhead: 0, far: 0, band: 0, wall: 0 }; let ws = 0, es = 0;
     for (const L in H) { const h = H[L], dvis = Math.sqrt(2 * R * eyeKm) + Math.sqrt(2 * R * h), dep = Math.max(0, -sunEl), dmax = Math.acos(R / (R + h)) * 180 / Math.PI, tan = Math.sqrt(2 * R * h);
-      let block = 0; rows.forEach((r, i) => { if (D[i] < tan * 0.6 || D[i] > tan * 1.6) return; block = Math.max(block, at(r, "low", t) || 0, L === "low" ? 0 : 0.7 * (at(r, "mid", t) || 0)); });
+      // d28zz: blocking near the grazing point = max(low, 0.35·mid) as in model.js blkGeo, never the layer being lit (was 0.7·mid → gapK 0.2 under a mid deck)
+      let block = 0; rows.forEach((r, i) => { if (D[i] < tan * 0.6 || D[i] > tan * 1.6) return; block = Math.max(block, L === "low" ? 0 : at(r, "low", t) || 0, L === "high" ? 0.35 * (at(r, "mid", t) || 0) : 0); });
       // d28zx ROOT CAUSE: lit used the overhead depression for every sample. The sample km toward the sun sees the sun km/R higher:
       // local depression d_loc = dep − (km/R)·57.3; lit while d_loc < dmax + 0.6° refraction (soft over ±0.6°). Gap term unchanged.
       const gapK = clamp(1 - (block - 0.3) / 0.5), litX = km => clamp((dmax + 0.6 - (dep - km / R * 180 / Math.PI)) / 1.2 + 0.5) * gapK;

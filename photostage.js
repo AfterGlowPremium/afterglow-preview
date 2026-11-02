@@ -134,6 +134,13 @@
     { const LO = g.AGLos && ev.sunsetAz != null ? g.AGLos.get(spot, ev.sunsetAz, t, pos.elev) : null; if (LO && !DEMO && !skq && !wxq && !g.__agForce) { P.los = LO;
       const lit = Math.max(LO.overhead, 0.6 * LO.far); if (LO.wall > 0.6) P.gap = Math.min(P.gap || 1, 1 - LO.wall);
       P.under *= clamp(Math.max(LO.overhead, LO.far) / 0.4)   /* d28zx: a far, sunward deck under-lit through the gap is still under-lighting; the shader’s sunT() limits it per pixel to where the solar ray clears the Earth */ * clamp(1 - (LO.wall - 0.5) / 0.4); P.tops *= clamp(lit / 0.3); if (lit < 0.05) P.glow = Math.min(P.glow, 1); } }
+    // d28zz: along-path solar sampling (solarpath.js) — cover at the point each sight line meets each layer, and the sun's ray traced to it through
+    // every cloud between it and the sun. The overhead sample keeps this view's fused HRRR/GOES cover; the difference fades out with distance (e-fold 150 km).
+    { const mode = g.AG_MODE === "sunrise" ? "sunrise" : "sunset", PT = g.AGPath && ev.sunsetAz != null && !DEMO && !skq && !wxq && !g.__agForce ? g.AGPath.get(spot, mode, ev.tSet, ev.sunsetAz) : null;
+      if (PT) { const T = g.AGPath.table(PT, t, pos.elev), loc = [P.high || 0, P.mid || 0, P.low || 0], d0 = T.pc[0].map((v, k) => loc[k] - v);
+        const adj = (row, km) => row.map((v, k) => clamp(v + d0[k] * Math.exp(-km / 150)));
+        T.pc = T.pc.map((r, i) => adj(r, g.AGPath.DS[i])); T.pa = T.pa.map((r, i) => adj(r, g.AGPath.DA[i]));
+        T.sig = Math.round(t / 60) + ":" + T.pc.length; P.path = T; } }
     return P;
   }
 

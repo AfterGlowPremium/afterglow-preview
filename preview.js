@@ -12,7 +12,7 @@
     for (let i = 1; i < stops.length; i++) if (x >= stops[i][0]) { const [x0, c0] = stops[i - 1], [x1, c1] = stops[i]; return mix(c1, c0, (x - x1) / (x0 - x1)); }
     return stops[stops.length - 1][1];
   };
-  const DEPRESS = { high: Math.sqrt(2 * 9 / 6371) * 57.3 + 0.5, mid: Math.sqrt(2 * 4 / 6371) * 57.3 + 0.5, low: Math.sqrt(2 * 1 / 6371) * 57.3 + 0.3 };
+  const DEPRESS = { high: Math.sqrt(2 * 9 / 6371) * 57.3 + 0.5, mid: Math.sqrt(2 * 4.5 / 6371) * 57.3 + 0.5, low: Math.sqrt(2 * 1.4 / 6371) * 57.3 + 0.3 };   // d28zz unified heights (solarpath.js LH)
   // d28zx ROOT CAUSE ("Cirrus in shadow" at Buckroe sunrise Nov 2, sun −5.3°, 66 % open east gap): lighting used only the cloud DIRECTLY
   // OVERHEAD (x = 0). A deck is not one point — the part of it out toward the sun, at ground distance x, sees the sun ~x/R higher.
   // Geometry (R = 6371 km, angles in °, h = layer height km: high 9, mid 4, low 1):
@@ -24,7 +24,7 @@
   //   x runs 0 … d_vis = √(2R·h) (farthest visible part of the layer); on-screen elevation of x = atan((h − x²/2R)/x).
   // So with an open gap the far (sunward) part of a high deck is UNDER-LIT red/magenta in a band above the horizon while the overhead part is
   // already in Earth's shadow; a closed gap (slotBlock → 1) still gives lightIn → 0 = grey.
-  const LH = { high: 9, mid: 4, low: 1 };
+  const LH = { high: 9, mid: 4.5, low: 1.4 };
   const layerGeo = (dom, elev, lightIn) => { const h = LH[dom], dvis = Math.sqrt(2 * 6371 * h); let best = null, band = 0;
     for (let i = 0; i <= 24; i++) { const x = Math.max(5, dvis * i / 24), e = elev + DEPRESS[dom] + x / 6371 * 57.3, lit = clamp((e + 0.6) / 1.2) * lightIn, el = Math.atan((h - x * x / 12742) / x) * 57.3;
       if (i === 0) best = { e, lit, el, over: lit }; else if (lit > best.lit + 1e-6) best = Object.assign(best, { e, lit, el });

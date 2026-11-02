@@ -263,7 +263,11 @@
   const gapW = (ev, t) => { const o = ev.gapOpen || 0; if (!o || !ev._sp) return 0; const e = g.Model.sunPos(t, ev._sp.lat, ev._sp.lng).elev;
     const S = O.sat[ev._sp.id] || (O.now[ev._sp.id] && O.now[ev._sp.id].sat), so = S && S.path != null ? 1 - clamp((S.path - 0.15) / 0.45) : null;
     const op = so != null && Math.abs(t - NOW()) < 3 * 3600 && NOW() - ev.tSet < 1800 ? 0.6 * o + 0.4 * so : o;
-    return clamp(op * 1.15) * clamp((4.5 - e) / 4.5) * clamp((e + 7) / 2); };
+    // d28zz: gate on LOW-cloud blocking along the sampled solar path (solarpath.js → ev.slotBlock) and the deck's OWN lit window
+    // (lit from below while the sun is above −(dip(h)+0.6°), h = 1.4 km low / 4.5 km mid), not a fixed −7°…4.5° window
+    const hD = (ev.s.low || 0) >= 0.95 * (ev.s.mid || 0) ? 1.4 : 4.5, dip = Math.sqrt(2 * hD / 6371) * 180 / Math.PI;
+    const op2 = ev.pathSampled ? clamp(1 - ev.slotBlock) : op;
+    return clamp(op2 * 1.15) * clamp((dip + 0.6 + e) / 1.2) * clamp((6 - e) / 3); };
   O.gapW = gapW;
   function modelGray(ev, t) { return clamp((modelLM(ev, t) - 0.75) / 0.15) * (1 - gapW(ev, t)); }
   O.modelGray = modelGray;

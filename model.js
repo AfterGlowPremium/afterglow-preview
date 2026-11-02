@@ -163,7 +163,7 @@
     const golden = RISE ? timeAfterRising(tSet, lat, lng, 6) : timeBeforeAtElev(tSet, lat, lng, 6);
     const civilEnd = RISE ? timeBeforeBelow(tSet, lat, lng, -6, 120) : timeAtElev(tSet, lat, lng, -6, 120);
     const dom = hi >= 0.2 ? "high" : md >= 0.2 ? "mid" : lo >= 0.2 ? "low" : "clear";
-    const hKm = { high: 9, mid: 4, low: 1, clear: 0 }[dom];
+    const hKm = { high: 9, mid: 4.5, low: 1.4, clear: 0 }[dom];   // d28zz: unified deck heights (solarpath.js LH)
     const peakMin = { high: 12, mid: 6, low: 2, clear: 5 }[dom];
     const depress = hKm ? Math.sqrt(2 * hKm / 6371) * DEG + 0.5 : 6; // §1.4 depression angle at which cloud stops being lit
     const glowEnd = RISE ? (timeBeforeBelow(tSet, lat, lng, -depress, 120) || tSet - 20 * 60) : (timeAtElev(tSet, lat, lng, -depress, 120) || tSet + 20 * 60);
@@ -174,7 +174,7 @@
     // mid cloud (~2–6 km) blocks where 2 ≤ y < 6 (the 40 km mid is mostly the deck being lit → weight 0.3). Below a mid deck the ray
     // runs UNDER it — that is the underlit case. pathLit(d) = Π(1 − cover·blocks); timing comes from where it stays lit.
     const R_E = 6371, LOWTOP = 2, MIDTOP = 6;
-    const tgtH = dom === "high" ? 9 : dom === "mid" ? (md >= 0.6 ? 2.6 : 4) : dom === "low" ? 1.2 : 0;   // a thick mid deck is lit at its base
+    const tgtH = dom === "high" ? 9 : dom === "mid" ? (md >= 0.6 ? 2.6 : 4.5) : dom === "low" ? 1.4 : 0;   // a thick mid deck is lit at its base
     const rayY = (x, hh, dRad) => hh - x * dRad + x * x / (2 * R_E);
     const pathLitAt = (hh, dDeg) => path.reduce((acc, p) => { const y = rayY(p.km, hh, dDeg * RAD); if (y < 0) return 0;
       const bl = y < LOWTOP ? (p.low || 0) / 100 : y < MIDTOP ? (p.km <= 40 ? 0.3 : 1) * (p.mid || 0) / 100 : 0; return acc * (1 - clamp(bl)); }, 1);
@@ -190,7 +190,11 @@
 
     // ---- §2.4 western clear slot (low + ½ mid along the sun azimuth, 40/120/200 km) ----
     const blockAt = p => clamp((p.low + 0.5 * p.mid) / 100);
-    const slotBlock = 0.45 * blockAt(path[0]) + 0.35 * blockAt(path[1]) + 0.2 * blockAt(path[2]);
+    let slotBlock = 0.45 * blockAt(path[0]) + 0.35 * blockAt(path[1]) + 0.2 * blockAt(path[2]);
+    // d28zz (Sean: "never just the clouds overhead — along the entire curvature of the Earth"): when the sampled solar path (solarpath.js,
+    // 16 points 3–600 km along the sun azimuth) is cached for this spot/day, the gaps come from tracing the sun's ray through it, not 40/120/200 km.
+    const PS = g.AGPath && g.AGPath.peek(sp, RISE ? "sunrise" : "sunset", tSet), PG = PS ? g.AGPath.gaps(PS, tSet, lo >= 0.6 ? 1.4 : md >= 0.6 ? 4.5 : tgtH || 3) : null;   // the lowest solid deck overhead is the one the viewer sees lit
+    if (PG) slotBlock = PG.slotBlock;
     const pathLow = 0.45 * path[0].low + 0.35 * path[1].low + 0.2 * path[2].low;
     const slotQ0 = pw(slotBlock, [[0, 1], [0.3, 0.85], [0.5, 0.5], [0.7, 0.15], [0.9, 0]]);
     const slotQ = tgtH ? clamp(0.5 * slotQ0 + 0.5 * pathLit) : slotQ0;   // d28: half legacy slot, half ray geometry
@@ -199,7 +203,7 @@
     // ≈130 km for 1.3 km) and is only a few hundred metres up 100+ km out. So what blocks it is LOW cloud far along the azimuth;
     // mid cloud out there sits above the ray, and the near (40 km) point is mostly the deck we want lit (only its low cloud counts).
     const blkGeo = p => clamp(((p.low || 0) + 0.35 * (p.mid || 0)) / 100);
-    const geoBlock = clamp(0.15 * clamp((path[0].low || 0) / 100) + 0.45 * blkGeo(path[1]) + 0.4 * blkGeo(path[2]));
+    const geoBlock = PG ? PG.geoBlock : clamp(0.15 * clamp((path[0].low || 0) / 100) + 0.45 * blkGeo(path[1]) + 0.4 * blkGeo(path[2]));
     const gapOpen = clamp((0.6 - geoBlock) / 0.45);                   // ≤ 0.15 blocked → fully open, ≥ 0.6 → shut
     const deckQ = clamp((Math.max(lo, 0.95 * md) - 0.25) / 0.3);       // broken (≥ ~55%) or solid low/mid cloud overhead catches the light — broken Cu/Sc lit from below is TOP tier (Oct 17 batch 2)
     const gapLit = gapOpen * deckQ;                                    // 0..1 strength of the under-the-deck regime
@@ -447,7 +451,7 @@
     else if (age >= 1.2 && age <= 4.5) badges.push({ id: "moon", name: "Crescent moon", p: 60, t: tSet + 20 * 60, icon: "🌒", why: "Thin crescent low in the west in the afterglow." });
 
     return { tSet, score, sky, site, s, path, con, priorRain, steamIn, reasons: R, gates, comp, badges, bonus, wx, tri, dog: { p: pct(dog.p), t: dog.t }, bow: { p: pct(bow.p), t: bow.t },
-      sea, clouds: cloudTypes(s), sunsetAz: az, canvasCover, slotBlock, pathLit, underQ, cBias, geoBlock, gapOpen, gapLit, deckQ, scoreDry, clean, rhLow, dewDep, dP6, dP24, dDew, fropaH, front, timing,
+      sea, clouds: cloudTypes(s), sunsetAz: az, pathSampled: !!PG, canvasCover, slotBlock, pathLit, underQ, cBias, geoBlock, gapOpen, gapLit, deckQ, scoreDry, clean, rhLow, dewDep, dP6, dP24, dDew, fropaH, front, timing,
       windSer, siteInfo: { inArc, off, alignQ, obst: sp.obst, water: sp.water, surface, arc: sp.arc }, season, screen };
   }
 

@@ -16,6 +16,9 @@ uniform vec3 uSun;      // geometric sun direction (local frame, y up, -z = view
 uniform vec3 uSunA;     // apparent (refracted) sun direction
 uniform vec3 uSunC;     // sun direction for lighting cloud decks: lifted by the refraction a grazing ray picks up along its whole path
 uniform vec3 uCov;      // high, mid, low cloud fraction 0..1
+// d28zz along-path sampling (solarpath.js): cover (high, mid, low) at 3, 40, 80 … 600 km toward the sun, at 40/80/160/240 km opposite it,
+// and the cloud transmission of the sun's ray to each layer at the sunward samples. uPOn = 0 → fall back to uniform uCov / uBlock.
+uniform vec3 uPC[16]; uniform vec3 uPA[4]; uniform vec3 uPL[16]; uniform float uPOn;
 uniform float uBlock;   // western low-cloud blockage along the sunset line 0..1
 uniform float uAod;     // aerosol optical depth (550 nm)
 uniform float uRH;      // low-level relative humidity 0..1
@@ -182,11 +185,19 @@ float contrail(vec2 p, float tdist){
   }
   return clamp(acc, 0., .9);
 }
+vec3 pathCov(vec2 xz){
+  if (uPOn < .5) return uCov;
+  float s = dot(xz, normalize(uSun.xz + 1e-5));
+  if (s >= 0.) { float f = clamp(s / 40., 0., 15.); int i = int(floor(f)); return mix(uPC[i], uPC[min(i + 1, 15)], f - float(i)); }
+  float u = -s;
+  return u < 40. ? mix(uPC[0], uPA[0], u / 40.) : u < 80. ? mix(uPA[0], uPA[1], (u - 40.) / 40.) : u < 160. ? mix(uPA[1], uPA[2], (u - 80.) / 80.) : mix(uPA[2], uPA[3], clamp((u - 160.) / 80., 0., 1.));
+}
+vec3 pathLit(vec2 xz){ float s = max(dot(xz, normalize(uSun.xz + 1e-5)), 0.), f = clamp(s / 40., 0., 15.); int i = int(floor(f)); return mix(uPL[i], uPL[min(i + 1, 15)], f - float(i)); }
 float dens(int L, vec2 p, float fp, float dist){
   vec2 p0 = p;
   p += uSeed * (float(L)+1.);
   if (L == 0){ // cirrus / cirrostratus
-    float cov = uCov.x;
+    float cov = pathCov(p0).x;
     vec2 q = rot(uWind) * p;
     float warp = fbm(q*.03, fp*.03, 3);
     vec2 s = vec2(q.x*.03, q.y*.09) + warp*1.9;
@@ -210,7 +221,7 @@ float dens(int L, vec2 p, float fp, float dist){
     }
     return clamp(max(d, veil), 0., 1.);
   } else if (L == 1){ // altocumulus
-    float cov = uCov.y;
+    float cov = pathCov(p0).y;
     vec2 q = rot(uWind + .4) * p;
     float macro = fbm(q*.025, fp*.025, 4);
     float thr = mix(.74, .28, cov) - smoothstep(.6, 1., cov) * .45;   // high cover: no clear holes in the macro field
@@ -233,7 +244,7 @@ float dens(int L, vec2 p, float fp, float dist){
     float strk = (.18 + .55*smoothstep(.3, .75, band)) * (.8 + .2*det);
     return clamp(max(cells * (1. - .8*sheetW), mix(sheet, strk, sheetW) * sheetW), 0., 1.);
   } else { // low: cumulus / stratocumulus + western bank
-    float cov = uCov.z;
+    float cov = pathCov(p0).z;
     cov = mix(cov, max(cov, uBlock*1.05), smoothstep(30., 150., dist));
     vec2 q = rot(uWind*.5) * p;
     float n = fbm(q*.16, fp*.16, 6);
@@ -266,6 +277,7 @@ vec3 cloudShade(int L, vec3 P, vec3 rd, float t, float pixA, out float alpha){
   if (L == 0 && uLQ < .5 && t > 0. && t < 1400.) d = max(d, contrail(xz, t));   // d28zv: contrails (primary sample only — keeps the shader light)
   if (d < .003){ alpha = 0.; return vec3(0.); }
   float tauV = d * lh.z * min(1./cosv, L == 2 ? 4. : 12.) * (L == 2 ? smoothstep(.0, .12, d) : 1.);   // d28zd: low deck at grazing view hit ~200× optical depth → razor-edged black slabs in horizontal strips (St. Simons); cap the slant path + soften edges
+  if (L == 1) tauV *= mix(.25, 1., smoothstep(.3, .95, pathCov(xz).y));   // d28zz (3): a broken/partial mid deck is optically thin between cells — the sunlit high deck shows through ≈ exp(−τ_mid·cov_mid)
   alpha = 1. - exp(-tauV);
   if (L == 2) alpha *= 1. - .65 * smoothstep(20., 90., t) * (1. - uGray);   // d28zd: distant low cloud (a thin 2-D layer seen edge-on) melts into the haze instead of hard black slabs on the horizon/in the water
   vec3 sun = uSunC;
@@ -294,7 +306,7 @@ vec3 cloudShade(int L, vec3 P, vec3 rd, float t, float pixA, out float alpha){
   }
   vec3 Ts = sunT(P + up*lh.y*.5, sun);
   float bEff = uBlock * (1. - .6 * uBlockGap);   // d17: an open slot on the horizon lets light under the deck
-  float lightIn = L == 2 ? 1. - .55*bEff : 1. - .9*bEff*bEff;
+  float lightIn = L == 2 ? 1. - .55*bEff : 1. - .9*bEff*bEff; if (uPOn > .5) { vec3 pl = pathLit(xz); lightIn = L == 0 ? pl.x : L == 1 ? pl.y : pl.z; }   // d28zz: cloud transmission of the sun's ray to THIS point, traced through the sampled solar path
   float cs = dot(rd, sun);
   float ph = mix(phHG(cs, .65), phHG(cs, -.1), .45) ;
   float fwd = mix(1., .35, clamp(tauV*.25, 0., 1.)); // thick cores block the forward lobe
@@ -303,6 +315,9 @@ vec3 cloudShade(int L, vec3 P, vec3 rd, float t, float pixA, out float alpha){
   direct += ESUN * Ts * lightIn * (shadow*.6 + ms) * smoothstep(0., -.7, cs) * .018 * vec3(1., .8, .9);
   // d17: (a) under-lit deck bases when the sun is below the deck and the horizon is open; (b) broken deck → lit edges/tops, higher layers lit from below
   direct *= min(uGlow, 1.1) * (1. + min(.7, uUnder * .9 * (1. - above) * (L < 2 ? 1. : .5) + uTops * (L >= 1 ? .4 : .2)));   // d28za ROOT CAUSE fix: was uGlow(≤1.65) × (1 + 1.2·under + .7·tops) ≈ up to 4.8× sunlight on every lit cloud in view → whole sky red on broken/deck days; now ≤ 1.9× and only as an under/edge-lighting boost (colour itself comes from the physical reddened beam Ts)
+  // d28zz (4): real per-pixel base light — the deck underside sees the sun through its own sunT (Earth shadow + reddening at the base) when the sun
+  // is below that point's local horizontal (mu < 0); not capped by uGlow and not scaled by (1 − gray)
+  { vec3 Tb = sunT(P - up*lh.y*.5, sun); direct += ESUN * Tb * lightIn * ph * 4.*PI*.12 * max(0., -mu) * (shadow + ms); }
   // ambient: blue skylight from above + warm horizon light
   vec3 hA = sunT(P + up*2.5, sun), hB = sunT(P + up*12., sun);
   float skyLit = dot(hA, vec3(.25,.45,.3))*.75 + dot(hB, vec3(.25,.45,.3))*.25;
@@ -339,13 +354,13 @@ vec3 skyRay(vec3 ro, vec3 rd, float pixA, bool full, out vec3 Tout){
     float tk = tc[k];
     seg(A, ro, rd, prev, tk, ns, cs);
     prev = tk;
-    float cov = k == 0 ? max(uCov.x, .3*max(uCon.x, uCon.y)) : k == 1 ? uCov.y : max(uCov.z, uBlock);
+    vec3 pcv = pathCov((ro + rd*tk).xz); float cov = k == 0 ? max(pcv.x, .3*max(uCon.x, uCon.y)) : k == 1 ? pcv.y : max(pcv.z, uPOn > .5 ? 0. : uBlock);   // d28zz: cover where this sight line meets the layer
     if (cov > .02 && tk < 1400. && rd.y < .0045){   // d28b: grazing rays (the fixed-elevation horizon-colour samples used for water/wave/fog colour) hit the cloud deck edge-on;
       float lum = dot(A.L, vec3(.2126,.7152,.0722)); float al = cov * .55 * mix(1., .55, uBlockGap);   // per-azimuth cloud detail there turned into thin vertical lines down the water — use a smooth coverage veil instead
       A.L = mix(A.L, mix(vec3(lum), A.L, .6), al * .5); A.T *= 1. - al * .3;
     } else if (cov > .02 && tk < 1400.){
       float al; vec3 c = cloudShade(k, ro + rd*tk, rd, tk, pixA, al);
-      float far = smoothstep(260., 620., tk);
+      float far = smoothstep(260., 620., tk) * (dot(sunT(ro + rd*tk, uSunC), vec3(.33)) > .002 ? 0. : 1.);   // d28zz: no grey veil swap where the distant deck is still sunlit
       al = mix(al, cov * .92 * mix(1., .55, uBlockGap), far);
       A.L += A.T * c * al; A.T *= 1. - al;
     }
@@ -373,7 +388,7 @@ vec3 skyRay(vec3 ro, vec3 rd, float pixA, bool full, out vec3 Tout){
 float cloudTowardSun(vec3 ro, vec3 rd){
   float T = 1.;
   for (int k = 2; k >= 0; k--){
-    float cov = k == 0 ? max(uCov.x, .3*max(uCon.x, uCon.y)) : k == 1 ? uCov.y : max(uCov.z, uBlock);
+    float tq = sph(ro, rd, R0 + layerH(k).x).y; vec3 pcq = pathCov((ro + rd*tq).xz); float cov = k == 0 ? max(pcq.x, .3*max(uCon.x, uCon.y)) : k == 1 ? pcq.y : max(pcq.z, uPOn > .5 ? 0. : uBlock);
     if (cov < .02) continue;
     float a = R0 + layerH(k).x;
     float t = sph(ro, rd, a).y;
@@ -1358,6 +1373,8 @@ void main(){
     const lift = 0.75 * clamp((-0.8 - P.elev) / 2);
     gl.uniform3fv(U.uSunC, dir(e + lift * d2r));
     gl.uniform3f(U.uCov, P.high, P.mid, P.low);
+    { const T = P.path, on = !!(T && U["uPC[0]"]); if (U.uPOn) gl.uniform1f(U.uPOn, on ? 1 : 0);   // d28zz sampled solar path
+      if (on) { gl.uniform3fv(U["uPC[0]"], T.pc.flat()); gl.uniform3fv(U["uPA[0]"], T.pa.flat()); gl.uniform3fv(U["uPL[0]"], T.pl.flat()); } }
     gl.uniform1f(U.uBlock, P.block); gl.uniform1f(U.uAod, P.aod); gl.uniform1f(U.uRH, P.rh);
 
     gl.uniform1f(U.uWater, P.water ? 1 : 0); gl.uniform1f(U.uPier, P.pier ? 1 : 0); gl.uniform1f(U.uShore, P.shore || 0); gl.uniform1f(U.uHills, P.hills || 0); if (U.uCity) gl.uniform1f(U.uCity, P.city || 0); if (U.uBridge) gl.uniform1f(U.uBridge, P.bridge || 0); { const G = P.ground || {}; if (U.uGnd) gl.uniform4f(U.uGnd, G.near || 0, G.nearD || 0, G.far || 0, G.land ? 1 : 0); if (U.uFS) gl.uniform4f(U.uFS, G.d || 0, G.th || 0, G.town || 0, G.dune || 0); if (U.uMarsh) gl.uniform2f(U.uMarsh, G.marsh || 0, G.swamp ? 1 : 0); if (U.uReg) { const R = G.reg || [0, 0, 0]; gl.uniform4f(U.uReg, R[0], R[1], R[2] || 0, 0); } if (U.uFSv) gl.uniform4f(U.uFSv, G.dl != null ? G.dl : (G.d || 0), G.dr != null ? G.dr : (G.d || 0), G.a0 != null ? G.a0 : -9, G.a1 != null ? G.a1 : 9); }

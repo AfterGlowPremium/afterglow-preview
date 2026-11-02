@@ -508,6 +508,7 @@
       li.addEventListener("mouseleave", () => markers[li.dataset.id] && markers[li.dataset.id].closeTooltip());
     });
   }
+  window.__agPathReady = () => { try { update(); } catch (e) {} };   // d28zz: sampled solar path arrived → re-score with it
   function update() {
     compute(); if (!state.arch) archViewed(); renderDays(); const list = filtered(); renderHero(list); renderBonus(list); renderList(list); renderMarkers();
     if (state.spot) openDetail(state.spot, true);
