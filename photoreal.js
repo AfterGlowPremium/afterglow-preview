@@ -277,7 +277,7 @@ vec3 cloudShade(int L, vec3 P, vec3 rd, float t, float pixA, out float alpha){
   float fp = t * pixA / cosv;              // pixel footprint in km on the layer
   vec2 xz = P.xz;
   float d = dens(L, xz, fp, t);
-  if (L == 0 && t > 0. && t < 1400.) d = max(d, contrail(xz, t));   // d28zze: also in LQ drag frames (same positions/widths → no pop on release)   // d28zv: contrails (primary sample only — keeps the shader light)
+  if (L == 0 && t > 0. && t < 1400.) d = max(d, contrail(xz * (9.1 / lh.x), t * (9.1 / lh.x)));   /* d28zzf: every trail at one common height (~300 hPa, 9.1 km) — same drift, same perspective */   // d28zze: also in LQ drag frames (same positions/widths → no pop on release)   // d28zv: contrails (primary sample only — keeps the shader light)
   if (d < .003){ alpha = 0.; return vec3(0.); }
   float tauV = d * lh.z * min(1./cosv, L == 2 ? 4. : 12.) * (L == 2 ? smoothstep(.0, .12, d) : 1.);   // d28zd: low deck at grazing view hit ~200× optical depth → razor-edged black slabs in horizontal strips (St. Simons); cap the slant path + soften edges
   if (L == 1) tauV *= mix(.25, 1., smoothstep(.3, .95, pathCov(xz).y));   // d28zz (3): a broken/partial mid deck is optically thin between cells — the sunlit high deck shows through ≈ exp(−τ_mid·cov_mid)
