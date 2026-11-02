@@ -66,10 +66,10 @@
     const best = L.reduce((a, b) => (b.pers + 0.1 * b.form > a.pers + 0.1 * a.form ? b : a));
     const traffic = lat > 33 && lat < 42.5 ? 1 : 0.85;
     const cat = best.pers >= 0.45 ? "high" : best.form >= 0.5 ? "short" : "none";
-    // d28zzd: upper wind at the contrail level (ECMWF, GFS fallback) — vector the air blows TOWARD (from + 180°), m/s east/north; vertical shear (m/s per km) across the 200–300 hPa layer
+    // d28zzf: drift uses the 300 hPa (~9.1 km / 30,000 ft) wind for ALL trails; d28zzd: upper wind at the contrail level (ECMWF, GFS fallback) — vector the air blows TOWARD (from + 180°), m/s east/north; vertical shear (m/s per km) across the 200–300 hPa layer
     const Z = { 200: 11.8, 250: 10.4, 300: 9.2 }, WV = p => { for (const [h, , nm] of src) { if (!h) continue; const sp = at(h, `wind_speed_${p}hPa`, tSet), dr = at(h, `wind_direction_${p}hPa`, tSet);
       if (sp == null || dr == null || isNaN(sp) || isNaN(dr)) continue; const ms = sp * 0.44704, to = (dr + 180) * Math.PI / 180; return { p, mph: +sp.toFixed(1), from: Math.round(dr), ms, u: ms * Math.sin(to), v: ms * Math.cos(to), src: nm }; } return null; };
-    const wB = WV(best.p), pr = best.p === 200 ? [200, 250] : best.p === 300 ? [250, 300] : [200, 300], wa = WV(pr[0]), wb = WV(pr[1]);
+    const wB = WV(300), pr = best.p === 200 ? [200, 250] : best.p === 300 ? [250, 300] : [200, 300], wa = WV(pr[0]), wb = WV(pr[1]);
     const wind = wB ? { p: wB.p, mph: wB.mph, from: wB.from, u: +wB.u.toFixed(2), v: +wB.v.toFixed(2), src: wB.src } : null;
     const shear = wa && wb ? { su: +((wa.u - wb.u) / (Z[pr[0]] - Z[pr[1]])).toFixed(3), sv: +((wa.v - wb.v) / (Z[pr[0]] - Z[pr[1]])).toFixed(3), layer: pr.join("-") } : null;
     return { wind, shear, cat, p: best.p, T: best.T, rhi: best.rhi, src: best.src, form: +best.form.toFixed(2), pers: +(best.pers * traffic).toFixed(2), spread: +(best.spread * traffic).toFixed(2), q: +(cat === "high" ? best.pers * traffic : cat === "short" ? 0.12 : 0).toFixed(2), levels: L };
