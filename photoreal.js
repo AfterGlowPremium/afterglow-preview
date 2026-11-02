@@ -199,7 +199,10 @@ float dens(int L, vec2 p, float fp, float dist){
     // thin, translucent fill between the cells (so gaps glow instead of showing open sky) + slow undulation rolls
     float roll = .5 + .5*sin(dot(q, vec2(.9, .25)) * .55 + fbm(q*.2, fp*.2, 3)*5.);
     float sheet = (.12 + .30*fbm(q*.12 + 4., fp*.12, 5) + .12*roll) * (.75 + .25*det);
-    return clamp(max(cells, sheet * sheetW), 0., 1.);
+    // d28zx: altostratus (≥50 % mid) is a stratiform sheet: long wind-aligned bands/streaks, cells (mackerel puffs) fade out as the sheet takes over
+    float band = fbm(vec2(q.x*.035, q.y*.42) + wq*.6, fp*.42, 5);
+    float strk = (.18 + .55*smoothstep(.3, .75, band)) * (.8 + .2*det);
+    return clamp(max(cells * (1. - .8*sheetW), mix(sheet, strk, sheetW) * sheetW), 0., 1.);
   } else { // low: cumulus / stratocumulus + western bank
     float cov = uCov.z;
     cov = mix(cov, max(cov, uBlock*1.05), smoothstep(30., 150., dist));

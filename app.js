@@ -688,7 +688,7 @@
         if (!(PhotoStage.last && (PhotoStage.last.surf || sp.water))) return; }   // d25o: all water spots animate continuously
       AN.id = requestAnimationFrame(animLoop); };
     const startAnim = () => { if (!AN.id && AN.tok === myTok) { AN.last = 0; AN.id = requestAnimationFrame(animLoop); } };
-    const word = l => l.lit < 0.08 ? "in shadow" : (l.c[1] > 200 ? "lit gold-white" : l.c[1] > 150 ? "lit gold" : l.c[1] > 100 ? "lit orange" : "lit pink-red");
+    const word = l => l.lit < 0.08 ? "in shadow" : (l.c[1] > 200 ? "lit gold-white" : l.c[1] > 150 ? "lit gold" : l.c[1] > 100 ? "lit orange" : "lit pink-red") + (l.over != null && l.over < 0.08 && l.band > 0 ? ` from below, low toward the sun (≤${Math.round(l.band)}°)` : "");   // d28zx
     // d25w: the slider thumb is the play button — glyph rides on the thumb; tap = play/pause, drag = scrub (pauses)
     const posG = () => { const g = $("#pv-thumb"); if (!g || !sl) return; const r = sl.getBoundingClientRect(), pr = sl.parentElement.getBoundingClientRect(), f = (+sl.value - +sl.min) / ((+sl.max - +sl.min) || 1), R = 17;
       g.style.left = (r.left - pr.left + R + f * (r.width - 2 * R)) + "px"; g.style.top = (r.top - pr.top + r.height / 2) + "px"; g.textContent = playing ? "❚❚" : "▶"; g.classList.toggle("on", !!playing); };

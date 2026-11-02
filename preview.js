@@ -13,6 +13,23 @@
     return stops[stops.length - 1][1];
   };
   const DEPRESS = { high: Math.sqrt(2 * 9 / 6371) * 57.3 + 0.5, mid: Math.sqrt(2 * 4 / 6371) * 57.3 + 0.5, low: Math.sqrt(2 * 1 / 6371) * 57.3 + 0.3 };
+  // d28zx ROOT CAUSE ("Cirrus in shadow" at Buckroe sunrise Nov 2, sun −5.3°, 66 % open east gap): lighting used only the cloud DIRECTLY
+  // OVERHEAD (x = 0). A deck is not one point — the part of it out toward the sun, at ground distance x, sees the sun ~x/R higher.
+  // Geometry (R = 6371 km, angles in °, h = layer height km: high 9, mid 4, low 1):
+  //   θ(h)   = √(2h/R)·57.3            depression at which a cloud at h loses the sun (its local horizon dip)
+  //   d_loc  = d − (x/R)·57.3          sun depression at the cloud point x km toward the sun (d = −sun elevation)
+  //   e(x)   = θ(h) + k − d_loc        sun elevation seen from that cloud (k = 0.5° refraction/limb, 0.3° for low)
+  //   lit(x) = clamp((e + 0.6)/1.2) · lightIn        lightIn = 1 − 1.05·slotBlock = the open gap toward the sun along the solar ray
+  //   colour = LIGHT ramp at e  (small e = long grazing path through the low atmosphere → red/magenta; large e → gold/white)
+  //   x runs 0 … d_vis = √(2R·h) (farthest visible part of the layer); on-screen elevation of x = atan((h − x²/2R)/x).
+  // So with an open gap the far (sunward) part of a high deck is UNDER-LIT red/magenta in a band above the horizon while the overhead part is
+  // already in Earth's shadow; a closed gap (slotBlock → 1) still gives lightIn → 0 = grey.
+  const LH = { high: 9, mid: 4, low: 1 };
+  const layerGeo = (dom, elev, lightIn) => { const h = LH[dom], dvis = Math.sqrt(2 * 6371 * h); let best = null, band = 0;
+    for (let i = 0; i <= 24; i++) { const x = Math.max(5, dvis * i / 24), e = elev + DEPRESS[dom] + x / 6371 * 57.3, lit = clamp((e + 0.6) / 1.2) * lightIn, el = Math.atan((h - x * x / 12742) / x) * 57.3;
+      if (i === 0) best = { e, lit, el, over: lit }; else if (lit > best.lit + 1e-6) best = Object.assign(best, { e, lit, el });
+      if (lit >= 0.08) band = Math.max(band, el); }
+    return { c: ramp(best.e, LIGHT), lit: best.lit, over: best.over, band: best.lit >= 0.08 ? Math.max(0, band) : 0 }; };
 
   // Sky gradient by sun elevation (top, mid, horizon)
   const SKY_TOP = [[8, [58, 104, 176]], [3, [48, 80, 150]], [0, [42, 52, 112]], [-2, [32, 32, 88]], [-4, [20, 20, 60]], [-7, [9, 11, 32]]];
@@ -121,6 +138,10 @@
     const shade = mix(dull, ramp(elev, SHADE), skyVivid * 0.6 + 0.4);
     const layerLight = dom => { const e = elev + DEPRESS[dom]; const lit = clamp((e + 0.6) / 1.2) * lightIn; return { c: ramp(e, LIGHT), lit }; };
     const L = { high: layerLight("high"), mid: layerLight("mid"), low: layerLight("low") };
+    // d28zx: sunward part of a deck still sunlit while overhead is in Earth's shadow → under-lit band from the horizon up to its on-screen elevation
+    for (const [dom, cov] of [["high", hi], ["mid", md]]) { const G2 = layerGeo(dom, elev, lightIn); if (cov < 0.3 || G2.lit < 0.08 || G2.lit <= L[dom].lit + 0.05) continue;
+      const top = Math.max(hz - (G2.band + 1.5) * pxDeg, 0), gb = ctx.createLinearGradient(0, top, 0, hz); gb.addColorStop(0, rgba(G2.c, 0)); gb.addColorStop(0.5, rgba(G2.c, 0.55 * G2.lit * cov)); gb.addColorStop(1, rgba(G2.c, 0.85 * G2.lit * cov));
+      ctx.fillStyle = gb; ctx.fillRect(0, top, W, hz - top); }
 
     // 2) high cloud: cirrostratus veil + cirrus streaks
     if (hi > 0.35) {
@@ -503,7 +524,7 @@
   // same numbers the drawing uses, without drawing (used by the photoreal stage for its captions)
   function state(spot, ev, t) {
     const elev = window.Model.sunPos(t, spot.lat, spot.lng).elev, lightIn = clamp(1 - ev.slotBlock * 1.05);
-    const layerLight = dom => { const e = elev + DEPRESS[dom]; return { c: ramp(e, LIGHT), lit: clamp((e + 0.6) / 1.2) * lightIn }; };
+    const layerLight = dom => layerGeo(dom, elev, lightIn);   // d28zx: sunward-distance geometry (see layerGeo)
     return { elev, phase: phaseOf(elev, ev.timing.dom), lit: { high: layerLight("high"), mid: layerLight("mid"), low: layerLight("low") } };
   }
   g.Preview = { draw, phaseOf, state, drawBehind };

@@ -132,7 +132,7 @@
     // lit clouds only far out → horizon band (under/tops scaled down, colour stays low); nothing lit → plain twilight (glow 1, no boosts).
     { const LO = g.AGLos && ev.sunsetAz != null ? g.AGLos.get(spot, ev.sunsetAz, t, pos.elev) : null; if (LO && !DEMO && !skq && !wxq && !g.__agForce) { P.los = LO;
       const lit = Math.max(LO.overhead, 0.6 * LO.far); if (LO.wall > 0.6) P.gap = Math.min(P.gap || 1, 1 - LO.wall);
-      P.under *= clamp(LO.overhead / 0.4) * clamp(1 - (LO.wall - 0.5) / 0.4); P.tops *= clamp(lit / 0.3); if (lit < 0.05) P.glow = Math.min(P.glow, 1); } }
+      P.under *= clamp(Math.max(LO.overhead, LO.far) / 0.4)   /* d28zx: a far, sunward deck under-lit through the gap is still under-lighting; the shader’s sunT() limits it per pixel to where the solar ray clears the Earth */ * clamp(1 - (LO.wall - 0.5) / 0.4); P.tops *= clamp(lit / 0.3); if (lit < 0.05) P.glow = Math.min(P.glow, 1); } }
     return P;
   }
 

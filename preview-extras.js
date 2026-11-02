@@ -128,7 +128,7 @@
     const lk = { title: "Afterglow · " + spotName(), url: link() };
     if (file && navigator.canShare && navigator.canShare({ files: [file] })) { navigator.share({ files: [file] }).catch(e => { if (!e || e.name !== "AbortError") fallback(blob, file.name); }); return; }
     if (!file && navigator.share) { navigator.share(lk).catch(e => { if (!e || e.name !== "AbortError") fallback(null); }); return; }
-    if (file) { fallback(blob, file.name); return; }   // d28zv: files unsupported → just save the file (no link attached)
+    if (file) { fallback(blob, file.name); return; }   // d28zx: files unsupported → just save the file (no link attached)
     fallback(blob, file && file.name); }
   function toast(t) { const el = d.createElement("div"); el.className = "ag-toast"; el.textContent = t; d.body.appendChild(el); setTimeout(() => el.remove(), 2200); }
   function shotBlob() { const cv = d.getElementById("pv"); if (!cv) return Promise.resolve(null); const k = 2, W = cv.clientWidth * k, H = cv.clientHeight * k, o = d.createElement("canvas"); o.width = W; o.height = H; const x = o.getContext("2d");
