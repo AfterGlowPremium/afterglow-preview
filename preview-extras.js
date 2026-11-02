@@ -218,7 +218,7 @@
   // bottom-left of the scene, just above the caption block (normal) or the time slider (full screen); clear of the right-side zoom ± rail
   function place() { const st = d.querySelector(".stage"), w = st && st.querySelector(".ag-ev"); if (!w) return; const fs = d.body.classList.contains("ag-fs");
     const ref = fs ? d.querySelector(".scrub") : st.querySelector(".stage-bottom"); const h = ref && ref.offsetParent !== null ? ref.offsetHeight : 0;
-    const px = fs ? h + 10 : h + (ref ? 22 : 12); if (st._px !== px) { st._px = px; st.style.setProperty("--evb", px + "px"); d.body.style.setProperty("--evb", px + "px"); } }
+    const px = fs ? h + 10 : 10;   /* d28zzc: Sean — controls own the very bottom-left corner; the caption shifts right instead */ if (st._px !== px) { st._px = px; st.style.setProperty("--evb", px + "px"); d.body.style.setProperty("--evb", px + "px"); } }
   new MutationObserver(() => { add(); place(); }).observe(d.body, { childList: true, subtree: true }); new MutationObserver(place).observe(d.body, { attributes: true, attributeFilter: ["class"] }); add();
   g.addEventListener("resize", place);
   const css = d.createElement("style"); css.textContent = `.ag-ev{position:absolute;z-index:5;left:calc(10px + env(safe-area-inset-left));bottom:var(--evb,120px);display:flex;flex-direction:column;align-items:center;gap:4px;width:30px;padding:6px 0 5px;border-radius:999px;box-sizing:border-box;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.45);-webkit-backdrop-filter:blur(10px) saturate(160%);backdrop-filter:blur(10px) saturate(160%);box-shadow:inset 0 1px 0 rgba(255,255,255,.35),inset 0 -2px 4px rgba(0,0,0,.22),0 1px 3px rgba(0,0,0,.18);color:#fff;font:600 9.5px system-ui;text-shadow:0 1px 2px rgba(0,0,0,.55);touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;cursor:ns-resize;outline:none}
@@ -265,6 +265,8 @@ body.ag-fs .scrub .scrub-marks,body.ag-fs .scrub .scrub-row,body.ag-fs .pv-moon,
 #ag-fs-x{position:fixed;z-index:2147482002;top:calc(10px + env(safe-area-inset-top));right:calc(10px + env(safe-area-inset-right));width:30px;height:30px;border-radius:50%;padding:0;cursor:pointer;font:600 13px system-ui;color:rgba(255,255,255,.75);background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.3);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);opacity:.55}
 #ag-fs-x:hover{opacity:.9}
 .stage .ag-fsb{position:absolute;z-index:5;left:calc(48px + env(safe-area-inset-left));bottom:var(--evb,120px);min-height:28px;padding:0 11px;border-radius:999px;box-sizing:border-box;cursor:pointer;color:#fff;font:600 11.5px system-ui;white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,.55);background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.45);-webkit-backdrop-filter:blur(10px) saturate(160%);backdrop-filter:blur(10px) saturate(160%);box-shadow:inset 0 1px 0 rgba(255,255,255,.35),inset 0 -2px 4px rgba(0,0,0,.22),0 1px 3px rgba(0,0,0,.18);-webkit-tap-highlight-color:transparent;touch-action:manipulation}
-body.ag-fs .stage .ag-fsb{display:none}`;
+body.ag-fs .stage .ag-fsb{display:none}
+.stage .stage-bottom{left:calc(150px + env(safe-area-inset-left))!important;bottom:calc(10px + env(safe-area-inset-bottom))!important}
+.stage .ag-ev{bottom:calc(var(--evb,10px) + env(safe-area-inset-bottom))}.stage .ag-fsb{bottom:calc(var(--evb,10px) + env(safe-area-inset-bottom))}body.ag-fs .ag-ev{bottom:var(--evb,10px)}`;
   d.head.appendChild(css);
 })(window);
