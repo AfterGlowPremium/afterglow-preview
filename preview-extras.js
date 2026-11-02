@@ -179,3 +179,60 @@
 .ag-toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);z-index:2147483001;color:#fff;font:600 13px system-ui;padding:8px 14px;border-radius:999px;${GL}}`;
   d.head.appendChild(css);
 })(window);
+// d28zv (PREVIEW ONLY): exposure slider (-2..+1 EV) — photographic: applied in the renderer before the filmic curve, so captures include it
+(function (g) {
+  const d = document, KEY = "ag-ev";
+  let ev = 0; try { ev = Math.max(-2, Math.min(1, parseFloat(localStorage.getItem(KEY)) || 0)); } catch (e) {}
+  g.__agEV = ev;
+  const fmt = v => (v > 0 ? "+" : v < 0 ? "−" : "±") + Math.abs(v).toFixed(1);
+  function add() { const box = d.querySelector(".ag-tools"); if (!box || box.querySelector(".ag-ev")) return;
+    const w = d.createElement("label"); w.className = "ag-ev"; w.title = "Exposure (double-tap to reset)";
+    w.innerHTML = '<span aria-hidden="true">☀︎</span><input type="range" min="-2" max="1" step="0.1" aria-label="Exposure"><b></b>';
+    const r = w.querySelector("input"), b = w.querySelector("b"); r.value = g.__agEV; b.textContent = fmt(g.__agEV);
+    const set = v => { g.__agEV = v; b.textContent = fmt(v); try { localStorage.setItem(KEY, String(v)); } catch (e) {} g.__agQueue && g.__agQueue(); };
+    r.addEventListener("input", () => set(+r.value));
+    ["pointerdown", "pointermove", "touchstart", "touchmove", "mousedown", "click", "wheel"].forEach(t => w.addEventListener(t, e => e.stopPropagation(), { passive: true }));
+    w.addEventListener("dblclick", () => { r.value = 0; set(0); });
+    box.appendChild(w); }
+  new MutationObserver(add).observe(d.body, { childList: true, subtree: true }); add();
+  const css = d.createElement("style"); css.textContent = `.ag-ev{display:inline-flex;align-items:center;gap:4px;min-height:26px;padding:0 8px;border-radius:999px;box-sizing:border-box;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.45);-webkit-backdrop-filter:blur(10px) saturate(160%);backdrop-filter:blur(10px) saturate(160%);box-shadow:inset 0 1px 0 rgba(255,255,255,.35),inset 0 -2px 4px rgba(0,0,0,.22),0 1px 3px rgba(0,0,0,.18);color:#fff;font:600 11px system-ui;text-shadow:0 1px 2px rgba(0,0,0,.55);touch-action:none;vertical-align:middle}
+.ag-ev b{min-width:26px;text-align:right;font-weight:600}
+.ag-ev input{-webkit-appearance:none;appearance:none;width:78px;height:22px;margin:0;background:transparent;touch-action:none}
+.ag-ev input::-webkit-slider-runnable-track{height:3px;border-radius:2px;background:rgba(255,255,255,.55)}
+.ag-ev input::-moz-range-track{height:3px;border-radius:2px;background:rgba(255,255,255,.55)}
+.ag-ev input::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;margin-top:-6.5px;border-radius:50%;background:rgba(255,255,255,.35);border:1px solid rgba(255,255,255,.85);box-shadow:0 1px 3px rgba(0,0,0,.35)}
+.ag-ev input::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:rgba(255,255,255,.35);border:1px solid rgba(255,255,255,.85)}`;
+  d.head.appendChild(css);
+})(window);
+// d28zw (PREVIEW ONLY): Full screen — only the scene + time slider; exit by the button, the faint ✕, a tap on the scene, or a fast upward flick
+(function (g) {
+  const d = document, B = d.body, on = () => B.classList.contains("ag-fs");
+  const kick = () => { g.dispatchEvent(new Event("resize")); g.__agQueue && g.__agQueue(); setTimeout(() => { g.__agQueue && g.__agQueue(); }, 80); };
+  function set(v) { if (v === on()) return; B.classList.toggle("ag-fs", v); let x = d.getElementById("ag-fs-x");
+    if (v && !x) { x = d.createElement("button"); x.id = "ag-fs-x"; x.setAttribute("aria-label", "Exit full screen"); x.textContent = "✕"; x.addEventListener("click", e => { e.stopPropagation(); set(false); }); d.body.appendChild(x); }
+    if (!v && x) x.remove(); kick(); }
+  g.__agFS = set;
+  const ICON = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
+  function add() { const box = d.querySelector(".ag-tools"); if (!box || box.querySelector(".ag-fsb")) return; const b = d.createElement("button"); b.className = "ag-fsb"; b.setAttribute("aria-label", "Full screen"); b.title = "Full screen"; b.innerHTML = ICON;
+    b.addEventListener("click", e => { e.stopPropagation(); set(!on()); }); box.appendChild(b);
+    const st = d.querySelector(".stage"); if (st && !st._fsH) { st._fsH = 1; let p0 = null, multi = false;
+      st.addEventListener("touchstart", e => { if (e.touches.length > 1) multi = true; }, { passive: true });
+      st.addEventListener("pointerdown", e => { if (!on()) return; if (e.target.closest && e.target.closest("button,input,a,label")) return; multi = false; p0 = { x: e.clientX, y: e.clientY, t: performance.now() }; });
+      st.addEventListener("pointerup", e => { if (!on() || !p0) return; const dx = e.clientX - p0.x, dy = e.clientY - p0.y, dt = performance.now() - p0.t; p0 = null; if (multi) return;
+        if (dy < -60 && Math.abs(dy) > 2 * Math.abs(dx) && dt < 450) { set(false); return; }   // fast upward flick
+        if (Math.hypot(dx, dy) < 8 && dt < 350) set(false); });                                 // plain tap
+      st.addEventListener("pointercancel", () => { p0 = null; }); } }
+  new MutationObserver(() => { add(); if (on() && !d.querySelector(".stage")) set(false); }).observe(d.body, { childList: true, subtree: true }); add();
+  d.addEventListener("keydown", e => { if (e.key === "Escape" && on()) set(false); });
+  const css = d.createElement("style"); css.textContent = `
+body.ag-fs{overflow:hidden!important}
+body.ag-fs .stage{position:fixed!important;inset:0!important;margin:0!important;width:100vw!important;height:100vh!important;height:100dvh!important;z-index:2147482000!important;border-radius:0!important}
+body.ag-fs .stage::after{display:none}
+body.ag-fs .stage-top,body.ag-fs .stage-rail,body.ag-fs .pv-gen,body.ag-fs .stage-bottom{display:none!important}
+body.ag-fs .scrub{position:fixed!important;left:0;right:0;bottom:0;z-index:2147482001!important;margin:0!important;padding:6px max(14px,env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left))!important;background:linear-gradient(0deg,rgba(0,0,0,.35),rgba(0,0,0,0))!important}
+body.ag-fs .scrub .scrub-marks,body.ag-fs .scrub .scrub-row,body.ag-fs .pv-moon,body.ag-fs .pv-steam{display:none!important}
+#ag-fs-x{position:fixed;z-index:2147482002;top:calc(10px + env(safe-area-inset-top));right:calc(10px + env(safe-area-inset-right));width:30px;height:30px;border-radius:50%;padding:0;cursor:pointer;font:600 13px system-ui;color:rgba(255,255,255,.75);background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.3);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);opacity:.55}
+#ag-fs-x:hover{opacity:.9}
+.ag-fsb svg{display:block;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.55))}`;
+  d.head.appendChild(css);
+})(window);
