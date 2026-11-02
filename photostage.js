@@ -104,7 +104,7 @@
       ...seaP(spot, ev, t),
       seed, wind: seed * 6.283, dog: dogAt(ev, C, pos.elev), rays: raysAt(C, pos.elev, aod, ev),   // d28z: ?sundogs=strong test; shown from 8 %, up to 25° sun
     }, DEMO || {}, opt);
-    { const K = ev.con; if (K && K.cat !== "none") P.con = { pers: K.cat === "high" ? clamp(0.45 + 0.6 * K.pers) : 0, short: K.cat === "short" ? 0.85 : 0.5 * (K.cat === "high" ? 1 : 0), spread: K.cat === "high" ? clamp(0.3 + K.spread) : 0, ang: seed * 6.283 }; if (P.con && P.gray > 0.5) P.con = null; }   // d28zv contrails
+    { const K = ev.con; if (K && K.cat !== "none") P.con = { pers: K.cat === "high" ? clamp(0.45 + 0.6 * K.pers) : 0, short: K.cat === "short" ? 0.85 : 0.5 * (K.cat === "high" ? 1 : 0), spread: K.cat === "high" ? clamp(0.3 + K.spread) : 0, ang: (seed - 0.5) * 0.5 }; if (P.con && P.gray > 0.5 && !/[?&]contrails=/.test(location.search)) P.con = null; }   // d28zzb: ang = small jitter; lanes are laid out relative to the sun azimuth in the shader; forced ?contrails= survives gray   // d28zv contrails
     if (P.gray > 0.5 && !/[?&]rays=strong/.test(location.search)) P.rays = 0;
     if (P.dog > 0) P.high = Math.max(P.high || 0, 0.3 * P.dog);   // d28za: sun dogs come with streaky cirrus/cirrostratus (photo)
     if (opt.turned) P.sunAzOff = ((off + 180 + 540) % 360) - 180;

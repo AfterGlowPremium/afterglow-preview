@@ -163,19 +163,19 @@ float contrail(vec2 p, float tdist){
   for (int i = 0; i < 6; i++){
     float fi = float(i);
     vec2 r = h22(vec2(fi*17.3 + 3.1, fi*5.1 + uCon.z*41.7)); float r3 = h12(vec2(fi*5.7 + 1.3, uCon.z*13.1 + 2.));
-    float a = uCon.z + mod(fi, 2.) * 1.05 + (r.x - .5)*.6;   // two crossing traffic corridors → crisscross
+    float a = atan(uSun.z, uSun.x) + uCon.z + (mod(fi, 2.) - .5) * 1.05 + (r.x - .5)*.3;   // d28zzb: two lanes crossing the view toward the sun (azimuth-relative) → crisscross in frame
     vec2 dv = vec2(cos(a), sin(a)), nv = vec2(-dv.y, dv.x);
     float pers = step(fi, .5 + 5.*uCon.x) * step(.01, uCon.x);
     float str = mix(uCon.y, uCon.x, pers);
-    float along = dot(p, dv) - (r3 - .5)*260.;
+    float along = dot(p, dv) - (r3 - .5)*80.;
     float age = clamp(120. + r.y*90. - along, -1., 600.);   // aircraft ahead, trail behind it
     float Lm = mix(10. + 10.*r.y, 260. + 200.*r3, pers);
     float life = step(0., age) * (1. - smoothstep(Lm*.35, Lm, age));
     float w = mix(.1, .18 + uCon.w * clamp(age, 0., 160.) * (.006 + .012*r.x), pers);   // fresh ~0.2 km line → spreads to ~1–3 km contrail-cirrus
-    float dd = dot(p, nv) - (r.y - .5)*200. + (vn(vec2(along*.015, fi*7.)) - .5) * (w*2. + .3);
+    float dd = dot(p, nv) - (fract(fi*.618 + r.y*.3) - .5)*60. + (vn(vec2(along*.015, fi*7.)) - .5) * (w*2. + .3);
     float ww = max(w, fp*1.2);
     float q = clamp(dd / ww, -6., 6.);
-    float core = exp(-q*q) * min(1., w / ww * 1.5);
+    float core = exp(-q*q) * min(1., max(w / ww * 1.5, .45));   // d28zzb: sub-pixel trails stay ≥ ~1 px wide and visible
     float fib = mix(1., .35 + .9*vn(vec2(along*.3/max(w,.2), q*2.5 + fi*3.)), smoothstep(.3, 1.2, w));   // spread sheets go streaky / fibrous
     float gaps = mix(1., smoothstep(.25, .45, vn(vec2(along*.02 + fi*9., 1.))) * .6 + .4, pers);   // patchy ISSRs: trails break up and restart
     acc += core * life * str * fib * gaps * mix(.55, mix(.7, .38, smoothstep(.3, 2., w)), pers);
