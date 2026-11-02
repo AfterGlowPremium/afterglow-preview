@@ -151,12 +151,13 @@
       if (p.r) drawSplash(p.r, now, lit); }
     return true; }
   // =========================== BODYBOARDER (Buckroe surf days ≥ 3 ft) ===========================
-  function surfFt() { const w = +q().get("waves") || (/surf/.test(q().get("demo") || "") ? +q().get("wave") || 5 : 0); if (w) return w;
+  function surfFt() { if (g.AG_NO_BOARDER !== false) return 0; // bodyboarder cut (d28zu)
+   const w = +q().get("waves") || (/surf/.test(q().get("demo") || "") ? +q().get("wave") || 5 : 0); if (w) return w;
     try { const sp = (g.SPOTS || []).find(s => s.id === spot()); const m = sp && g.AGX && g.AGX.sea(sp, {}); return m && m.surf !== false ? +m.ft || 0 : 0; } catch (e) { return 0; } }
   function boarderEvent() { return { k: "boarder", t0: NOW, dir: Math.random() < .5 ? 1 : -1, x0: R(.38, .62), Dout: R(22, 26), Dbreak: R(13, 15), dur: 22, spin: Math.random() < .55 }; }
   const eyeM = () => { const L = g.PhotoStage && g.PhotoStage.last; return L && L.surf > 0.2 ? (L.heroCam || 0.0025) * 1000 : 2.5; };
   // d28zq: side-view prone bodyboarder, s = px per metre. Colours lit by day; silhouette only when low sun is in front.
-  // d28zt: prone bodyboarder, side view, built from reference photos (groundtruth/bodyboard). s = px per metre; +x = toward the nose / where he's heading.
+  // d28zu: prone bodyboarder, side view, built from reference photos (groundtruth/bodyboard). s = px per metre; +x = toward the nose / where he's heading.
   // o.arch 0..1 (trim: chest up, back arched), o.comp 0..1 (drop: body compressed onto the board), o.paddle / o.kick.
   function drawBoarder(s, ang, sil, o) { x.save(); x.rotate(ang); x.lineCap = "round"; x.lineJoin = "round";
     const SUIT = sil ? "#120d14" : "#1a1c22", PANEL = sil ? SUIT : "#2a6fb8", SKIN = sil ? SUIT : "#c08a68", BRD = sil ? "#160f15" : "#f1c21c", BOT = sil ? "#160f15" : "#d6412c", FIN = sil ? "#130e13" : "#e23d33";
@@ -265,5 +266,5 @@
   }
   const kick = () => { if (!raf && which()) raf = requestAnimationFrame(frame); };
   setInterval(() => { if (!which()) d.querySelectorAll('.stage img.pv-fg,.stage img.pv-fg2').forEach(el => { if (el.style.visibility) el.style.visibility = ''; }); kick(); }, 1000); new MutationObserver(kick).observe(d.body, { childList: true, subtree: true });
-  g.__agWild = { step: (dt, t0) => { if (g.__agFix == null) { g.__agFix = performance.now() / 1000; g.__agSurfT = t0 || 100; } g.__agFix += dt; g.__agSurfT += dt; g.__agQueue && g.__agQueue(); }, restart: () => { heron = null; }, seek: t => { const w = which(); if (ev && ev.k === "boarder") ev = null; if (!ev && w && w !== "heron") ev = w === "osprey" ? (q().get("waves") ? boarderEvent() : ospreyEvent()) : dolphinEvent(); if (ev) ev.t0 = NOW - t; if (heron) heron.t0 = NOW - t; }, force: () => { nextAt = 0; ev = null; }, dbg: () => ({ w: which(), ev: ev && { k: ev.k, t: NOW - ev.t0, D: ev.D, dive: ev.dive }, W, H, nextAt, NOW, hz: hz(), ppm: pxPerM(100), raf }) };
+  g.__agWild = { step: (dt, t0) => { if (g.__agFix == null) { g.__agFix = performance.now() / 1000; g.__agSurfT = t0 || 100; } g.__agFix += dt; g.__agSurfT += dt; g.__agQueue && g.__agQueue(); }, restart: () => { heron = null; }, seek: t => { const w = which(); if (ev && ev.k === "boarder") ev = null; if (!ev && w && w !== "heron") ev = w === "osprey" ? ((q().get("waves") && surfFt()) ? boarderEvent() : ospreyEvent()) : dolphinEvent(); if (ev) ev.t0 = NOW - t; if (heron) heron.t0 = NOW - t; }, force: () => { nextAt = 0; ev = null; }, dbg: () => ({ w: which(), ev: ev && { k: ev.k, t: NOW - ev.t0, D: ev.D, dive: ev.dive }, W, H, nextAt, NOW, hz: hz(), ppm: pxPerM(100), raf }) };
 })(window);
