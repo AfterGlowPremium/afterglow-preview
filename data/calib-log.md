@@ -1,3 +1,9 @@
+## 2026-11-04T08:04:37.602Z
+new rows: 1
+- oldpoint sunset: rating 60, app 55, photo colour 45, cloud photo/forecast 51/0 → resid 1
+sunset: n=17 global 2 spots {"oldpoint":-1} cloudBias 2 (n=20, logged only)
+sunrise: n=6 global 1 spots {} cloudBias 21 (n=15, logged only)
+
 ## 2026-11-03T07:57:51.236Z
 new rows: 0
 sunset: n=16 global 2 spots {"oldpoint":-2} cloudBias -2 (n=19, logged only)

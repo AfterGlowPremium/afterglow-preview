@@ -1362,5 +1362,37 @@
   "ver": "d28zs",
   "resid": 3,
   "cloudErr": 92
+ },
+ {
+  "group": "0902982a-7b64-4b20-bf1b-8253410b14a2",
+  "id": "b44ebc31-7d22-43fe-b979-689338cca3f5",
+  "at": "2026-11-03T16:53:00",
+  "shot": "2026-11-03T16:53:00",
+  "saved": "2026-11-03T21:54:26.421913+00:00",
+  "spot": "oldpoint",
+  "mode": "sunset",
+  "rating": 60,
+  "raw": 55,
+  "sky": {
+   "t": 1793742780,
+   "low": 0,
+   "mid": 0,
+   "high": 0,
+   "total": 0,
+   "precip": 0
+  },
+  "photo": {
+   "w": 1280,
+   "h": 960,
+   "bright": 0.409,
+   "sat": 0.231,
+   "warm": 0.142,
+   "vivid": 0.055,
+   "cloud": 0.512,
+   "colorScore": 45
+  },
+  "ver": "d28zze",
+  "resid": 1,
+  "cloudErr": 51
  }
 ]
