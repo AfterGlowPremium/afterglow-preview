@@ -1,3 +1,12 @@
+## 2026-11-05T08:06:56.060Z
+new rows: 4
+- oldpoint sunset: rating 60, app 55, photo colour 47, cloud photo/forecast 0/6 → resid 1
+- oldpoint sunset: rating 60, app 55, photo colour 47, cloud photo/forecast 0/6 → resid 1
+- oldpoint sunset: rating 60, app 55, photo colour 43, cloud photo/forecast 1/2 → resid 0
+- windmillpt sunset: rating 79, app 55, photo colour 55, cloud photo/forecast 35/1 → resid 17
+sunset: n=21 global 1 spots {} cloudBias -1 (n=24, logged only)
+sunrise: n=6 global 1 spots {} cloudBias 21 (n=15, logged only)
+
 ## 2026-11-04T08:04:37.602Z
 new rows: 1
 - oldpoint sunset: rating 60, app 55, photo colour 45, cloud photo/forecast 51/0 → resid 1

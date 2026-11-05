@@ -1,14 +1,12 @@
 {
- "updated": "2026-11-04T08:04:40.957Z",
+ "updated": "2026-11-05T08:07:02.889Z",
  "note": "score offsets from user feedback; bounded ±8 global, ±5 per spot",
  "sunset": {
-  "n": 17,
-  "global": 2,
-  "spots": {
-   "oldpoint": -1
-  },
-  "cloudBias": 2,
-  "cloudN": 20
+  "n": 21,
+  "global": 1,
+  "spots": {},
+  "cloudBias": -1,
+  "cloudN": 24
  },
  "sunrise": {
   "n": 6,

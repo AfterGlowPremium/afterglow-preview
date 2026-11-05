@@ -1394,5 +1394,133 @@
   "ver": "d28zze",
   "resid": 1,
   "cloudErr": 51
+ },
+ {
+  "group": "e41d395e-0c3f-469a-b260-a792b090ac5e",
+  "id": "8d97c497-06c0-48fb-a8d6-c44d9bc8d585",
+  "at": "2026-11-04T16:41:00",
+  "shot": "2026-11-04T16:41:00",
+  "saved": "2026-11-04T21:42:54.378269+00:00",
+  "spot": "oldpoint",
+  "mode": "sunset",
+  "rating": 60,
+  "raw": 55,
+  "sky": {
+   "t": 1793828460,
+   "low": 6,
+   "mid": 0,
+   "high": 0,
+   "total": 6,
+   "precip": 0
+  },
+  "photo": {
+   "w": 960,
+   "h": 1280,
+   "bright": 0.403,
+   "sat": 0.452,
+   "warm": 0.105,
+   "vivid": 0.054,
+   "cloud": 0.004,
+   "colorScore": 47
+  },
+  "ver": "d28zze",
+  "resid": 1,
+  "cloudErr": -6
+ },
+ {
+  "group": "0a76bbe1-b24e-4e2d-b50b-f879dd8460fd",
+  "id": "d3f9454f-cd0b-437f-a098-e6d7e0b11e7e",
+  "at": "2026-11-04T16:41:00",
+  "shot": "2026-11-04T16:41:00",
+  "saved": "2026-11-04T21:43:48.39746+00:00",
+  "spot": "oldpoint",
+  "mode": "sunset",
+  "rating": 60,
+  "raw": 55,
+  "sky": {
+   "t": 1793828460,
+   "low": 6,
+   "mid": 0,
+   "high": 0,
+   "total": 6,
+   "precip": 0
+  },
+  "photo": {
+   "w": 960,
+   "h": 1280,
+   "bright": 0.403,
+   "sat": 0.452,
+   "warm": 0.105,
+   "vivid": 0.054,
+   "cloud": 0.004,
+   "colorScore": 47
+  },
+  "ver": "d28zze",
+  "resid": 1,
+  "cloudErr": -6
+ },
+ {
+  "group": "05d88e3a-1c63-450a-a4b8-f116aec5e9dd",
+  "id": "1cfffc16-da1d-47b2-8196-bb29a28f86cb",
+  "at": "2026-11-04T16:53:00",
+  "shot": "2026-11-04T16:53:00",
+  "saved": "2026-11-04T21:55:06.271682+00:00",
+  "spot": "oldpoint",
+  "mode": "sunset",
+  "rating": 60,
+  "raw": 55,
+  "sky": {
+   "t": 1793829180,
+   "low": 2,
+   "mid": 0,
+   "high": 0,
+   "total": 2,
+   "precip": 0
+  },
+  "photo": {
+   "w": 960,
+   "h": 1280,
+   "bright": 0.452,
+   "sat": 0.36,
+   "warm": 0.102,
+   "vivid": 0.051,
+   "cloud": 0.013,
+   "colorScore": 43
+  },
+  "ver": "d28zze",
+  "resid": 0,
+  "cloudErr": -1
+ },
+ {
+  "group": "39f038d9-257f-471a-9b91-504f1a0e518c",
+  "id": "47a1b1e2-384d-4ad3-8a38-bef071a1194a",
+  "at": "2026-11-04T17:08:00",
+  "shot": "2026-11-04T17:08:00",
+  "saved": "2026-11-04T23:35:20.723927+00:00",
+  "spot": "windmillpt",
+  "mode": "sunset",
+  "rating": 79,
+  "raw": 55,
+  "sky": {
+   "t": 1793830080,
+   "low": 1,
+   "mid": 0,
+   "high": 0,
+   "total": 1,
+   "precip": 0
+  },
+  "photo": {
+   "w": 853,
+   "h": 1280,
+   "bright": 0.317,
+   "sat": 0.288,
+   "warm": 0.191,
+   "vivid": 0.066,
+   "cloud": 0.354,
+   "colorScore": 55
+  },
+  "ver": "d28zze",
+  "resid": 17,
+  "cloudErr": 34
  }
 ]
