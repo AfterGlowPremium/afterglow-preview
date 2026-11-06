@@ -1522,5 +1522,37 @@
   "ver": "d28zze",
   "resid": 17,
   "cloudErr": 34
+ },
+ {
+  "group": "747db6a5-b39b-4c8b-a722-4ddfdb8412a7",
+  "id": "816ffb17-871a-49b8-9966-a18d17477614",
+  "at": "2026-11-05T06:00:00",
+  "shot": "2026-11-05T06:00:00",
+  "saved": "2026-11-05T11:04:16.8869+00:00",
+  "spot": "saltponds",
+  "mode": "sunrise",
+  "rating": 53,
+  "raw": 79,
+  "sky": {
+   "t": 1793876400,
+   "low": 0,
+   "mid": 0,
+   "high": 100,
+   "total": 100,
+   "precip": 0
+  },
+  "photo": {
+   "w": 960,
+   "h": 1280,
+   "bright": 0.225,
+   "sat": 0.339,
+   "warm": 0.119,
+   "vivid": 0.011,
+   "cloud": 0.2,
+   "colorScore": 36
+  },
+  "ver": "d28zze",
+  "resid": -31,
+  "cloudErr": -80
  }
 ]
