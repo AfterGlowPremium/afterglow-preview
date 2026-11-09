@@ -439,7 +439,7 @@
   }
   function renderHero(list) {
     const b = list[0]; if (!b) return;
-    const lb = label(b.ev.score), conf = confidence(state.day);
+    const lb = label(b.ev.score), conf = b.ev.confDown ? { t: b.ev.confDown, c: "lo" } : confidence(state.day);   // d28zzg B2: obs disagree with the model
     $("#hero").innerHTML = `
       <div class="hero-movie" title="Tap to open ${b.spot.name}"><canvas id="hero-cv"></canvas><div class="hm-cap"><b>${b.spot.name}</b><span>${b.ev.score} · ${lb.t}</span></div><div class="hm-t" id="hero-t"></div></div>
       <div class="hero-k">Best ${dayIs(0) ? (RISE ? "this morning" : "tonight") : "on " + fmtDay(b.ev.tSet, b.tz, state.day)} · ${REGIONS[state.region].name}</div>
@@ -883,7 +883,7 @@
   async function openDetail(id, keepScroll) {
     state.spot = id; window.__agSpot = id;
     if (!keepScroll) state.turn = false;   // d28z: Sean — every spot opens facing WEST at sunset, EAST at sunrise (the forward view); Face East/West still turns
-    const r = state.results.find(x => x.spot.id === id), sp = r.spot, ev = r.ev, s = ev.s, lb = label(ev.score), conf = confidence(state.day), T = ev.timing;
+    const r = state.results.find(x => x.spot.id === id), sp = r.spot, ev = r.ev, s = ev.s, lb = label(ev.score), conf = ev.confDown ? { t: ev.confDown, c: "lo" } : confidence(state.day), T = ev.timing;
     const el = $("#detail-body"), scroll = el.scrollTop;
     const tw = t => t ? fmtTime(t, r.tz) : "—";
     const f = (v, d = 0, u = "") => v == null || isNaN(v) ? "—" : v.toFixed(d) + u;

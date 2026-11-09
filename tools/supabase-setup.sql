@@ -31,3 +31,12 @@ create policy feedback_anon_upload on storage.objects for insert to anon
 
 -- Nightly job (service key): read entries and mark them processed.
 grant select, update (processed_at) on public.feedback to service_role;
+
+-- d28zzg (run once more; safe to re-run): full locked forecast with every submission + server-side duplicate-photo block.
+-- snap = the complete forecast the app showed (score inputs, cloud layers, light path, 300 hPa wind/contrails, solar-path samples, data
+-- provenance); photo_sha256 = SHA-256 of the ORIGINAL photo file. The unique index makes a repeat upload fail with 409 (anon still can't read).
+-- Until this runs the app sends rows without these two fields and keeps the full forecast in the phone's feedback backup.
+alter table public.feedback add column if not exists snap jsonb check (snap is null or pg_column_size(snap) < 65536);
+alter table public.feedback add column if not exists photo_sha256 text check (photo_sha256 is null or photo_sha256 ~ '^[0-9a-f]{64}$');
+create unique index if not exists feedback_photo_sha256_uq on public.feedback (photo_sha256) where photo_sha256 is not null;
+grant insert (snap, photo_sha256) on public.feedback to anon;

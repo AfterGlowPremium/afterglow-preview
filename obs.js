@@ -181,13 +181,31 @@
     const W2 = Wl.map((w, k) => w && Object.assign({}, w, { hourly: bump(w.hourly, sw * [0.5 * pick(40) + 0.5 * pick(80), pick(120), 0.5 * pick(200) + 0.5 * pick(300)][k] || 0, lowSh) }));
     const a = Array.from(args); a[1] = S2; a[2] = W2; return a;
   }
+  // d28zzg: the station/satellite reads used for an event are kept per spot+event (localStorage) so the B1 overcast cap and the B2
+  // near-clear check still apply when the event is revisited after the 3 h observation window (and to the forecast saved with feedback).
+  const OBM = {}, obK = (sp, ev) => `ag_obs:${g.AG_MODE === "sunrise" ? "sunrise" : "sunset"}:${sp.id}:${ev.tSet}`;
+  function obsFor(sp, ev) {
+    const k = obK(sp, ev); if (!(k in OBM)) OBM[k] = lsGet(k);
+    if (inWindow(ev.tSet)) { const m = O.metar[sp.id], s = O.sat[sp.id], P = OBM[k];
+      if (m || s) { const v = { m: m ? { station: m.station, layers: m.layers, lm: m.lm, ceil: m.ceil, t: m.t } : (P && P.m) || null, s: s || (P && P.s) || null, at: Math.round(NOW()) };   // sat() stops 30 min after the event: keep the last near-event read
+        if (!P || JSON.stringify([P.m, P.s]) !== JSON.stringify([v.m, v.s])) { OBM[k] = v; lsSet(k, v);
+          if (Math.random() < 0.05) try { for (let i = localStorage.length - 1; i >= 0; i--) { const q = localStorage.key(i); if (q && q.startsWith("ag_obs:") && +q.split(":")[3] < NOW() - 8 * 86400) localStorage.removeItem(q); } } catch (e) {} } } }
+    return OBM[k] || null;
+  }
+  O.obsFor = obsFor;
   // Wrap Model.evaluate so EVERY caller (pins, list, day strip, detail, render) gets the observed override.
   const base = g.Model.evaluate;
   g.Model.evaluate = function (sp) {
-    let ev = base.apply(this, arguments);
+    let ev = base.apply(this, arguments), args = arguments, nc = null;
+    const X = g.AGObsCheck, useObs = X && ev && !/[?&]obs=0/.test(location.search);
+    // d28zzg B2: model near-clear (< 10 %) but stations/visible satellite see cloud → blend the observed layers into the model inputs
+    try { const ob = useObs && obsFor(sp, ev);
+      if (ob) { nc = X.nearClear(ev, ob.m, ob.s, ob.s && ob.s.at ? O.satW({ tSet: ev.tSet, at: ob.s.at }) : 1);
+        if (nc) { const a = Array.from(args); a[1] = Object.assign({}, a[1], { hourly: X.blendHourly(a[1].hourly, ev.tSet, nc.obs) }); const e3 = base.apply(this, a);
+          if (e3) { nc.scoreModel = ev.score; args = a; ev = e3; } } } } catch (e) { console.warn("near-clear check", e); }
     try { const C = !/[?&](obs|sat)=0/.test(location.search) && ev && O.cv[sp.id];
       if (C && Math.abs(C.tSet - ev.tSet) < 3600 && Math.max(...C.cv.slice(0, 5)) >= 0.05) {   // d24x: was 0.15 — scattered small cumulus (5–15 %) were ignored
-        const e2 = base.apply(this, withCanvas(arguments, ev, C));
+        const e2 = base.apply(this, withCanvas(args, ev, C));
         if (e2) { e2.satCanvas = C; e2.scoreNoSat = ev.score; (e2.reasons || (e2.reasons = [])).unshift(`Satellite (GOES ${C.src === "goes-ir4km-only" ? "infrared" : "visible+IR"}): broken cloud along the ${g.AG_MODE === "sunrise" ? "sunrise" : "sunset"} path — ${C.cv.slice(0, 5).map((v, i) => `${C.km[i]} km ${Math.round(v * 100)}%`).join(", ")}; ${C.far < 0.3 ? "open horizon beyond" : "cloud on the horizon too"}. The model had little mid cloud here; using the observed cloud${O.satNote(C)}.`); ev = e2;
           // broken cloud (not a solid deck) across the visible western sky + an open horizon = the lit-cloud sunset: 85–95
           let q;
@@ -205,6 +223,7 @@
           if (C.west >= 0.15 && q > 0.2 * O.satW(C)) { const sc = Math.round(ev.score + (90 - ev.score) * q); if (sc > ev.score) { ev.scoreSatModel = ev.score; ev.score = sc; ev.satBoost = +q.toFixed(2); } } } } } catch (e) { console.warn("sat canvas", e); }
     try { const C = !/[?&](obs|sat)=0/.test(location.search) && ev && ev.oppGlow == null && O.cv[sp.id];   // d24j: clear sun path but lit clouds opposite/overhead still counts
       if (C && Math.abs(C.tSet - ev.tSet) < 3600) { const oq = O.oppGlow(C) * O.satW(C); if (oq > 0.05) { ev.oppGlow = +oq.toFixed(2); const sc = Math.round(ev.score + (85 - ev.score) * oq * 0.7); if (sc > ev.score) { ev.scoreSatModel = ev.score; ev.score = sc; ev.oppBoost = ev.oppGlow; (ev.reasons || (ev.reasons = [])).unshift(`Satellite (GOES visible+IR): broken mid/high cloud overhead / opposite the sun with an open horizon toward the sun — those clouds should light pink-red${O.satNote(C)}.`); } } } } catch (e) {}
+    if (nc && ev) { ev.nearClear = nc; ev.confDown = "Low confidence — observations see cloud the model missed"; (ev.reasons || (ev.reasons = [])).unshift(nc.why); (ev.gates || (ev.gates = [])).push(nc.why); }
     try { Object.defineProperty(ev, "_h", { value: arguments[1] && arguments[1].hourly, enumerable: false }); Object.defineProperty(ev, "_sp", { value: sp, enumerable: false }); } catch (e) {}   // d16: hourly clouds for grayAt(t)
     try {
       if (/[?&]obs=0/.test(location.search) || !ev) return ev;
@@ -227,17 +246,20 @@
             B.p = p; B.t = tb; B.red = true; B.win = B.win && B.win.start ? B.win : { start: ev.tSet - (g.AG_MODE === "sunrise" ? 0 : 1800), end: ev.tSet + (g.AG_MODE === "sunrise" ? 1800 : 0) };
             B.why = `Rainbow ${p}% — ${R ? `radar shows rain ${g.AG_MODE === "sunrise" ? "west" : "east"} (opposite the sun) at ${R.hits} of 4 points 8–40 km out` : `nearby station reports showers and the model has rain ${g.AG_MODE === "sunrise" ? "west" : "east"}`} while the ${g.AG_MODE === "sunrise" ? "eastern" : "western"} light path is open (${Math.round(op * 100)}%); low sun = a tall, red-tinged bow. Look ${g.AG_MODE === "sunrise" ? "west" : "east"}.`;
             if (ev.bow) ev.bow.p = Math.max(ev.bow.p || 0, p); ev.bowObs = R || { metar: M0.station }; } } }
-      if (!inW) return ev;
-      const m = O.metar[sp.id], s = O.sat[sp.id];
-      if (m === undefined && s === undefined) return ev;
-      const ob = ev.obs = combine(ev, m, s);
-      if (ob.gray > 0) {
-        const cap = Math.round(ev.score + (12 - ev.score) * ob.gray);   // fully blocked → ~12 ("Poor"), label follows the score
-        if (cap < ev.score) { ev.scoreModel = ev.score; ev.score = cap; }
-        ev.slotBlock = Math.max(ev.slotBlock, ob.block);
-        (ev.reasons || (ev.reasons = [])).unshift(`Observed: sun blocked (${Math.round(ob.block * 100)}%) — ${ob.src}. Expect flat gray light, no glow.`);
+      const m = inW ? O.metar[sp.id] : undefined, s = inW ? O.sat[sp.id] : undefined;
+      if (inW && !(m === undefined && s === undefined)) {
+        const ob = ev.obs = combine(ev, m, s);
+        if (ob.gray > 0) {
+          const cap = Math.round(ev.score + (12 - ev.score) * ob.gray);   // fully blocked → ~12 ("Poor"), label follows the score
+          if (cap < ev.score) { ev.scoreModel = ev.score; ev.score = cap; }
+          ev.slotBlock = Math.max(ev.slotBlock, ob.block);
+          (ev.reasons || (ev.reasons = [])).unshift(`Observed: sun blocked (${Math.round(ob.block * 100)}%) — ${ob.src}. Expect flat gray light, no glow.`);
+        }
       }
     } catch (e) { console.warn("obs", e); }
+    // d28zzg B1: observed overcast low/mid deck + no gap toward the sun → cap (physics in obscheck.js). Runs after the satellite boosts so they can't lift it.
+    try { const ob = useObs && obsFor(sp, ev), oc = ob && X.overcastCap(ev, ob.m, ob.s, O.cv[sp.id]);
+      if (oc) { ev.ovcCap = oc; if (oc.cap < ev.score) { ev.scoreNoOvcCap = ev.score; ev.score = oc.cap; } (ev.gates || (ev.gates = [])).push(oc.why); (ev.reasons || (ev.reasons = [])).unshift(oc.why); if (oc.unverified) ev.confDown = ev.confDown || "Lower confidence — overcast overhead, horizon gap unconfirmed"; } } catch (e) { console.warn("overcast cap", e); }
     return ev;
   };
   // ---- d16: conditions AT THE TIME SHOWN (any hour, incl. now) ----
