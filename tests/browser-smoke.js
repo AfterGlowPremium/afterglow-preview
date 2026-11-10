@@ -1,4 +1,4 @@
-// d28zzg headless check (not run by CI): boots the app, fails on page errors / console errors from our own scripts, then drives the
+// d28zzh headless check (not run by CI): boots the app, fails on page errors / console errors from our own scripts, then drives the
 // feedback panel with Supabase MOCKED (no request leaves the box): Send disabled until the slider moves, a repeated photo is refused,
 // and a row is sent with the full locked forecast + photo hash, falling back without them when the table lacks the new columns.
 // Usage: python3 -m http.server 8817 &  NODE_PATH=<dir with puppeteer-core> node tests/browser-smoke.js [http://localhost:8817/] [chrome path]
@@ -27,7 +27,7 @@ const ok = (c, m) => { if (c) { passes++; console.log("  ✔ " + m); } else { fa
   ok(!!f, "app frame booted with forecast results");
   if (f) {
     const info = await f.evaluate(() => ({ b: window.AG_BUILD, oc: !!window.AGObsCheck, fb: !!window.AGFb, n: window.__agState.results.length }));
-    ok(info.b === "d28zzg" && info.oc && info.fb, `build ${info.b}, obscheck ${info.oc}, fbutil ${info.fb}, ${info.n} spots scored`);
+    ok(info.b === "d28zzh" && info.oc && info.fb, `build ${info.b}, obscheck ${info.oc}, fbutil ${info.fb}, ${info.n} spots scored`);
     await f.evaluate(() => { localStorage.removeItem("afterglow-feedback"); window.AGX.panel({ spot: window.__agState.results[0].spot.id }); });
     await sleep(300);
     ok(await f.$eval("#fb-send", e => e.disabled), "Send disabled before the rating slider is moved");
@@ -44,9 +44,9 @@ const ok = (c, m) => { if (c) { passes++; console.log("  ✔ " + m); } else { fa
     const msg = await f.$eval("#fb-msg", e => e.textContent); ok(/Sent/.test(msg), "send completed: " + msg);
     ok(rowPosts === 2 && "snap" in sent[0] && sent[0].photo_sha256 && !("snap" in sent[1]), "row sent with snap + photo_sha256, retried without them on PGRST204");
     const s0 = sent[0] || {}, pr = s0.pred || {};
-    ok(s0.rating === 72 && pr.rated === 1 && pr.b === "d28zzg" && /^[0-9a-f]{64}$/.test(pr.sha || ""), `pred carries rated/build/sha (${JSON.stringify(pr).length} chars)`);
+    ok(s0.rating === 72 && pr.rated === 1 && pr.b === "d28zzh" && /^[0-9a-f]{64}$/.test(pr.sha || ""), `pred carries rated/build/sha (${JSON.stringify(pr).length} chars)`);
     ok(pr.gps && pr.gps.lat === 37.61 && pr.cap && pr.cap.src === "exif", "photo GPS + EXIF capture time in payload");
-    ok(s0.snap && s0.snap.ev && s0.snap.ev.s && s0.snap.fc && "fetchedAt" in s0.snap.fc && s0.snap.build === "d28zzg", `snap = full locked forecast (${JSON.stringify(s0.snap || {}).length} chars, con ${!!(s0.snap && s0.snap.ev.con)}, solarPath ${!!(s0.snap && s0.snap.solarPath)})`);
+    ok(s0.snap && s0.snap.ev && s0.snap.ev.s && s0.snap.fc && "fetchedAt" in s0.snap.fc && s0.snap.build === "d28zzh", `snap = full locked forecast (${JSON.stringify(s0.snap || {}).length} chars, con ${!!(s0.snap && s0.snap.ev.con)}, solarPath ${!!(s0.snap && s0.snap.solarPath)})`);
     const loc = await f.evaluate(() => JSON.parse(localStorage.getItem("afterglow-feedback")));
     ok(loc.length === 1 && loc[0].up && loc[0].lock && loc[0].lock.ev, "phone backup keeps the locked forecast when the server didn't take it");
     ok(await f.$eval("#fb-send", e => e.disabled), "rating must be set again for the next send");

@@ -5,6 +5,10 @@
 // ocean that reflects the rendered sky with a sun glitter path, filmic tone mapping, lens glare and film grain.
 // Every input is a forecast number from the app (HRRR/GOES/METAR-driven where available).
 (function (g) {
+  const SUN_MOON_SCALE = g.AG_SUN_MOON_SCALE || 0.85;   // d28zzh: Sean — sun/moon discs 15% smaller
+  const SUN_DISC_IN = 0.0264 * SUN_MOON_SCALE;   // was 0.0264 rad (~1.51°)
+  const SUN_DISC_OUT = 0.0294 * SUN_MOON_SCALE;  // was 0.0294 rad (~1.68°)
+  const SUN_DISC_R = 0.0282 * SUN_MOON_SCALE;    // was 0.0282 rad (~1.62°, 6x true 0.27°)
   const VS = `#version 300 es
 in vec2 p; void main(){ gl_Position = vec4(p,0.,1.); }`;
 
@@ -975,8 +979,8 @@ void main(){
     vec3 dd = rd - sa;
     float sq = 1. + .25*smoothstep(.03, 0., sel);
     float ang = length(vec2(dot(dd, normalize(cross(sa, vec3(0,1,0)))), dot(dd, vec3(0,1,0))*sq));
-    float disc = (1. - smoothstep(.0264, .0294, ang))   /* d28z: Sean — sun drawn 6x its true size (r 0.27° → 1.62°) */ * step(0., dot(rd, sa));   // only toward the sun (fixes mirrored dot)
-    float limb = .45 + .55*sqrt(max(0., 1. - (ang/.0282)*(ang/.0282)));
+    float disc = (1. - smoothstep(${SUN_DISC_IN.toFixed(6)}, ${SUN_DISC_OUT.toFixed(6)}, ang))   /* d28zzh: Sean — 15% smaller (was r 1.62° / 6x true 0.27°; now 1.38°) */ * step(0., dot(rd, sa));   // only toward the sun (fixes mirrored dot)
+    float limb = .45 + .55*sqrt(max(0., 1. - (ang/${SUN_DISC_R.toFixed(6)})*(ang/${SUN_DISC_R.toFixed(6)})));
     col += T * disc * limb * ESUN * 1333.;   // d28i: 16x the disc area → lower per-pixel radiance so the bigger disc doesn't flood the exposure
     col = antiTw(col, rd, elevR - dip);
     // d28za: sun dogs rebuilt from Sean's Lions Bridge photos — compact bright vertically-elongated parhelia at ~22°/cos(e) at the sun's height
@@ -1444,5 +1448,5 @@ void main(){
     const pitch = (vfov * (P.hero && P.surf ? 0.04 : P.surf > 1.2 ? 0.09 : 0.17)) * d2r * (P.fovMul || 1) / Math.max(0.2, P.fovMul || 1) + (P.lookPitch || 0) * d2r;
     const camKm = P.heroCam || P.camH || 0.002, dip = Math.sqrt(2 * camKm / 6371);
     return { vfov, pitch, hz: 0.5 + (Math.tan(pitch) + dip / Math.cos(pitch)) / (2 * Math.tan(vfov * d2r / 2)) }; }
-  g.Photoreal = { camera, render, meter, setup, autoExpo, hash, supported: () => { try { return !!document.createElement("canvas").getContext("webgl2"); } catch (e) { return false; } } };
+  g.Photoreal = { camera, render, meter, setup, autoExpo, hash, SUN_MOON_SCALE, SUN_DISC: { in: SUN_DISC_IN, out: SUN_DISC_OUT, r: SUN_DISC_R, in0: 0.0264, out0: 0.0294, r0: 0.0282 }, supported: () => { try { return !!document.createElement("canvas").getContext("webgl2"); } catch (e) { return false; } } };
 })(window);
