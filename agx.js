@@ -134,13 +134,19 @@
         path = e.photoPath = p; }
       const row = { id: e.id, spot: e.spot, mode: e.mode === "sunrise" ? "sunrise" : "sunset", saved_at: e.at, shot_at: e.shot || null, view_t: e.viewT ? new Date(e.viewT * 1000).toISOString() : null, day: e.day,
         rating: e.actual, accuracy: e.acc, notes: (e.note || "").slice(0, 2000), photo_path: path, app_version: String(e.ver || "").slice(0, 20), pred: e.pred };   // group id rides in pred.group (no schema change)
-      const r2 = await fetch(`${base}/rest/v1/feedback`, { method: "POST", headers: Object.assign({ "Content-Type": "application/json", Prefer: "return=minimal" }, H), body: JSON.stringify(row) });
-      if (!r2.ok && r2.status !== 409) throw new Error(`feedback ${r2.status} ${(await r2.text().catch(() => "")).slice(0, 160)}`); },
+      // d28zzg B4/B3: full locked forecast (snap) + original-photo SHA-256 (unique index = server-side duplicate block) need the columns in
+      // tools/supabase-setup.sql; until they exist PostgREST answers 400 and the row is resent without them (the forecast stays in the phone backup).
+      const ext = !UP.noExt && (e.lock || e.sha), post = r => fetch(`${base}/rest/v1/feedback`, { method: "POST", headers: Object.assign({ "Content-Type": "application/json", Prefer: "return=minimal" }, H), body: JSON.stringify(r) });
+      let r2 = await post(ext ? Object.assign({}, row, e.lock ? { snap: e.lock } : {}, e.sha ? { photo_sha256: e.sha } : {}) : row), t2 = r2.ok ? "" : await r2.text().catch(() => "");
+      if (ext && r2.status === 400 && /snap|photo_sha256|PGRST204|column/i.test(t2)) { UP.noExt = true; r2 = await post(row); t2 = r2.ok ? "" : await r2.text().catch(() => ""); }
+      else if (ext && (r2.ok || r2.status === 409)) e.snapUp = !!e.lock;
+      if (r2.status === 409 && /photo_sha256/.test(t2)) e.dup = true;   // same photo already on the server — counted as done, not resent
+      if (!r2.ok && r2.status !== 409) throw new Error(`feedback ${r2.status} ${t2.slice(0, 160)}`); },
     // queued sends run one after another (a send started while another runs waits for it, then runs again so the new entry is included)
     flush(extra, prog) { if (extra && !Array.isArray(extra)) extra = [extra]; if (!UP.on()) return Promise.resolve({ fail: load().filter(e => !e.up).length, off: true });
       const run = async () => { const a = load(); let fail = 0; UP.err = ""; (extra || []).forEach(x => { const k = a.findIndex(e => e.id === x.id); if (k < 0) a.push(x); else if (!a[k].photo && x.photo) a[k].photo = x.photo; }); const todo = a.filter(e => !e.up && e.id); let done = 0;
         for (const e of todo) { done++; prog && prog(done, todo.length); try { await UP.one(e); e.up = true; e.photo = null; } catch (x) { fail++; UP.err = String(x.message || x); console.warn("feedback send", x); } }
-        const cur = load(), by = new Map(a.map(e => [e.id, e])); const out = cur.map(e => { const d = by.get(e.id); return d && d.up ? Object.assign({}, e, { up: true, photo: null, photoPath: d.photoPath }) : d && d.photoPath ? Object.assign({}, e, { photoPath: d.photoPath }) : e; });
+        const cur = load(), by = new Map(a.map(e => [e.id, e])); const out = cur.map(e => { const d = by.get(e.id); return d && d.up ? Object.assign({}, e, { up: true, photo: null, photoPath: d.photoPath, dup: d.dup || undefined, snapUp: d.snapUp || undefined, lock: d.snapUp ? undefined : e.lock }) : d && d.photoPath ? Object.assign({}, e, { photoPath: d.photoPath }) : e; });
         try { localStorage.setItem(FK, JSON.stringify(out)); } catch (x) {} return { fail, err: UP.err }; };
       return UP.busy = (UP.busy || Promise.resolve()).catch(() => {}).then(run); }
   };
@@ -154,13 +160,16 @@
       <label>Location<select id="fb-spot">${(g.__agSpots || []).map(s => `<option value="${s.id}"${sp && s.id === sp.id ? " selected" : ""}>${s.name}, ${s.state}</option>`).join("")}</select></label>
       <label class="fb-file">📷 Add photos (up to 6)<input id="fb-photo" type="file" accept="image/*" multiple></label><div id="fb-thumbs"></div>
       <label><span id="fb-dtl">Date &amp; time</span> <span id="fb-tz" class="fine"></span><span class="fb-dt"><input id="fb-date" type="date"> <input id="fb-time" type="time"></span><span id="fb-src" class="fine"></span></label>
-      <label>How was it really? (0–100)<input id="fb-score" type="range" min="0" max="100" value="60"><output id="fb-o">60</output></label>
+      <label>How was it really? (0–100)<input id="fb-score" class="unset" type="range" min="0" max="100" value="50" aria-describedby="fb-rh"><output id="fb-o">—</output><span id="fb-rh" class="fine">Move the slider to rate it</span></label>
       <label>Forecast was<select id="fb-acc"><option>about right</option><option>too high</option><option>too low</option><option>wrong cloud type/placement</option></select></label>
       <label>Notes<textarea id="fb-note" rows="3" placeholder="e.g. cirrus lit up pink 10 min after sunset, water glassy"></textarea></label>
-      <button id="fb-send" class="btn">Send feedback</button><p id="fb-msg" class="fine" role="status" aria-live="polite"></p>
+      <button id="fb-send" class="btn" disabled>Send feedback</button><p id="fb-msg" class="fine" role="status" aria-live="polite"></p>
       <p class="fine"><a href="#" id="fb-dl">Download my feedback backup</a></p>`;
     let img = null; const $ = s => el.querySelector(s), msg = t => { $("#fb-msg").textContent = t; };
-    $(".fb-x").onclick = () => el.classList.remove("open"); $("#fb-score").oninput = e => $("#fb-o").textContent = e.target.value;
+    $(".fb-x").onclick = () => el.classList.remove("open");
+    // d28zzg B3: no silent default — Send stays off until the rating slider has actually been moved (4 of 6 sends in Nov 2–8 were the untouched 60)
+    let rated = false; const rateUI = () => { const r = $("#fb-score"); r.classList.toggle("unset", !rated); $("#fb-o").textContent = rated ? r.value : "—"; $("#fb-rh").textContent = rated ? "" : "Move the slider to rate it"; $("#fb-send").disabled = !rated; };
+    $("#fb-score").oninput = $("#fb-score").onchange = () => { rated = true; rateUI(); };
     // d25d: forecast cloud at the event (ev.s — ev.sky is a text summary, which is why low/mid/high were missing) and at the photo time from the spot's hourly forecast
     const predFor = (id, ev, t) => { if (!ev) return null; const st = g.__agState, k = (g.__agSpots || []).findIndex(s => s.id === id), S = st && st.data && st.data.S && st.data.S[k], M = g.Model, r1 = v => v == null ? null : Math.round(v);
       const cl = (h, tt) => h && M && M.at ? { total: r1(M.at(h, "cloud_cover", tt)), low: r1(M.at(h, "cloud_cover_low", tt)), mid: r1(M.at(h, "cloud_cover_mid", tt)), high: r1(M.at(h, "cloud_cover_high", tt)), precip: M.at(h, "precipitation", tt) } : null;
@@ -172,7 +181,12 @@
     if (o.t > 1e9) { dtUser = true; setDT(new Date(o.t * 1000), "From the preview slider — change it if needed"); } else dflt(); $("#fb-spot").onchange = () => { dtUser = false; dflt(); }; $("#fb-date").oninput = $("#fb-time").oninput = () => { dtUser = true; $("#fb-src").textContent = ""; };
     // photo: EXIF capture time read from the original bytes (re-encoding strips EXIF) fills date & time; decoded via object URL, downscaled to 1280 px JPEG
     // d25e: up to 6 photos; each gets its own date & time (EXIF capture time, else the form's date & time), editable under its thumbnail.
-    const MAXP = 6, P = []; const exifT = f => f.slice(0, 262144).arrayBuffer().then(b => { const m = /(\d{4}):(\d\d):(\d\d) (\d\d):(\d\d):(\d\d)/.exec(new TextDecoder("latin1").decode(b)); return m ? new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5]) : null; }).catch(() => null);
+    const MAXP = 6, P = [], FB = g.AGFb; const exifRx = b => { const m = /(\d{4}):(\d\d):(\d\d) (\d\d):(\d\d):(\d\d)/.exec(new TextDecoder("latin1").decode(b)); return m ? new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5]) : null; };
+    // d28zzg B3: original bytes → SHA-256 (duplicate guard) + EXIF DateTimeOriginal/GPS; capture time = EXIF, else the file's lastModified (kept as metadata —
+    // phones often stamp lastModified when the photo is picked, so the forecast match still uses EXIF or the form time)
+    const readOrig = async f => { const ab = await f.arrayBuffer(), head = ab.slice(0, 262144), X = FB ? FB.parseExif(head) : { t: null, gps: null }, t = X.t || exifRx(head);
+      return { sha: FB ? await FB.sha256Hex(ab) : null, d: t, gps: X.gps || null, cap: t ? { t: isoOff(t), src: "exif", off: X.off || undefined } : f.lastModified ? { t: new Date(f.lastModified).toISOString(), src: "file-modified" } : null }; };
+    const sentSha = () => { const m = new Map(); load().forEach(e => e.sha && !m.has(e.sha) && m.set(e.sha, e.at)); return m; };
     const shrink = f => new Promise((ok, no) => { const u = URL.createObjectURL(f), im = new Image();
       im.onload = () => { try { const c = document.createElement("canvas"), k = Math.min(1, 1280 / Math.max(im.naturalWidth, im.naturalHeight)); c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k);
         c.getContext("2d").drawImage(im, 0, 0, c.width, c.height); URL.revokeObjectURL(u); ok(c.toDataURL("image/jpeg", 0.72)); } catch (x) { URL.revokeObjectURL(u); no(x); } };
@@ -184,28 +198,34 @@
       box.querySelectorAll(".fb-th").forEach(n => { const p = P[+n.dataset.k]; n.querySelector(".fb-rm").onclick = () => { P.splice(+n.dataset.k, 1); drawThumbs(); };
         const upd = () => { const d = new Date(`${n.querySelector(".fb-pd").value}T${n.querySelector(".fb-pt").value || "12:00"}`); if (!isNaN(d)) { p.d = d; p.src = "user"; } }; n.querySelector(".fb-pd").oninput = n.querySelector(".fb-pt").oninput = upd; });
       $("#fb-dtl").textContent = P.length ? "Date & time (for notes / photos without a time)" : "Date & time"; $("#fb-photo").parentElement.style.display = P.length >= MAXP ? "none" : ""; };
-    $("#fb-photo").onchange = async e => { const fs = [...e.target.files]; e.target.value = ""; if (!fs.length) return; let bad = 0, over = Math.max(0, P.length + fs.length - MAXP);
+    $("#fb-photo").onchange = async e => { const fs = [...e.target.files]; e.target.value = ""; if (!fs.length) return; let bad = 0, over = Math.max(0, P.length + fs.length - MAXP); const dups = [], sent = sentSha();
       for (const [k, f] of fs.slice(0, MAXP - P.length).entries()) { msg(`Reading photo ${k + 1} of ${Math.min(fs.length, MAXP - P.length)}…`);
-        try { const [img, d] = await Promise.all([shrink(f), exifT(f)]); P.push({ img, d: d || formD(), src: d ? "exif" : "form" }); drawThumbs(); } catch (x) { bad++; } }
+        try { const o = await readOrig(f).catch(() => ({ sha: null, d: null })); if (o.sha && (P.some(p => p.sha === o.sha) || sent.has(o.sha))) { dups.push(sent.get(o.sha)); continue; }
+          const img = await shrink(f); P.push({ img, d: o.d || formD(), src: o.d ? "exif" : "form", sha: o.sha, gps: o.gps, cap: o.cap }); drawThumbs(); } catch (x) { bad++; } }
+      const dupTxt = dups.length ? `${dups.length} photo${dups.length > 1 ? "s were" : " was"} already ${dups.some(Boolean) ? "sent" : "added"}${dups.find(Boolean) ? ` (${new Date(dups.find(Boolean)).toLocaleDateString("en-US", { month: "short", day: "numeric" })})` : ""} — skipped so it isn't counted twice. ` : "";
       // d25j: photo taken on a different day than the one being viewed → offer to switch (past cards cover the last 7 days)
       { const st = g.__agState, cur = st && st.arch ? st.arch.key : dStr(new Date()), ex = P.find(p => p.src === "exif" && dStr(p.d) !== cur);
         if (ex) { const k = dStr(ex.d), can = (g.__agPastKeys ? g.__agPastKeys() : []).includes(k) || k === dStr(new Date()); setTimeout(() => { const m = $("#fb-msg"); if (!m) return;
-          m.innerHTML = `This photo was taken ${ex.d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}${can ? ` — <a href="#" id="fb-sw">switch to that day</a>?` : " (older than the last 7 days — its own date is kept)."}`;
+          m.innerHTML = dupTxt + `This photo was taken ${ex.d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}${can ? ` — <a href="#" id="fb-sw">switch to that day</a>?` : " (older than the last 7 days — its own date is kept)."}`;
           const a = $("#fb-sw"); if (a) a.onclick = async e => { e.preventDefault(); m.textContent = "Switching…"; try { if (k === dStr(new Date())) { const t = document.querySelector('.day[data-day="0"]'); t && t.click(); } else await g.__agGoPast(k); m.textContent = `Now showing ${k}. Your photos keep their own times.`; } catch (x) { m.textContent = "Couldn't load that day."; } }; }, 50); } }
-      msg((bad ? `${bad} photo${bad > 1 ? "s" : ""} couldn't be read here (HEIC on a computer?) — try JPEG or pick on the iPhone. ` : "") + (over ? `Only ${MAXP} photos per send — ${over} left out.` : "")); };
+      msg(dupTxt + (bad ? `${bad} photo${bad > 1 ? "s" : ""} couldn't be read here (HEIC on a computer?) — try JPEG or pick on the iPhone. ` : "") + (over ? `Only ${MAXP} photos per send — ${over} left out.` : "")); };
     $("#fb-send").onclick = async () => { const btn = $("#fb-send"); if (btn.disabled) return; btn.disabled = true; btn.textContent = "Sending…"; msg("");
       try { const a = load(), id = $("#fb-spot").value, ev = evFor(id), st = g.__agState, uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + "-" + Math.random().toString(36).slice(2));
-        const grp = uid(), list = P.length ? P.map(p => ({ d: p.d, src: p.src, img: p.img })) : [{ d: formD(), src: dtUser ? "user" : "default", img: null }];
-        const mine = list.map((p, k) => { const pr = predFor(id, ev, p.d.getTime() / 1000); const appTag = /afterglow-premium/.test(location.pathname) ? "premium" : /afterglow-preview/.test(location.pathname) ? "preview" : location.pathname.split("/")[1] || "local"; if (pr) { pr.group = grp; pr.gi = k; pr.gn = list.length; pr.app = appTag; }
-          return { id: uid(), group: grp, up: false, ver: g.AG_BUILD || "", day: st ? st.day : null, pred: pr || { group: grp, gi: k, gn: list.length, app: appTag },
+        if (!rated) { msg("Move the rating slider first."); btn.textContent = "Send feedback"; rateUI(); return; }
+        const grp = uid(), list = P.length ? P.map(p => ({ d: p.d, src: p.src, img: p.img, sha: p.sha, gps: p.gps, cap: p.cap })) : [{ d: formD(), src: dtUser ? "user" : "default", img: null }];
+        const spo = (g.__agSpots || []).find(s => s.id === id), O = g.AGObs, mode = g.AG_MODE === "sunrise" ? "sunrise" : "sunset";
+        let lock = null; try { if (FB && ev) lock = FB.fitLock(FB.lockedForecast({ ev, data: st && st.data, build: g.AG_BUILD || "", mode, spot: id, obs: O && O.obsFor && spo ? O.obsFor(spo, ev) : null, cv: O && O.cv ? O.cv[id] || null : null, path: g.AGPath && spo ? g.AGPath.peek(spo, mode, ev.tSet) : null })); } catch (x) { console.warn("locked forecast", x); }
+        const mine = list.map((p, k) => { let pr = predFor(id, ev, p.d.getTime() / 1000); const appTag = /afterglow-premium/.test(location.pathname) ? "premium" : /afterglow-preview/.test(location.pathname) ? "preview" : location.pathname.split("/")[1] || "local"; if (pr) { pr.group = grp; pr.gi = k; pr.gn = list.length; pr.app = appTag; }
+          pr = pr || { group: grp, gi: k, gn: list.length, app: appTag }; if (FB) pr = FB.predExtras(pr, { ev, data: st && st.data, build: g.AG_BUILD || "", rated, sha: p.sha, gps: p.gps, cap: p.cap });
+          return { id: uid(), group: grp, up: false, ver: g.AG_BUILD || "", day: st ? st.day : null, pred: pr, sha: p.sha || undefined, gps: p.gps || undefined, cap: p.cap || undefined, rated: true, lock: k === 0 ? lock : undefined,   // one locked forecast per send (same event for every photo)
             at: new Date().toISOString(), shot: isoOff(p.d), shotSrc: p.src, mode: g.AG_MODE, spot: id, viewT: g.__agPvT || null, actual: +$("#fb-score").value, acc: $("#fb-acc").value, note: $("#fb-note").value, photo: p.img }; });
         a.push(...mine); let mem = [];
         try { localStorage.setItem(FK, JSON.stringify(a)); } catch (e) { mem = mine; a.splice(a.length - mine.length); try { localStorage.setItem(FK, JSON.stringify(a.concat(mine.map(m => Object.assign({}, m, { photo: null }))))); } catch (e2) {} }
         const n = await UP.flush(mem, (k, t) => { btn.textContent = t > 1 ? `Sending ${k} of ${t}…` : "Sending…"; });
-        if (!n.fail) { msg(mine.length > 1 ? `Sent ✓ ${mine.length} photos — thanks!` : "Sent ✓ thanks!"); P.length = 0; drawThumbs(); $("#fb-note").value = ""; dtUser = dtExif = false; dflt(); }
+        if (!n.fail) { msg(mine.length > 1 ? `Sent ✓ ${mine.length} photos — thanks!` : "Sent ✓ thanks!"); P.length = 0; drawThumbs(); $("#fb-note").value = ""; dtUser = dtExif = false; dflt(); rated = false; }
         else msg(navigator.onLine === false ? "Saved on phone — will send when you're online." : `Saved on phone, will send automatically. (${!n.err || /fetch|Load failed|NetworkError|network/i.test(n.err) ? "no connection right now" : "Send failed: " + n.err})`);
       } catch (x) { msg("Something went wrong: " + (x.message || x)); console.warn(x); }
-      btn.disabled = false; btn.textContent = "Send feedback"; };
+      btn.textContent = "Send feedback"; rateUI(); };
     $("#fb-dl").onclick = ev => { ev.preventDefault(); const b = new Blob([JSON.stringify(load(), null, 1)], { type: "application/json" }), u = URL.createObjectURL(b), l = document.createElement("a"); l.href = u; l.download = "afterglow-feedback.json"; document.body.appendChild(l); l.click(); l.remove(); setTimeout(() => URL.revokeObjectURL(u), 4000); };
     el.classList.add("open");
   }

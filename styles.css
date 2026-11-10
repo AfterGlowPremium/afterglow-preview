@@ -919,3 +919,6 @@ input,textarea,select{font-size:16px!important}
 
 /* d28ze: Lions Bridge — whole lion + pedestal in the lower-left corner on phones (sunrise and sunset), clear of the sun */
 .stage .pv-fg.pv-fg2.pv-lb{inset:auto;left:0;bottom:0;width:auto;height:44%;max-width:46%;object-fit:contain;object-position:0 100%;transform:none}
+
+/* d28zzg B3: rating slider must be moved before Send */
+#fb-panel #fb-score.unset{opacity:.5}#fb-panel #fb-send:disabled{opacity:.45;cursor:not-allowed}#fb-panel #fb-rh{margin-left:6px}
