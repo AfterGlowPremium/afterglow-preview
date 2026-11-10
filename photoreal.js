@@ -960,8 +960,8 @@ void main(){
     vec3 dd = rd - sa;
     float sq = 1. + .25*smoothstep(.03, 0., sel);
     float ang = length(vec2(dot(dd, normalize(cross(sa, vec3(0,1,0)))), dot(dd, vec3(0,1,0))*sq));
-    float disc = (1. - smoothstep(.0238, .0265, ang))   /* d28z: Sean — sun drawn 6x its true size (r 0.27° → 1.62°); d29: Sean — sun 10% smaller (r → 1.46°) */ * step(0., dot(rd, sa));   // only toward the sun (fixes mirrored dot)
-    float limb = .45 + .55*sqrt(max(0., 1. - (ang/.0254)*(ang/.0254)));
+    float disc = (1. - smoothstep(.0264, .0294, ang))   /* d28z: Sean — sun drawn 6x its true size (r 0.27° → 1.62°) */ * step(0., dot(rd, sa));   // only toward the sun (fixes mirrored dot)
+    float limb = .45 + .55*sqrt(max(0., 1. - (ang/.0282)*(ang/.0282)));
     col += T * disc * limb * ESUN * 1333.;   // d28i: 16x the disc area → lower per-pixel radiance so the bigger disc doesn't flood the exposure
     col = antiTw(col, rd, elevR - dip);
     // d28za: sun dogs rebuilt from Sean's Lions Bridge photos — compact bright vertically-elongated parhelia at ~22°/cos(e) at the sun's height
