@@ -68,6 +68,7 @@ const vec3 BR = vec3(5.802e-3, 13.558e-3, 33.1e-3);
 const vec3 BO = vec3(0.650e-3, 1.881e-3, 0.085e-3);
 const float ESUN = 22.0;
 float BMs, BMe;
+float gRhK = 0.;   // d30: hygroscopic haze strength from uRH (set in main beside BMe)
 float gGnd = 0.;   // d23: 1 on lit ground/shore pixels (keeps some colour under overcast, like the real marsh grass)
 
 // ---------- noise ----------
@@ -139,7 +140,7 @@ void seg(inout Acc A, vec3 ro, vec3 rd, float t0, float t1, int n, float cs){
     float a = (float(i)+.5)/float(n);
     float ta = t0 + (t1-t0)*a, dt = (t1-t0)/float(n);
     vec3 p = ro + rd*ta; float h = length(p) - R0;
-    float dR = exp(-h/HR), dM = exp(-h/HM), dO = max(0., 1.-abs(h-25.)/15.);
+    float dR = exp(-h/HR), dM = exp(-h/HM) * (1. + gRhK * exp(-h/.45)), dO = max(0., 1.-abs(h-25.)/15.);   // d30: Sean realism pass — humid low air swells the aerosol in the lowest ~0.45 km, so the horizon turns milky on muggy days (guide §1.3); zero when RH <= .45
     vec3 ext = BR*dR + BMe*dM + BO*dO;
     vec3 Ts = sunT(p, uSun);
     vec3 S = Ts * (BR*dR*pr + BMs*dM*pm) * ESUN;
@@ -861,6 +862,7 @@ void main(){
   if (uYaw != 0.) { float cy = cos(uYaw), sy = sin(uYaw); rd = vec3(rd.x*cy - rd.z*sy, rd.y, rd.x*sy + rd.z*cy); }
   float pixA = 2.*th / uRes.y / uPixScale;
   BMe = max(uAod, .01) / HM; BMs = BMe * .9;
+  gRhK = pow(clamp((uRH - .45) / .55, 0., 1.), 2.) * 2.2;   // d30: RH .45 → no growth, RH 1 → x2.2 low-level Mie density (before the exp(-h/.45) falloff in seg)
   vec3 ro = vec3(0., R0 + uCamH, 0.);
   vec3 col; vec3 T;
   float sunVis = cloudTowardSun(ro, uSunA) * (1. - uGray);   // d16: blocked sun → no direct light anywhere (no glints, lit lips, spindrift glow, sun disk)
@@ -960,7 +962,8 @@ void main(){
     vec3 dd = rd - sa;
     float sq = 1. + .25*smoothstep(.03, 0., sel);
     float ang = length(vec2(dot(dd, normalize(cross(sa, vec3(0,1,0)))), dot(dd, vec3(0,1,0))*sq));
-    float disc = (1. - smoothstep(.0238, .0265, ang))   /* d28z: Sean — sun drawn 6x its true size (r 0.27° → 1.62°); d29: Sean — sun 10% smaller (r → 1.46°) */ * step(0., dot(rd, sa));   // only toward the sun (fixes mirrored dot)
+    float dFe = .0027 * (1. + 2.4 * smoothstep(.06, -.01, sel) * clamp(uAod * 2.2, .2, 1.5));   // d30: Sean realism pass — the disc edge dissolves into the low haze layer as the sun nears the horizon, faster in aerosol-heavy air; back to the stock .0027 feather once the sun is ~3.5° up
+    float disc = (1. - smoothstep(.0265 - dFe, .0265, ang))   /* d28z: Sean — sun drawn 6x its true size (r 0.27° → 1.62°); d29: Sean — sun 10% smaller (r → 1.46°) */ * step(0., dot(rd, sa));   // only toward the sun (fixes mirrored dot)
     float limb = .45 + .55*sqrt(max(0., 1. - (ang/.0254)*(ang/.0254)));
     col += T * disc * limb * ESUN * 1333.;   // d28i: 16x the disc area → lower per-pixel radiance so the bigger disc doesn't flood the exposure
     col = antiTw(col, rd, elevR - dip);
