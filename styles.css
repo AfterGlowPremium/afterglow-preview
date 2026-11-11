@@ -537,6 +537,9 @@ body.in-archive .hero{outline:1px dashed rgba(181,169,255,.5)}
 /* overflow fix: detail sheet never wider than the phone */
 #detail,#detail-body{max-width:100vw;overflow-x:hidden;box-sizing:border-box}
 .stage .pv-wxl{right:14px}
+/* d33: on-stage wind chip (rail, under the weather pill) — forecast wind at the animation's current time */
+.stage .pv-wind{font:600 11px Inter,sans-serif;color:#fff;padding:6px 11px;border-radius:999px;background:rgba(14,16,28,.42);border:1px solid rgba(255,255,255,.22);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);white-space:nowrap}
+.stage .pv-wind i{font-style:normal;display:inline-block;margin-right:5px}
 #music-btn{position:fixed;left:12px;bottom:14px;z-index:950;width:42px;height:42px;border-radius:50%;border:1px solid rgba(255,255,255,.25);background:rgba(14,16,28,.55);color:#fff;font-size:18px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
 #music-btn.on{background:rgba(255,154,90,.85);color:#111}
 #music-btn.off::after{content:"";position:absolute;left:9px;right:9px;top:50%;height:2px;background:#fff;transform:rotate(-40deg)}

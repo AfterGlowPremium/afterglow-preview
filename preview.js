@@ -283,18 +283,28 @@
         cg.addColorStop(0, rgba(mix(lc, [255, 250, 230], 0.4), gl * mirror * 0.9)); cg.addColorStop(0.5, rgba(lc, gl * mirror * 0.35)); cg.addColorStop(1, rgba(lc, 0));
         ctx.fillStyle = cg; ctx.fillRect(sunX - cw, hz, cw * 2, WH);
       }
-      const spread = 0.35 + 2.6 * chop;
+      // d33 (Preview change #1): glitter character follows ripple SIZE + wind direction (same sea state as chop).
+      // Fine ripples (3–6 mph) → many tiny dense flecks in a tight column; coarse chop → fewer, wider flashes over a
+      // wider field. Waves travelling ACROSS the sun line smear the column wider (tSunC → 0) and push flecks sideways;
+      // along it (tSunC → 1) the column stays tight. gkC = 0 in a calm → exact pre-d33 look.
+      const ripK = SEA ? SEA.ripK || 0 : 0, dirK = SEA ? SEA.dirK || 0 : 0, gkC = clamp((chop - 0.02) / 0.23);
+      let tSunC = 0.5, driftC = 0;
+      if (SEA && SEA.wdir != null && window.Model && Model.sunPos) { const trA = (SEA.wdir + 180 - Model.sunPos(t, spot.lat, spot.lng).az) * Math.PI / 180; tSunC = Math.abs(Math.cos(trA)); driftC = Math.sin(trA) * dirK; }
+      const colK = (1 + ((0.85 + 0.65 * ripK) - 1) * gkC) * (1 + 0.3 * (1 - tSunC) * dirK * gkC);
+      const wK = 1 + ((0.75 + 1.05 * ripK) - 1) * gkC;
+      const spread = (0.35 + 2.6 * chop) * colK;
       for (const rp of G.ripples) {
         if (rp.w < chop * 0.35 && chop > 0.5) continue;   // broken path when rough
-        const yy = hz + 2 + rp.y * WH, d = (yy - hz) / WH, w = (20 + rp.w * 50) * (0.4 + d * 2) * H / 300 * spread;
-        ctx.fillStyle = rgba(lc, gl * (0.25 + 0.5 * (1 - mirror)) * (1 - d * 0.6)); ctx.fillRect(sunX - w / 2 + rp.j * (10 + 60 * chop) * d + Math.sin(ph * 6.283 + rp.y * 40) * chop * 6, yy, w, 1 + chop * 1.4);
+        if (ripK > 0.5 && ((rp.w * 7.31 + rp.y * 3.77) % 1) < 0.4 * ripK * gkC) continue;   // d33: coarse chop → fewer flecks, the wider flashes carry it
+        const yy = hz + 2 + rp.y * WH, d = (yy - hz) / WH, w = (20 + rp.w * 50) * (0.4 + d * 2) * H / 300 * spread * wK;
+        ctx.fillStyle = rgba(lc, gl * (0.25 + 0.5 * (1 - mirror)) * (1 - d * 0.6)); ctx.fillRect(sunX - w / 2 + rp.j * (10 + 60 * chop) * d * colK + Math.sin(ph * 6.283 + rp.y * 40) * (chop * 6 + driftC * 12 * d), yy, w, (1 + chop * 1.4) * (1 + 0.4 * ripK * gkC));   // d33: flecks sway sideways with the across-sun wind component (same phase clock as the wobble — ph is epoch-scale, never multiply it raw)
       }
       // wavelets: dark troughs + sky-lit crests; count, length and contrast scale with chop
       const nW = Math.round(G.waves.length * clamp(0.04 + chop * 1.05));
       for (let i = 0; i < nW; i++) {
         const wv = G.waves[i], d = Math.pow(wv.y, 1.7), yy = hz + 2 + d * (WH - 3);
         const len = (6 + wv.w * 30) * (0.3 + d * 2.4) * H / 300 * (1.4 - 0.6 * chop), th = (0.5 + d * 2.4) * (0.35 + chop);
-        const x = ((wv.x * W + (ph * (8 + 30 * wv.s) * (0.3 + d)) * (wv.k > 0.5 ? 1 : -1)) % W + W) % W;
+        const x = ((wv.x * W + (ph * (8 + 30 * wv.s) * (0.3 + d)) * (dirK > 0.5 && driftC ? Math.sign(driftC) : (wv.k > 0.5 ? 1 : -1))) % W + W) % W;   // d33: wavelets travel downwind when the wind direction is known
         ctx.fillStyle = `rgba(0,0,12,${(0.06 + 0.3 * chop) * (0.5 + d)})`; ctx.fillRect(x - len / 2, yy + th * 0.6, len, th);
         ctx.fillStyle = rgba(mix(hor, [255, 255, 255], 0.2), (0.06 + 0.4 * chop) * (0.4 + d) * (0.5 + 0.5 * clamp((elev + 5) / 6))); ctx.fillRect(x - len * 0.4, yy, len * 0.8, Math.max(0.6, th * 0.6));
       }
@@ -307,7 +317,7 @@
           const c = G.caps[i], d = Math.pow(c.y, 1.5), yy = hz + 3 + d * (WH - 6);
           const on = ((((i * 7919 + life * 104729) >>> 0) % 1000) / 1000) < 0.55 + 0.4 * caps; if (!on) continue;
           const age = (ph * 3) % 1, wdt = (2 + c.w * 7) * (0.25 + d * 1.8) * H / 300 * (0.7 + 0.5 * caps) * (0.6 + 0.4 * Math.sin(age * 3.14));
-          const x = ((c.x * W + ph * 22 * (0.3 + d) * (c.k - 0.3)) % W + W) % W;
+          const x = ((c.x * W + ph * 22 * (0.3 + d) * (dirK > 0.5 && driftC ? Math.sign(driftC) * (0.3 + Math.abs(c.k - 0.3)) : (c.k - 0.3))) % W + W) % W;   // d33: caps drift downwind when direction is known
           ctx.fillStyle = rgba(cc, (0.3 + 0.4 * c.s) * (0.6 + 0.4 * caps) * (1 - 0.5 * age));
           ctx.beginPath(); ctx.ellipse(x, yy, wdt, Math.max(0.5, wdt * 0.1), 0, 0, 6.283); ctx.fill();
           if (caps > 0.55 && c.s > 0.7) { ctx.fillStyle = rgba(cc, 0.18 * caps); ctx.beginPath(); ctx.ellipse(x + wdt * 0.6, yy + wdt * 0.08, wdt * 1.5, wdt * 0.14, 0, 0, 6.283); ctx.fill(); }   // streaks / spray

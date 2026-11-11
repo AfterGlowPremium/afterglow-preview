@@ -47,6 +47,8 @@ uniform float uChop;    // water surface roughness from forecast wind/gusts: 0 g
 uniform float uSwell;   // swell / wave height 0..1 (marine forecast, exposure-weighted)
 uniform float uCaps;    // whitecap coverage 0..1
 uniform float uPhase;
+uniform vec2 uWDir;     // d33: wind TRAVEL direction (unit, scene xz frame) — orients the ripple field and the glitter
+uniform vec2 uRip;      // d33: x ripK = ripple size 0 (fine) .. 1 (coarse), y dirK = 0..1 how strongly the wind direction applies
 uniform float uSurf;    // DRAFT: breaking-wave face height (m) for surf spots, 0 = off
 uniform float uOff;     // DRAFT: offshore wind 0..1 (grooms faces, spray blown back off the lips)
 uniform float uSurfT;   // DRAFT: wave clock (s)
@@ -996,7 +998,13 @@ void main(){
     float e = .15;
     e = .04;
     vec2 ws = vec2(.35, 1.4) * mix(.8, 1.25, uChop);
-    vec2 wm = wp + vec2(uPhase * .35, -uPhase * 1.1);          // wind sea drifts toward the viewer
+    // d33: ripple trains run WITH the wind — crests perpendicular to the travel direction (uWDir): the slope field varies
+    // fast along travel, slow along the crests, and the drift follows the wind instead of always toward the viewer.
+    // dkW = 0 in a calm (or when no direction is known) → the field is exactly the pre-d33 one.
+    float dkW = uRip.y * smoothstep(.04, .3, uChop);
+    vec2 wtr = uWDir, wcr = vec2(-uWDir.y, uWDir.x);
+    vec2 wm = wp + mix(vec2(uPhase * .35, -uPhase * 1.1), wtr * (uPhase * 1.16), dkW);          // wind sea drifts toward the viewer (or downwind)
+    if (dkW > .001) { vec2 wl2 = vec2(dot(wm, wtr), dot(wm, wcr)); wm = mix(wm, wtr * (wl2.x * 1.12) + wcr * (wl2.y * .52), dkW); }
     float h0 = fbm(wm*ws, fpW*ws.y, 7);
     float hx = fbm((wm+vec2(e,0.))*ws, fpW*ws.y, 7);
     float hz = fbm((wm+vec2(0.,e))*ws, fpW*ws.y, 7);
@@ -1029,6 +1037,13 @@ void main(){
     vec3 hv = normalize(-rd + sa);
     float nh = max(dot(n, hv), 0.);
     float m = (mix(.02, .07, uChop) + mix(.012, .07, uChop)*far) * 2.6 * (1. + 1.4 * smoothstep(.3, .8, uChop));   // d28zc: rough → wide sparkle field   // d28za: ~1.75× wider again — glitter column ≈ the (big) sun disc at the horizon, wider toward the viewer
+    // d33: glitter character follows ripple SIZE (uRip.x = ripK, from the same sea state as uChop): fine ripples → a tight
+    // column (smaller m); coarse chop → a wider field. Direction: waves travelling ACROSS the sun line (tSun → 0) smear the
+    // column wider; waves travelling ALONG it (tSun → 1) slice it with their crests → tighter. All gated by gkG/dkW so a
+    // glassy calm keeps the exact pre-d33 look.
+    float gkG = smoothstep(.02, .25, uChop);
+    float tSun = abs(dot(wtr, normalize(uSunA.xz + vec2(1e-5, 0.))));
+    m *= mix(1., mix(.72, 1.35, uRip.x), gkG) * mix(1., mix(1.2, .85, tSun), dkW);
     float c2 = max(nh*nh, 1e-3); float D = min(exp((c2-1.)/(c2*m*m)) / (PI*m*m*c2*c2), 400.);
     float cosI = max(dot(-rd, n), .01);
     float F = .02 + .98*pow(1.-cosI, 5.);
@@ -1042,8 +1057,13 @@ void main(){
     float wpat = fbm(wp * vec2(.9, 2.6) + vec2(uPhase * .4, -uPhase), fpW * 2.6, 4);
     if (rgh > .01) { vec3 rBlur = skyRay(ro, normalize(vec3(rr.x, max(.02, rr.y * .5 + .03), rr.z)), .35, false, Tr); refl = mix(refl, rBlur, rgh * .85); }
     refl = mix(refl, vec3(dot(refl, vec3(.3, .59, .11))), rgh * .55) * mix(1., .55 + .7 * wpat, smoothstep(.2, .55, uChop));
-    float sprk = step(.7 - .25 * rgh, fbm(wp * vec2(6., 14.) + uPhase * 3., fpW * 14., 3));
-    glit = mix(glit, glit * sprk * 2.2, rgh * .8);
+    // d33: sparkle cells scale with ripple size — fine ripples: many tiny dense glints (higher fbm frequency, lower gate);
+    // coarse chop: fewer, bigger, brighter flashes (lower frequency, higher gate, stronger boost). The gate domain is warped
+    // into the wind frame so glints elongate along the crests. At ripK ≈ mid / calm the factors pass through ~1 (pre-d33 look).
+    vec2 spD = wp * (vec2(6., 14.) * mix(1.7, .4, uRip.x * gkG)) + uPhase * 3.;
+    if (dkW > .001) { vec2 sl2 = vec2(dot(spD, wtr), dot(spD, wcr)); spD = mix(spD, wtr * sl2.x + wcr * (sl2.y * .55), dkW); }
+    float sprk = step(.7 - .25 * rgh + .16 * uRip.x * gkG, fbm(spD, fpW * 14., 3));
+    glit = mix(glit, glit * sprk * mix(2.2, 2.9, uRip.x * gkG), rgh * .8);
     col = refl * F * (1. - .45 * rgh) + glit + body * (1.-F) * (1. + 2.5 * rgh);
     col *= mix(1., .5 + .5*smoothstep(.32, .62, h0), uChop * .75 * (1. - .6*far));   // wind chop: shadowed wave backs break up the mirror
     // aerial perspective over the water
@@ -1372,6 +1392,7 @@ void main(){
     gl.uniform1f(U.uTwi, Math.max(0, Math.min(1, (1.5 - P.elev) / 3)) * Math.max(0, Math.min(1, (P.elev + 8) / 3)) * (1 - clamp(P.gray || 0))); gl.uniform1f(U.uGrainT, P.grain || 0.37);
     gl.uniform1f(U.uBlockGap, P.gap || 0);
     gl.uniform1f(U.uChop, P.chop != null ? P.chop : 0.3); gl.uniform1f(U.uSwell, P.swell || 0); gl.uniform1f(U.uCaps, P.caps || 0); gl.uniform1f(U.uPhase, P.phase || 0);
+    if (U.uWDir) { const wv = P.wdirV || [0, -1]; gl.uniform2f(U.uWDir, wv[0], wv[1]); } if (U.uRip) gl.uniform2f(U.uRip, P.ripK || 0, P.dirK || 0);   // d33: wind direction + ripple/glitter character
     if (U.uSurf) { gl.uniform1f(U.uSurf, P.surf || 0); gl.uniform1f(U.uOff, P.off || 0); gl.uniform1f(U.uSurfT, P.surfT || 0); gl.uniform1f(U.uSurfL, P.surfL || 42); if (U.uSwAng) gl.uniform1f(U.uSwAng, P.swAng || 0); if (U.uTint) { const tn = P.tint || [0.15, 0.2, 0.12]; gl.uniform3f(U.uTint, tn[0], tn[1], tn[2]); gl.uniform1f(U.uBack, (P.back != null ? P.back : 1) * (1 - clamp(P.gray || 0))); }
     if (U.uHero) { gl.uniform1f(U.uHero, P.hero ? 1 : 0); if (U.uMess) gl.uniform1f(U.uMess, P.mess || 0); gl.uniform1f(U.uHeroD, P.heroD || 26); } if (U.uFaceK) gl.uniform1f(U.uFaceK, P.faceK || 1.15); }
     gl.uniform1f(U.uMidH, clamp(P.midKm || 4.5, 2.5, 7.5)); if (U.uCT) gl.uniform1f(U.uCT, P.ctype != null ? P.ctype : (g.__agForce && g.__agForce.ct) || 0);

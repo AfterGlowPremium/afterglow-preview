@@ -49,8 +49,8 @@
   // water surface at this exact time from the forecast wind / gusts / waves (Model.seaAt); phase keeps the waves moving with the slider
   function seaP(spot, ev, t) {
     if (spot.water === false) return { chop: 0, swell: 0, caps: 0, phase: 0, sea: null };
-    const W = (g.Model.seaAt && g.Model.seaAt(ev, t)) || g.Model.seaState({ wind: ev.s.wind || 0, gust: ev.s.gust || 0 }, 0.5);
-    return { chop: W.chop, swell: W.swell, caps: W.caps, phase: performance.now() / 1000 * 0.25, sea: W };   // d25o: continuous drift
+    const W = (g.Model.seaAt && g.Model.seaAt(ev, t)) || g.Model.seaState({ wind: ev.s.wind || 0, gust: ev.s.gust || 0, wdir: ev.s.wdir }, 0.5);
+    return { chop: W.chop, swell: W.swell, caps: W.caps, phase: performance.now() / 1000 * 0.25, sea: W, ripK: W.ripK || 0, dirK: W.dirK || 0, wdir: W.wdir != null ? W.wdir : null };   // d25o: continuous drift · d33: ripple/glitter + wind direction for the shader
   }
   // d28za sun-dog GATE (render only; model.js forecast math untouched). Renders if A OR B, intensity = max(A, B); only ?sundogs=strong overrides.
   //  A: existing forecast sun-dog signal ev.dog.p (model.js §7.1) ≥ 8 % → clamp(p / 50)   (same threshold/scale as before)
@@ -146,12 +146,16 @@
     { const LO = g.AGLos && ev.sunsetAz != null ? g.AGLos.get(spot, ev.sunsetAz, t, pos.elev) : null; if (LO && !DEMO && !skq && !wxq && !g.__agForce) { P.los = LO;
       const lit = Math.max(LO.overhead, 0.6 * LO.far); if (LO.wall > 0.6) P.gap = Math.min(P.gap || 1, 1 - LO.wall);
       P.under *= clamp(Math.max(LO.overhead, LO.far) / 0.4)   /* d28zx: a far, sunward deck under-lit through the gap is still under-lighting; the shader’s sunT() limits it per pixel to where the solar ray clears the Earth */ * clamp(1 - (LO.wall - 0.5) / 0.4); P.tops *= clamp(lit / 0.3); if (lit < 0.05) P.glow = Math.min(P.glow, 1); } }
+    // d33 (Preview change #1): wind TRAVEL direction in the shader's xz frame (same conversion as the contrail drift above):
+    // opt.wdirFrom (app: the wind actually shown, obs-adjusted) wins over the sea state's interpolated direction.
+    { const wf = opt.wdirFrom != null ? opt.wdirFrom : (P.wdir != null ? P.wdir : null);
+      if (wf != null && spot.water !== false) { const B = (wf + 180) * Math.PI / 180 - (pos.az - (P.sunAzOff || 0)) * Math.PI / 180; P.wdirV = [Math.sin(B), -Math.cos(B)]; } }
     return P;
   }
 
   function draw(canvas, spot, ev, t, opt = {}) {
     const lit = g.Preview.state ? g.Preview.state(spot, ev, t) : null;
-    const P = params(spot, ev, t, opt); { const q = new URLSearchParams(location.search), ws = q.get("wind"); if (ws != null && !/surf/.test(q.get("demo") || "") && g.Model && Model.seaState && spot.water !== false) { const W = Model.seaState({ wind: +ws, gust: +ws * 1.4 }); P.chop = W.chop; P.caps = W.caps; } }   /* d28zc: ?wind=14 test override */ { const pq = new URLSearchParams(location.search).get("P"); if (pq) for (const kv of pq.split(",")) { const [k, v] = kv.split(":"); if (k.startsWith("g.")) { P.ground = Object.assign({}, P.ground, { [k.slice(2)]: +v }); continue; } P[k] = v === "null" ? null : +v; } } g.PhotoStage && (g.PhotoStage.last = P);
+    const P = params(spot, ev, t, opt); { const q = new URLSearchParams(location.search), ws = q.get("wind"); if (ws != null && !/surf/.test(q.get("demo") || "") && g.Model && Model.seaState && spot.water !== false) { const W = Model.seaState({ wind: +ws, gust: +ws * 1.4, wdir: q.get("wdir") != null ? +q.get("wdir") : null }); P.chop = W.chop; P.caps = W.caps; P.ripK = W.ripK; P.dirK = W.dirK; if (W.wdir != null) { const pos2 = g.Model.sunPos(t, spot.lat, spot.lng), B2 = (W.wdir + 180) * Math.PI / 180 - (pos2.az - (P.sunAzOff || 0)) * Math.PI / 180; P.wdirV = [Math.sin(B2), -Math.cos(B2)]; } } }   /* d28zc: ?wind=14 test override · d33: + &wdir=deg for glitter direction tests */ { const pq = new URLSearchParams(location.search).get("P"); if (pq) for (const kv of pq.split(",")) { const [k, v] = kv.split(":"); if (k.startsWith("g.")) { P.ground = Object.assign({}, P.ground, { [k.slice(2)]: +v }); continue; } P[k] = v === "null" ? null : +v; } } g.PhotoStage && (g.PhotoStage.last = P);
     if (live() && g.Photoreal.render(canvas, P)) { g.PhotoStage && (g.PhotoStage.mode = "live"); return Object.assign({ mode: "live" }, lit); } g.PhotoStage && (g.PhotoStage.mode = "canvas");
     const o = g.Preview.draw(canvas, spot, ev, t); o.mode = "canvas"; return o;
   }

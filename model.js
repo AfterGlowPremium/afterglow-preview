@@ -411,7 +411,7 @@
     wx.rain = { mm: +rainMm.toFixed(1), pp: Math.round(rainPp * 100) };
     // ---- WATER SURFACE through the event window (wind / gusts every 15 min + wave height toward the sun when the marine model has it) ----
     const windSer = wxSer.map(x => ({ t: x.t, wind: x.wind, gust: x.gust, wdir: x.wdir }));   // d13: wind at any slider time, every spot (not just water:true ones)
-    const sea = sp.water ? { ser: wxSer.map(x => ({ t: x.t, wind: x.wind, gust: x.gust, wave: x.wave })), expo: SEA_EXPO[sp.type] != null ? SEA_EXPO[sp.type] : 0.5 } : null;
+    const sea = sp.water ? { ser: wxSer.map(x => ({ t: x.t, wind: x.wind, gust: x.gust, wave: x.wave, wdir: x.wdir })), expo: SEA_EXPO[sp.type] != null ? SEA_EXPO[sp.type] : 0.5 } : null;
     // ---- TRIFECTA: epic color + epic rainbow + epic lightning lined up in the same window ----
     const EP = EPIC;
     const bowP = P100w(bow.p);
@@ -473,10 +473,18 @@
     const swell = ft != null ? pw(ft, [[0, 0], [0.5, 0.08], [1, 0.2], [2, 0.4], [3, 0.58], [5, 0.8], [8, 1]]) * expo : chop * 0.5 * expo;
     const caps = clamp(Math.max(pw(eff, [[0, 0], [9, 0], [12, 0.15], [16, 0.38], [20, 0.6], [28, 0.92], [35, 1]]), ft != null ? clamp((ft - 3) / 6) * expo * 0.7 : 0));
     const mirror = clamp(1 - pw(eff, [[0, 0], [2, 0.05], [4, 0.3], [6, 0.6], [9, 1]]));
+    // d33 (Preview change #1): ripple scale + sun-glitter character from the same effective wind (NOAA sea-state bands).
+    // ripple = dominant ripple/wavelet spacing (m): glassy ~5 cm film, fine ripples 3–6 mph, clear ripple field 7–12, chop 13+.
+    // ripK = ripple size on a 0..1 log scale → drives glint size/density/column width in both renderers.
+    // wdir = forecast wind FROM-direction (deg) when known; dirK = how much that direction may orient the ripple field (0 in a glassy calm — direction is meaningless there).
+    const wdir = x.wdir != null && isFinite(x.wdir) ? ((x.wdir % 360) + 360) % 360 : null;
+    const ripple = pw(eff, [[0, 0.05], [2, 0.07], [4, 0.12], [6, 0.2], [9, 0.32], [12, 0.45], [16, 0.65], [21, 0.9], [27, 1.2], [35, 1.6]]);
+    const ripK = clamp(Math.log(ripple / 0.05) / Math.log(32));
+    const dirK = wdir == null ? 0 : clamp((eff - 2.5) / 3.5);
     const name = eff < 3 ? "Glassy" : eff < 7 ? "Calm" : eff < 11 ? "Light chop" : eff < 16 ? "Choppy" : eff < 22 ? "Rough" : "Very rough";
     const txt = (eff < 3 ? "slick, mirror reflections" : eff < 7 ? "light ripples, strong reflections" : eff < 11 ? "small wavelets, glitter path, softened reflections" : eff < 16 ? "scattered whitecaps, broken reflections" : eff < 22 ? "frequent whitecaps, reflections gone" : "whitecaps & spray everywhere")
       + ` (wind ${Math.round(wind)} mph, gusts ${Math.round(gust)}${ft != null ? `, ${ft < 1 ? "waves under 1 ft" : `waves ~${Math.round(ft)} ft`}` : ""})`;
-    return { chop, swell, caps, mirror, eff, wind, gust, ft, name, txt };
+    return { chop, swell, caps, mirror, eff, wind, gust, ft, name, txt, ripple, ripK, wdir, dirK };
   }
   // sea state at any moment of the event window (interpolated between the 15-min forecast steps)
   function seaAt(ev, t) {
@@ -484,7 +492,7 @@
     const a = S.ser; let i = 0; while (i < a.length - 2 && a[i + 1].t <= t) i++;
     const p = a[i], q = a[Math.min(i + 1, a.length - 1)], f = q.t > p.t ? clamp((t - p.t) / (q.t - p.t)) : 0;
     const L = k => p[k] == null ? q[k] : q[k] == null ? p[k] : p[k] + (q[k] - p[k]) * f;
-    return seaState({ wind: L("wind"), gust: L("gust"), wave: L("wave") }, S.expo);
+    return seaState({ wind: L("wind"), gust: L("gust"), wave: L("wave"), wdir: lerpDeg(p.wdir, q.wdir, f) }, S.expo);
   }
 
   function label(score) {
