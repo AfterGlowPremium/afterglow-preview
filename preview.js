@@ -114,7 +114,7 @@
     const lightIn = clamp(1 - blk * 1.05);          // how much sunlight gets under the western cloud
     const skyVivid = clamp(ev.clean * (1 - 0.75 * Math.max(lo, blk)) * (1 - 0.5 * Math.max(0, hi + md - 1.3)));
     const app = elev + 0.83; // refraction + semi-diameter: official sunset = upper limb touching horizon
-    const hz = H * 0.66, pxDeg = H * 0.05, sunX = W * 0.5, sunY = hz - app * pxDeg, sunR = H * 0.1152;   // d28i: 4x; d28zzf: Sean — 10% smaller
+    const hz = H * 0.66, pxDeg = H * 0.05, sunX = W * 0.5, sunY = hz - app * pxDeg, sunR = H * 0.1094;   // d28i: 4x; d28zzf: Sean — 10% smaller; d32: 5% smaller again
     const dull = ramp(elev, DULL);
 
     // 1) sky
