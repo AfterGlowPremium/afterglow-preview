@@ -857,7 +857,11 @@
     const playOpt = () => { const Q = window.__agPlayQ, cap = 2, dpr = Math.min(window.devicePixelRatio || 1, cap); return { scale: Math.min(1, Q.eff / dpr), dprCap: cap, fast: Q.fast ? 1 : 0 }; };
     const playTick = ts => { const desk = isDesk(), Q = window.__agPlayQ || (window.__agPlayQ = { eff: desk ? 1.3 : 1.0, ema: 33, last: 0, slow: 0, fast: false }), lo = desk ? 1.0 : 0.9, hi = desk ? 1.6 : 1.3, tgt = desk ? 22 : 33;
       if (Q.last) { Q.ema = Q.ema * 0.8 + Math.min(250, ts - Q.last) * 0.2;
-        if (Q.ema > tgt * 1.25) { if (Q.eff > lo) Q.eff = Math.max(lo, Q.eff * 0.93); else if (!desk && ++Q.slow > 20) Q.fast = true; }
+        // d34 (Preview change #2): converge on a holdable frame rate FAST — when frames run far over target the old
+        // 7 %-per-frame ramp spent the first second+ of Play at a resolution the device could not hold, so time
+        // advanced in big visible steps (jumpy). Far over target → drop scale in bigger steps; at the floor, phones
+        // engage the short ray-march after 10 slow frames instead of 20. Same mechanism, quicker to smooth.
+        if (Q.ema > tgt * 1.25) { if (Q.eff > lo) Q.eff = Math.max(lo, Q.eff * (Q.ema > tgt * 2 ? 0.82 : 0.93)); else if (!desk && ++Q.slow > 10) Q.fast = true; }
         else if (Q.ema < tgt * 1.05) { Q.slow = 0; if (Q.fast) Q.fast = false; else Q.eff = Math.min(hi, Q.eff * 1.02); } }
       Q.last = ts; };
     window.AGX && AGX.colorScore && AGX.colorScore(sp.id).then(c => { const b = $("#pv-fbs"); if (!b || state.spot !== sp.id) return; b.hidden = false;

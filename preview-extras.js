@@ -137,23 +137,38 @@
   const vType = () => { if (!MR || !MR.isTypeSupported || !HTMLCanvasElement.prototype.captureStream) return null; const T = isIOS ? ["video/mp4;codecs=avc1", "video/mp4"] : ["video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm"]; return T.find(t => MR.isTypeSupported(t)) || null; };
   function record(btn) { const cv = d.getElementById("pv"), type = vType(); if (!cv || !type) return Promise.resolve(null);
     const o = d.createElement("canvas"), k = Math.min(2, g.devicePixelRatio || 1), W = Math.round(cv.clientWidth * k / 2) * 2, H = Math.round(cv.clientHeight * k / 2) * 2; o.width = W; o.height = H; const x = o.getContext("2d");
-    const stream = o.captureStream(30), rec = new MR(stream, { mimeType: type, videoBitsPerSecond: 5e6 }), parts = []; rec.ondataavailable = e => e.data && e.data.size && parts.push(e.data);
-    let on = true; const loop = () => { if (!on) return; compose(x, W, H, k); caption(x, W, H); requestAnimationFrame(loop); }; loop();
-    const T = 15000; btn.classList.add("rec"); const t0 = Date.now(); const tick = setInterval(() => { btn.dataset.t = Math.ceil((T - (Date.now() - t0)) / 1000) + "s"; }, 250);
-    return new Promise(res => { rec.onstop = () => { on = false; clearInterval(tick); btn.classList.remove("rec"); delete btn.dataset.t; stream.getTracks().forEach(t => t.stop()); const mt = type.split(";")[0]; res({ blob: new Blob(parts, { type: mt }), ext: mt === "video/mp4" ? "mp4" : "webm", mt }); };
-      rec.start(500); setTimeout(() => rec.stop(), T); }); }
+    const stream = o.captureStream(60), rec = new MR(stream, { mimeType: type, videoBitsPerSecond: 5e6 }), parts = []; rec.ondataavailable = e => e.data && e.data.size && parts.push(e.data);
+    // d34 (Preview change #2): record exactly ONE play-through, frame-locked to playback. The old path ran a free-running
+    // rAF copy loop for a fixed 15 s at captureStream(30) — it duplicated/dropped frames unevenly (jumpy video) and filmed
+    // whatever the stage happened to show. Now: restart the app's own Play from the window start, and copy a composed frame
+    // ONLY when the playback time (__agPvT, set by the app's render on every frame it draws) has actually advanced — the
+    // captured cadence IS the playback cadence, at a fixed 60 fps stream. Without a stage scrub/play pair (not a spot view)
+    // it falls back to the old free-running copy for the 15 s cap.
+    const sl = d.getElementById("scrub"), pb = d.getElementById("pv-play"), T1 = sl ? +sl.max : null, driven = !!(sl && pb);
+    let on = true, lastT = null, frames = 0;
+    const loop = () => { if (!on) return; const nowT = g.__agPvT; if (!driven || (nowT != null && nowT !== lastT)) { lastT = nowT; compose(x, W, H, k); caption(x, W, H); frames++; } requestAnimationFrame(loop); };
+    if (driven) { if (/Pause/.test(pb.textContent)) pb.click(); sl.value = sl.min; sl.dispatchEvent(new Event("input", { bubbles: true })); pb.click(); }
+    loop();
+    const T = driven ? 12000 : 15000; btn.classList.add("rec"); const t0 = Date.now(); const tick = setInterval(() => { btn.dataset.t = Math.ceil((T - (Date.now() - t0)) / 1000) + "s"; }, 250);
+    return new Promise(res => { let done = false; const finish = () => { if (done) return; done = true; clearInterval(poll); try { rec.stop(); } catch (e) { on = false; res(null); } };
+      const poll = setInterval(() => { if (!driven) { if (Date.now() - t0 > T) finish(); return; }
+        if (T1 != null && g.__agPvT != null && g.__agPvT >= T1 - 2) setTimeout(finish, 350);   // play-through complete (+ a short tail so the last frame lands)
+        else if (Date.now() - t0 > 6000 && frames < 3) finish();   // playback never engaged — don't hang
+        else if (Date.now() - t0 > T) finish(); }, 200);
+      rec.onstop = () => { on = false; clearInterval(tick); clearInterval(poll); btn.classList.remove("rec"); delete btn.dataset.t; stream.getTracks().forEach(t => t.stop()); const mt = type.split(";")[0]; res(frames >= 3 ? { blob: new Blob(parts, { type: mt }), ext: mt === "video/mp4" ? "mp4" : "webm", mt, frames } : null); };
+      rec.start(500); }); }
   function place(m, anchor) { const r = anchor.getBoundingClientRect(); m.style.top = (r.bottom + 6) + "px"; m.style.left = Math.max(8, Math.min(r.left, innerWidth - 170)) + "px"; }
   function closeMenu() { const m = d.getElementById("ag-share-menu"); if (m) m.remove(); }
   function menu(anchor) { if (d.getElementById("ag-share-menu")) return closeMenu();
     const m = d.createElement("div"); m.id = "ag-share-menu"; const vt = vType();
-    m.innerHTML = '<button data-a="link">🔗 Link</button><button data-a="shot" disabled>🖼 Screenshot…</button>' + (vt ? '<button data-a="video">🎬 Video (15 s)</button>' : "");
+    m.innerHTML = '<button data-a="link">🔗 Link</button><button data-a="shot" disabled>🖼 Screenshot…</button>' + (vt ? '<button data-a="video">🎬 Video (full play)</button>' : "");
     place(m, anchor); d.body.appendChild(m);
     let png = null; shotBlob().then(b => { if (!b) return; png = { blob: b, file: new File([b], fname("png"), { type: "image/png" }) }; const sb = m.querySelector('[data-a="shot"]'); if (sb) { sb.disabled = false; sb.textContent = "🖼 Screenshot"; } }).catch(() => {});
     m.addEventListener("click", e => { const b = e.target.closest("button"); if (!b || b.disabled) return; e.stopPropagation(); const a = b.dataset.a;
       try {
         if (a === "link") { closeMenu(); shareNow(null, null); }
         else if (a === "shot") { closeMenu(); shareNow(png.file, png.blob); }
-        else if (a === "video") { closeMenu(); toast("Recording 15 s…"); record(anchor).then(v => { if (!v) return toast("Video not supported here");
+        else if (a === "video") { closeMenu(); toast("Recording the full play-through…"); record(anchor).then(v => { if (!v) return toast("Video not supported here");
             const m2 = d.createElement("div"); m2.id = "ag-share-menu"; m2.innerHTML = '<button data-a="sv">🎬 Share video</button><button data-a="x">Cancel</button>'; place(m2, anchor); d.body.appendChild(m2);
             const file = new File([v.blob], fname(v.ext), { type: v.mt });
             m2.addEventListener("click", ev => { const bb = ev.target.closest("button"); if (!bb) return; ev.stopPropagation(); m2.remove(); if (bb.dataset.a === "sv") shareNow(file, v.blob); }); }); }
