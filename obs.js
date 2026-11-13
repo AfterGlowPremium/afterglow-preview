@@ -155,7 +155,7 @@
   async function irGrid(sp, ev, n) {
     if (!g.Sat || !g.Sat.samplePt) return null;
     const az = ev.sunsetAz, cell = async (b, d) => { const p = d ? g.Model.offset(sp.lat, sp.lng, az + b, d) : { lat: sp.lat, lng: sp.lng };
-      const ir = await g.Sat.samplePt("ir", p.lat, p.lng).catch(() => null);
+      const ir = await (g.Sat.sampleIR ? g.Sat.sampleIR(p.lat, p.lng) : g.Sat.samplePt("ir", p.lat, p.lng)).catch(() => null);   // d35b: background-relative IR read (satellite.js sampleIR) — readIR's fixed bands mis-split this deck ~85 % low
       return ir ? { low: ir.coolGrey, mid: ir.cold, high: ir.deep, mh: clamp(ir.cold + ir.deep), tot: clamp(ir.coolGrey + ir.cold + ir.deep) } : null; };   // palette split: coolGrey = warm (low) tops, cold = cold (mid) tops, deep = very cold (high) tops
     const spot = await cell(0, 0); if (!spot) return null;
     const rows = [], jobs = []; let ok = 1, tot = 1;
@@ -177,8 +177,16 @@
     const n = NOW(), G = await irGrid(sp, ev, n); if (!G) return null;
     const { cv, thick, irCv, irMid, irLow } = G;
     if (G.radar && G.radar.rain >= 0.1) for (const j of [0, 1, 2]) { cv[j] = Math.max(cv[j], 0.85); thick[j] = Math.max(thick[j], 0.55); irLow[j] = Math.max(irLow[j], +(0.7 * irCv[j]).toFixed(2)); }   // radar rain overhead/near = thick low-based cloud, even if the IR palette under-reads it
+    // d35c (Preview pilot): how hard this deck BLOCKS the sun — combine()'s light-path geometry run on the RAW IR
+    // totals (no thick + 0.4·cv dilution, no 0.4 model blend): a deck ~85–95 % at every ring to 300 km leaves the
+    // grazing ray no gap, whatever the layer split. Thresholds sit lower than combine()'s (gray from block 0.55,
+    // full at 0.80) because the raw-total block runs hotter than combine's diluted block for the same sky.
+    const irPath = +(0.1 * irCv[2] + 0.3 * irCv[4] + 0.35 * irCv[5] + 0.25 * irCv[6]).toFixed(2);
+    const irOpen = 1 - clamp((irPath - 0.15) / 0.45);
+    let irBlock = Math.max(irPath, (0.5 * irCv[0] + 0.5 * irPath) * (1 - irOpen)); if (irPath >= 0.8) irBlock = Math.max(irBlock, irPath); irBlock = +clamp(irBlock).toFixed(2);
+    const irGray = +clamp((irBlock - 0.55) / 0.25).toFixed(2);
     return { tSet: ev.tSet, at: n, km: CVK, cv, thick, here: +(0.3 * cv[0] + 0.25 * cv[1] + 0.25 * cv[2] + 0.2 * cv[3]).toFixed(2), west: +((cv[0] + cv[1] + cv[2] + cv[3] + cv[4]) / 5).toFixed(2),
-      far: +(0.5 * cv[5] + 0.5 * cv[6]).toFixed(2), farThick: Math.max(thick[5], thick[6]), irCv, irMid, irLow, shape: G.shape, radar: G.radar, src: "goes-ir4km-only" };
+      far: +(0.5 * cv[5] + 0.5 * cv[6]).toFixed(2), farThick: Math.max(thick[5], thick[6]), irCv, irMid, irLow, irPath, irBlock, irGray, shape: G.shape, radar: G.radar, src: "goes-ir4km-only" };
   }
   async function canvas(sp, ev) {
     const n = NOW(); if (!g.Sat || !g.Sat.canvasPt || n - ev.tSet > 1800 || ev.tSet - n > 14 * 3600) return O.cv[sp.id] || null;   // d24c: present day — re-read the latest visible all day, every refresh
@@ -223,7 +231,8 @@
         const want = 100 * Math.min(0.95, frac * 1.1); if (k === "cloud_cover_mid" && Math.max(lo, mdl) < want) h[k][j] = Math.max(mdl, want - 0.5 * lo); if (k === "cloud_cover") h[k][j] = Math.max(h[k][j] || 0, want); } }
       return h; };
     const pick = km => { const i = C.km.indexOf(km); return i >= 0 ? C.cv[i] : 0; };
-    const sw = O.satW(C), lowSh = C.irLow && C.irCv ? Math.max(0, Math.min(1, C.irLow.slice(0, 4).reduce((a, v) => a + v, 0) / Math.max(0.01, C.irCv.slice(0, 4).reduce((a, v) => a + v, 0)))) : 0.5, S2 = Object.assign({}, S, { hourly: bump(S.hourly, sw * Math.min(0.75, 1.5 * Math.max(C.here, 0.9 * C.west)), lowSh) });   // the sky you see toward the sun (0–120 km) is the canvas, not just the zenith
+    const pilIR = IR_PILOT[sp.id] && C.src === "goes-ir4km-only";   // d35b: pilot IR entries carry true fractions (sampleIR) — see the frac choice below
+    const sw = O.satW(C), lowSh = C.irLow && C.irCv ? Math.max(0, Math.min(1, C.irLow.slice(0, 4).reduce((a, v) => a + v, 0) / Math.max(0.01, C.irCv.slice(0, 4).reduce((a, v) => a + v, 0)))) : 0.5, S2 = Object.assign({}, S, { hourly: bump(S.hourly, sw * (pilIR ? Math.min(1.05, 1.4 * Math.max(C.here, 0.9 * C.west, C.irCv ? C.irCv[0] : 0)) : Math.min(0.75, 1.5 * Math.max(C.here, 0.9 * C.west))), lowSh) });   // the sky you see toward the sun (0–120 km) is the canvas, not just the zenith. d35b: the 0.75 cap / 1.5× factor were tuned for dim low-sun VISIBLE reads that under-read; applied to a true-fraction IR read they first clipped a solid deck to 0.76 × 0.75 ≈ 57 % (2026-11-13: rendered 63 % total vs IR 90 %), and with the cap merely raised they overshot to ~100 % via bump's ×1.1 — the pilot-IR factor is calibrated so rendered total ≈ the IR fraction itself
     const W2 = Wl.map((w, k) => w && Object.assign({}, w, { hourly: bump(w.hourly, sw * [0.5 * pick(40) + 0.5 * pick(80), pick(120), 0.5 * pick(200) + 0.5 * pick(300)][k] || 0, lowSh) }));
     const a = Array.from(args); a[1] = S2; a[2] = W2; return a;
   }
@@ -252,6 +261,14 @@
     try { const C = !/[?&](obs|sat)=0/.test(location.search) && ev && ev.oppGlow == null && O.cv[sp.id];   // d24j: clear sun path but lit clouds opposite/overhead still counts
       if (C && Math.abs(C.tSet - ev.tSet) < 3600) { const oq = O.oppGlow(C) * O.satW(C); if (oq > 0.05) { ev.oppGlow = +oq.toFixed(2); const sc = Math.round(ev.score + (85 - ev.score) * oq * 0.7); if (sc > ev.score) { ev.scoreSatModel = ev.score; ev.score = sc; ev.oppBoost = ev.oppGlow; (ev.reasons || (ev.reasons = [])).unshift(`Satellite (GOES visible+IR): broken mid/high cloud overhead / opposite the sun with an open horizon toward the sun — those clouds should light pink-red${O.satNote(C)}.`); } } } } catch (e) {}
     try { Object.defineProperty(ev, "_h", { value: arguments[1] && arguments[1].hourly, enumerable: false }); Object.defineProperty(ev, "_sp", { value: sp, enumerable: false }); } catch (e) {}   // d16: hourly clouds for grayAt(t)
+    try { const C = ev && ev.satCanvas;   // d35c (Preview pilot): the IR canvas is itself an observation — when it shows an unbroken deck, give the event the same flat-gray treatment combine() gives a METAR/satellite block. Without this the model's gap-lit math read the bumped mid deck as "sun slips under the deck" (2026-11-13: gapOpen 0.83 → score 83 "Great", full orange glow) while the deck in fact ran unbroken to 300 km and the real sky stayed flat gray with zero colour (owner photos 05:15 + 06:22). Runs BEFORE the METAR block below because that block can return early (no obs loaded) and combine() overwrites ev.obs; sceneAt re-applies irGray from the entry, so the render gray survives either way.
+      if (C && IR_PILOT[sp.id] && C.src === "goes-ir4km-only" && C.irGray > 0) { const gr = C.irGray;
+        const cap = Math.round(ev.score + (12 - ev.score) * gr); if (cap < ev.score) { if (ev.scoreModel == null) ev.scoreModel = ev.score; ev.score = cap; }
+        ev.slotBlock = Math.max(ev.slotBlock || 0, C.irBlock || 0);   // the canvas renderer's lightIn keys off slotBlock
+        if (ev.gapOpen != null) ev.gapOpen = Math.min(ev.gapOpen, 1 - gr);   // no under-deck gap lighting through a deck the IR shows unbroken (sceneAt gapW / photostage gap read gapOpen)
+        if (gr >= 0.5 && ev.reasons) ev.reasons = ev.reasons.filter(r => !/^Sun slips under the deck/.test(r));   // the gap-lit reason text contradicts the IR block
+        ev.obs = ev.obs ? Object.assign({}, ev.obs, { gray: Math.max(ev.obs.gray || 0, gr), block: Math.max(ev.obs.block || 0, C.irBlock || 0) }) : { gray: gr, block: C.irBlock || 0, here: C.irCv ? C.irCv[0] : null, path: C.irPath != null ? C.irPath : null, open: 0, metar: null, sat: null, src: "GOES IR" };   // sceneAt → photoreal uGray/glow/under/tops
+        (ev.reasons || (ev.reasons = [])).unshift(`Observed (GOES infrared): unbroken cloud deck overhead and along the whole ${g.AG_MODE === "sunrise" ? "sunrise" : "sunset"} path (${C.irCv.map((v, i) => `${C.km[i]} km ${Math.round(v * 100)}%`).join(", ")}) — the sun's light is blocked; expect flat gray light, no glow${O.satNote(C)}.`); } } catch (e) { console.warn("ir gray", e); }
     try {
       if (/[?&]obs=0/.test(location.search) || !ev) return ev;
       const inW = inWindow(ev.tSet), m0 = inW ? O.metar[sp.id] : null;
@@ -317,6 +334,7 @@
   O.sceneAt = (sp, ev, t) => {
     if (/[?&]obs=0/.test(location.search) || !ev) return { gray: 0, haze: 0 };
     let mg = modelGray(ev, t);
+    if (ev.satCanvas && IR_PILOT[sp.id] && ev.satCanvas.src === "goes-ir4km-only" && ev.satCanvas.irGray) mg = Math.max(mg, ev.satCanvas.irGray);   // d35c pilot: an IR-observed solid deck grays the scene even when combine()/METAR saw less (combine overwrites ev.obs)
     if (ev.obs && Math.abs(t - ev.tSet) < 5400) mg = Math.max(mg, ev.obs.gray);          // event-window observed blend (d15)
     else if (Math.abs(t - ev.tSet) < 5400) mg = Math.max(mg, clamp(((ev.geoBlock != null ? Math.min(ev.slotBlock || 0, ev.geoBlock + 0.25) : ev.slotBlock || 0) - 0.6) / 0.28));
     const N = O.now[sp.id], dt = Math.abs(t - NOW()), w = N ? 1 - clamp((dt - 3600) / 7200) : 0;   // obs fully trusted ±1 h of now, fading out by ±3 h

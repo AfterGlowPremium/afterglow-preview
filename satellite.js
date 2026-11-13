@@ -86,6 +86,41 @@
     lines.push("Satellite is a snapshot of now; most useful within ~3–6 hours of sunset.");
     return lines;
   }
+  // d35b (Preview pilot): BACKGROUND-RELATIVE IR read. readIR's fixed luminance bands (warm <70, coolGrey 70–165,
+  // cold ≥165) cannot split low cloud from cold tops: which band a deck lands in depends on the day's absolute
+  // background temperature. On 2026-11-13 the Fort Monroe deck's tops were ≥18 counts colder than the local clear
+  // background — mid/high tops by the app's own archive algorithm (tools/satcv.js irAt) — yet sat at tile luminance
+  // ~120–160 and were read as ~85 % "low". sampleIR measures the same quantities as irAt in tile space: bg = 20th
+  // percentile of grey luminance in a ±140 km window around the point (irAt's clear-background window, assembled
+  // from the 3×3 tile mosaic so edge points get the same symmetric window), cloud = grey pixels ≥ bg + 23
+  // (≈ +8 counts at the IEM palette gain ~2.8 lum/count), cold tops = ≥ bg + 51 (≈ +18 counts); coloured pixels
+  // count as cold tops, the red/black class as deep. Returns readIR-shaped fractions so consumers swap in
+  // unchanged. (The bg window must be local AND symmetric: the whole 490 km tile's 20th percentile read ~140 at
+  // Fort Monroe vs the local ~99, and a window clipped by the tile edge read ~110 — both bury cold tops, whose
+  // luminances cluster within ~±15 of the +51 threshold.)
+  const mosCache = {};
+  function irMosaic(tx, ty) {
+    const key = tx + "," + ty + "@" + bust(); if (mosCache[key]) return mosCache[key];
+    return (mosCache[key] = (async () => { const c = document.createElement("canvas"); c.width = c.height = 768; const x = c.getContext("2d");
+      await Promise.all([-1, 0, 1].flatMap(dy => [-1, 0, 1].map(async dx => { try { const im = await loadImg(`${IEM}${LAYERS.ir}/6/${tx + dx}/${ty + dy}.png?_=${bust()}`); x.drawImage(im, (dx + 1) * 256, (dy + 1) * 256); } catch (e) {} })));
+      return x; })());
+  }
+  async function sampleIR(lat, lng) {
+    try { const z = 6, { tx, ty, px, py } = tileXY(lat, lng, z), x = await irMosaic(tx, ty); if (!x) return null;
+      const cx = 256 + px, cy = 256 + py, mpp = 156543.03 * Math.cos(lat * Math.PI / 180) / 2 ** z, R = Math.max(24, Math.min(250, Math.round(140000 / mpp)));
+      const D = x.getImageData(cx - R, cy - R, R * 2, R * 2).data, v = [];
+      for (let i = 0; i < D.length; i += 8) { if (D[i + 3] <= 0) continue; const sat = Math.max(D[i], D[i + 1], D[i + 2]) - Math.min(D[i], D[i + 1], D[i + 2]); if (sat < 30) v.push((D[i] + D[i + 1] + D[i + 2]) / 3); }
+      if (!v.length) return null;
+      v.sort((a, b) => a - b); const bg = v[Math.floor(v.length * 0.2)];
+      const d = x.getImageData(cx - 4, cy - 4, 8, 8).data;
+      let n = 0, warm = 0, low = 0, cold = 0, deep = 0;
+      for (let i = 0; i < d.length; i += 4) { if (d[i + 3] <= 0) continue; n++;
+        const r = d[i], gg = d[i + 1], b = d[i + 2], sat = Math.max(r, gg, b) - Math.min(r, gg, b), lum = (r + gg + b) / 3;
+        if (sat >= 30) { if ((r > 180 && gg < 120) || lum < 40) deep++; else cold++; }
+        else if (lum >= bg + 51) cold++; else if (lum >= bg + 23) low++; else warm++; }
+      if (!n) return null;
+      return { warm: warm / n, coolGrey: low / n, cold: cold / n, deep: deep / n, bgLum: Math.round(bg) }; } catch (e) { return null; }
+  }
   // d15: one point → { vis: readVis, ir: readIR } fractions (tiles cached per 5 min)
   // d23r: NEXRAD n0q (IEM) — transparent where no echo; echo = share of pixels with a return, heavy = share in the yellow/red range
   function readRadar(px) { if (!px.length) return null; const e = px.filter(p => p[3] > 60), hv = e.filter(p => p[0] > 200 && p[1] > 150 && p[2] < 90 || p[0] > 200 && p[1] < 90); return { echo: e.length / px.length, rain: e.filter(p => p[1] > p[2] + 10 || p[0] > p[2] + 40).length / px.length, heavy: hv.length / px.length }; }   // d23p rain: green/yellow/red (>= ~20 dBZ), not the blue/cyan drizzle-clutter shades
@@ -123,5 +158,5 @@
         if (D[k + 3] > 60) { echo++; if (D[k + 1] > D[k + 2] + 10 || D[k] > D[k + 2] + 40) rain++; } }
       return n ? { rain: rain / n, echo: echo / n, t: st, live } : null; } catch (e) { return null; } })());
   }
-  g.Sat = { tileUrl, readSpot, samplePt, radarAt, canvasPt, bust, LAYERS };
+  g.Sat = { tileUrl, readSpot, samplePt, sampleIR, radarAt, canvasPt, bust, LAYERS };
 })(window);
