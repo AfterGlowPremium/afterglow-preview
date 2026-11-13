@@ -137,8 +137,8 @@
   // and after a reload. Fed into the model as observed mid cloud wherever it exceeds the model's own low+mid cover.
   O.cv = lsGet("ag-obs-cv") || {};
   const CVK = [0, 20, 40, 80, 120, 200, 300];
-  // d35 (Preview pilot — Buckroe Beach / Fort Monroe ONLY; Sean verifies here before any wider rollout): the dark-hours
-  // INFRARED canvas. The visible canvas can never serve a sunrise (it needs the sun ≥ 2.5° up — the gate in canvas()
+  // d35 (Preview; piloted on Buckroe Beach / Fort Monroe 2026-11-13, rolled out to ALL spots the same day on Sean's
+  // order): the dark-hours INFRARED canvas. The visible canvas can never serve a sunrise (it needs the sun ≥ 2.5° up — the gate in canvas()
   // below) and the pre-baked snapshot is sunset-only, so on Nov 13 2026 a broad mid deck over Fort Monroe that GOES IR
   // showed clearly (~90 % cover overhead) rendered as a clear sky because the model had 0 %. For the pilot spots, when
   // the visible read can't run, the canvas entry is built from live GOES IR instead — sampled over a WIDE area (a ±90°
@@ -149,7 +149,6 @@
   // wording apply unchanged, and it carries a per-bearing SHAPE (cloud fraction by layer across the fan) that
   // preview.js uses to place the rendered clouds where the IR actually shows them. Sunset keeps the visible-led
   // read; there the IR grid only adds the shape + radar floor (visible + IR, per Sean).
-  const IR_PILOT = { oldpoint: 1, saltponds: 1 };
   const FAN = [-90, -75, -60, -45, -30, -15, 0, 15, 30, 45, 60, 75, 90], IR_RINGS = [20, 40, 80, 120, 200, 300], LYR_H = { low: 1.5, mid: 4.5, high: 10 };
   const visW = (h, d) => { if (!d) return 1; const dv = Math.sqrt(2 * 6371 * h); return clamp(1 - Math.max(0, d - 0.55 * dv) / (0.45 * dv)); };   // full weight to 55 % of the layer's visible range, tapering to zero at the range
   async function irGrid(sp, ev, n) {
@@ -191,7 +190,7 @@
   async function canvas(sp, ev) {
     const n = NOW(); if (!g.Sat || !g.Sat.canvasPt || n - ev.tSet > 1800 || ev.tSet - n > 14 * 3600) return O.cv[sp.id] || null;   // d24c: present day — re-read the latest visible all day, every refresh
     if (g.Model.sunPos(n, sp.lat, sp.lng).elev < 2.5) {   // low sun: the visible image is too dim to trust → keep the last good-light read (or the snapshot's); d35: pilot spots build the IR canvas instead
-      if (IR_PILOT[sp.id]) { const o = await irCanvas(sp, ev).catch(() => null); if (o) { O.cv[sp.id] = o; const keep = {}; for (const k in O.cv) if (n - O.cv[k].tSet < 86400) keep[k] = O.cv[k]; lsSet("ag-obs-cv", keep); return o; } }
+      { const o = await irCanvas(sp, ev).catch(() => null); if (o) { O.cv[sp.id] = o; const keep = {}; for (const k in O.cv) if (n - O.cv[k].tSet < 86400) keep[k] = O.cv[k]; lsSet("ag-obs-cv", keep); return o; } }
       return O.cv[sp.id] || null; }
     const az = ev.sunsetAz, r = await Promise.all(CVK.map(d => { const p = d ? g.Model.offset(sp.lat, sp.lng, az, d) : { lat: sp.lat, lng: sp.lng }; return g.Sat.canvasPt(p.lat, p.lng, 18); }));
     if (r.filter(Boolean).length < 5) return O.cv[sp.id] || null;
@@ -199,7 +198,7 @@
     const o = { tSet: ev.tSet, at: n, km: CVK, cv: v.map(x => +x.toFixed(2)), thick: th.map(x => +x.toFixed(2)),
       here: 0.3 * v[0] + 0.25 * v[1] + 0.25 * v[2] + 0.2 * v[3], west: (v[0] + v[1] + v[2] + v[3] + v[4]) / 5, far: 0.5 * v[5] + 0.5 * v[6], farThick: Math.max(th[5], th[6]) };
     const P = O.cv[sp.id]; if (P && P.irMid && P.tSet === o.tSet && n - P.at < 2400) Object.assign(o, { irCv: P.irCv, irMid: P.irMid, irLow: P.irLow }); if (P && P.storms && P.tSet === o.tSet) { o.storms = P.storms; if (P.stormsAnti) o.stormsAnti = P.stormsAnti; }   // d24t: radar storm cells from the snapshot if (P && P.antiIrMid && P.tSet === o.tSet && n - P.at < 2400) for (const k in P) if (/^(anti|side|over|storms)/.test(k)) o[k] = P[k];   // d24j: keep the opposite-sky/overhead reads too   // keep the 15-min snapshot's IR heights
-    if (IR_PILOT[sp.id]) { const G = await irGrid(sp, ev, n).catch(() => null); if (G) { o.shape = G.shape; o.radar = G.radar; if (G.radar && G.radar.rain >= 0.1) for (const j of [0, 1, 2]) { o.cv[j] = Math.max(o.cv[j], 0.85); o.thick[j] = Math.max(o.thick[j], 0.55); } } }   // d35: sunset = visible cover + IR shape/radar (pilot spots)
+    { const G = await irGrid(sp, ev, n).catch(() => null); if (G) { o.shape = G.shape; o.radar = G.radar; if (G.radar && G.radar.rain >= 0.1) for (const j of [0, 1, 2]) { o.cv[j] = Math.max(o.cv[j], 0.85); o.thick[j] = Math.max(o.thick[j], 0.55); } } }   // d35: sunset = visible cover + IR shape/radar (all spots since the rollout)
     O.cv[sp.id] = o; const keep = {}; for (const k in O.cv) if (n - O.cv[k].tSet < 86400) keep[k] = O.cv[k]; lsSet("ag-obs-cv", keep);
     return o;
   }
@@ -231,7 +230,7 @@
         const want = 100 * Math.min(0.95, frac * 1.1); if (k === "cloud_cover_mid" && Math.max(lo, mdl) < want) h[k][j] = Math.max(mdl, want - 0.5 * lo); if (k === "cloud_cover") h[k][j] = Math.max(h[k][j] || 0, want); } }
       return h; };
     const pick = km => { const i = C.km.indexOf(km); return i >= 0 ? C.cv[i] : 0; };
-    const pilIR = IR_PILOT[sp.id] && C.src === "goes-ir4km-only";   // d35b: pilot IR entries carry true fractions (sampleIR) — see the frac choice below
+    const pilIR = C.src === "goes-ir4km-only";   // d35b: IR entries carry true fractions (sampleIR) — see the frac choice below
     const sw = O.satW(C), lowSh = C.irLow && C.irCv ? Math.max(0, Math.min(1, C.irLow.slice(0, 4).reduce((a, v) => a + v, 0) / Math.max(0.01, C.irCv.slice(0, 4).reduce((a, v) => a + v, 0)))) : 0.5, S2 = Object.assign({}, S, { hourly: bump(S.hourly, sw * (pilIR ? Math.min(1.05, 1.4 * Math.max(C.here, 0.9 * C.west, C.irCv ? C.irCv[0] : 0)) : Math.min(0.75, 1.5 * Math.max(C.here, 0.9 * C.west))), lowSh) });   // the sky you see toward the sun (0–120 km) is the canvas, not just the zenith. d35b: the 0.75 cap / 1.5× factor were tuned for dim low-sun VISIBLE reads that under-read; applied to a true-fraction IR read they first clipped a solid deck to 0.76 × 0.75 ≈ 57 % (2026-11-13: rendered 63 % total vs IR 90 %), and with the cap merely raised they overshot to ~100 % via bump's ×1.1 — the pilot-IR factor is calibrated so rendered total ≈ the IR fraction itself
     const W2 = Wl.map((w, k) => w && Object.assign({}, w, { hourly: bump(w.hourly, sw * [0.5 * pick(40) + 0.5 * pick(80), pick(120), 0.5 * pick(200) + 0.5 * pick(300)][k] || 0, lowSh) }));
     const a = Array.from(args); a[1] = S2; a[2] = W2; return a;
@@ -262,7 +261,7 @@
       if (C && Math.abs(C.tSet - ev.tSet) < 3600) { const oq = O.oppGlow(C) * O.satW(C); if (oq > 0.05) { ev.oppGlow = +oq.toFixed(2); const sc = Math.round(ev.score + (85 - ev.score) * oq * 0.7); if (sc > ev.score) { ev.scoreSatModel = ev.score; ev.score = sc; ev.oppBoost = ev.oppGlow; (ev.reasons || (ev.reasons = [])).unshift(`Satellite (GOES visible+IR): broken mid/high cloud overhead / opposite the sun with an open horizon toward the sun — those clouds should light pink-red${O.satNote(C)}.`); } } } } catch (e) {}
     try { Object.defineProperty(ev, "_h", { value: arguments[1] && arguments[1].hourly, enumerable: false }); Object.defineProperty(ev, "_sp", { value: sp, enumerable: false }); } catch (e) {}   // d16: hourly clouds for grayAt(t)
     try { const C = ev && ev.satCanvas;   // d35c (Preview pilot): the IR canvas is itself an observation — when it shows an unbroken deck, give the event the same flat-gray treatment combine() gives a METAR/satellite block. Without this the model's gap-lit math read the bumped mid deck as "sun slips under the deck" (2026-11-13: gapOpen 0.83 → score 83 "Great", full orange glow) while the deck in fact ran unbroken to 300 km and the real sky stayed flat gray with zero colour (owner photos 05:15 + 06:22). Runs BEFORE the METAR block below because that block can return early (no obs loaded) and combine() overwrites ev.obs; sceneAt re-applies irGray from the entry, so the render gray survives either way.
-      if (C && IR_PILOT[sp.id] && C.src === "goes-ir4km-only" && C.irGray > 0) { const gr = C.irGray;
+      if (C && C.src === "goes-ir4km-only" && C.irGray > 0) { const gr = C.irGray;
         const cap = Math.round(ev.score + (12 - ev.score) * gr); if (cap < ev.score) { if (ev.scoreModel == null) ev.scoreModel = ev.score; ev.score = cap; }
         ev.slotBlock = Math.max(ev.slotBlock || 0, C.irBlock || 0);   // the canvas renderer's lightIn keys off slotBlock
         if (ev.gapOpen != null) ev.gapOpen = Math.min(ev.gapOpen, 1 - gr);   // no under-deck gap lighting through a deck the IR shows unbroken (sceneAt gapW / photostage gap read gapOpen)
@@ -334,7 +333,7 @@
   O.sceneAt = (sp, ev, t) => {
     if (/[?&]obs=0/.test(location.search) || !ev) return { gray: 0, haze: 0 };
     let mg = modelGray(ev, t);
-    if (ev.satCanvas && IR_PILOT[sp.id] && ev.satCanvas.src === "goes-ir4km-only" && ev.satCanvas.irGray) mg = Math.max(mg, ev.satCanvas.irGray);   // d35c pilot: an IR-observed solid deck grays the scene even when combine()/METAR saw less (combine overwrites ev.obs)
+    if (ev.satCanvas && ev.satCanvas.src === "goes-ir4km-only" && ev.satCanvas.irGray) mg = Math.max(mg, ev.satCanvas.irGray);   // d35c: an IR-observed solid deck grays the scene even when combine()/METAR saw less (combine overwrites ev.obs)
     if (ev.obs && Math.abs(t - ev.tSet) < 5400) mg = Math.max(mg, ev.obs.gray);          // event-window observed blend (d15)
     else if (Math.abs(t - ev.tSet) < 5400) mg = Math.max(mg, clamp(((ev.geoBlock != null ? Math.min(ev.slotBlock || 0, ev.geoBlock + 0.25) : ev.slotBlock || 0) - 0.6) / 0.28));
     const N = O.now[sp.id], dt = Math.abs(t - NOW()), w = N ? 1 - clamp((dt - 3600) / 7200) : 0;   // obs fully trusted ±1 h of now, fading out by ±3 h
