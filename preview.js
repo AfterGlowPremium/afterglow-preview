@@ -70,6 +70,11 @@
     const sFrac = (arr, x) => { const u = ((x - W / 2) / pxD + 90) / SH.step; if (u < 0 || u > arr.length - 1) return 0; const i = Math.min(arr.length - 2, Math.floor(u)); return arr[i] + (arr[i + 1] - arr[i]) * (u - i); };
     const sKeep = (arr, x, base) => clamp(sFrac(arr, x) / Math.max(base, 0.08), 0, 1.3);
     G.shAt = SH ? ev.satCanvas.at : 0;
+    // d37: IR-observed horizon breaks (obs.js hzGaps, bearings relative to the event azimuth) as screen ranges —
+    // the horizon bank and low puffs leave those slots open, and draw() lays a faint warm sliver in them.
+    const HZG = ev.satCanvas && ev.satCanvas.hzGaps;
+    G.hzGaps = HZG && HZG.length ? HZG.map(g => ({ x0: W / 2 + g.b0 * pxD, x1: W / 2 + g.b1 * pxD, str: g.str })) : null;
+    const inGap = x => G.hzGaps ? G.hzGaps.some(g => x >= g.x0 && x <= g.x1) : false;
     for (let i = 0; i < 14; i++) G.veil.push({ x: r() * W, y: H * (0.04 + r() * 0.38), rx: W * (0.25 + r() * 0.35), ry: H * (0.02 + r() * 0.03), a: 0.35 + r() * 0.5 });
     const nHi = Math.round(hi * 44);
     for (let i = 0; i < nHi; i++) {
@@ -91,12 +96,13 @@
       }
     }
     const nLo = Math.round(lo * 30);
-    for (let i = 0; i < nLo; i++) { const sc = H / 300, lx = r() * W; if (SH && r() > sKeep(SH.low, lx, lo)) continue; G.low.push({ x: lx, y: hz - H * (0.03 + r() * 0.18 * (0.4 + lo)), rx: (34 + r() * 60) * sc, ry: (9 + r() * 12) * sc, a: 0.7 + r() * 0.25 }); }
+    for (let i = 0; i < nLo; i++) { const sc = H / 300, lx = r() * W; if (SH && r() > sKeep(SH.low, lx, lo)) continue; if (inGap(lx)) continue; G.low.push({ x: lx, y: hz - H * (0.03 + r() * 0.18 * (0.4 + lo)), rx: (34 + r() * 60) * sc, ry: (9 + r() * 12) * sc, a: 0.7 + r() * 0.25 }); }
     // western low-cloud bank along the sunset line (what blocks the light)
     if (blk > 0.18) {
       const span = W * (0.35 + blk * 0.9), thick = H * (0.025 + blk * 0.13);
       for (let x = W / 2 - span / 2; x < W / 2 + span / 2; x += (8 + r() * 14) * H / 300) {
         if (r() < 0.25 * (1 - blk)) continue;   // gaps in a broken bank
+        if (inGap(x)) continue;   // d37: no bank puff inside an IR-observed horizon break
         const ry = thick * (0.25 + r() * 0.65); G.bank.push({ x, y: hz - ry * 0.5 - r() * thick * 0.35, rx: (10 + r() * 22) * H / 300, ry, a: 0.75 + r() * 0.2, soft: 1 });
       }
     }
@@ -208,6 +214,13 @@
       for (let i = 0; i < 11; i++) { const ang = Math.PI * (1.1 + i * 0.075 + ry() * 0.03); ctx.fillStyle = `rgba(255,200,150,${a * (0.5 + ry())})`; ctx.beginPath(); ctx.moveTo(sunX, Math.max(sunY, hz - 4)); ctx.lineTo(sunX + Math.cos(ang) * W, hz + Math.sin(ang) * W); ctx.lineTo(sunX + Math.cos(ang + 0.03) * W, hz + Math.sin(ang + 0.03) * W); ctx.fill(); }
       ctx.restore();
     }
+    // d37: faint warm sliver through each IR-observed horizon break — local light in the slot only, laid down
+    // before the low cloud so the remaining deck overlaps its edges. The deck's gray state, gapW and score are
+    // untouched (obs.js / sceneAt unchanged); the sliver fades with the light and with the block itself.
+    if (G.hzGaps && blk > 0.3) { const sl = clamp((elev + 6) / 8) * blk; if (sl > 0.02) { const sc2 = mix(ramp(elev, LIGHT), [255, 176, 110], 0.35);
+      for (const g of G.hzGaps) { const cx = (g.x0 + g.x1) / 2, rw = Math.max((g.x1 - g.x0) / 2, H * 0.02);
+        blob(ctx, cx, hz - H * 0.008, rw, H * 0.03, sc2, 0.3 * g.str * sl);
+        blob(ctx, cx, hz - H * 0.002, rw * 0.55, H * 0.012, mix(sc2, [255, 240, 205], 0.4), 0.35 * g.str * sl); } } }
     // 5) low cloud: dark undersides with bright rims while the sun can still reach them
     const lowCol = mix(mix(shade, [40, 38, 58], 0.45), L.low.c, L.low.lit * 0.25);
     for (const p of [...G.bank, ...G.low]) {

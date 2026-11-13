@@ -167,10 +167,22 @@
       thick.push(f2(clamp(c.high + 0.5 * c.mid))); irCv.push(f2(c.tot)); irMid.push(f2(c.mh)); irLow.push(f2(c.low)); }
     const shape = { az, step: 15, low: [], mid: [], high: [] };   // per-bearing visible cover by layer: max over rings of fraction × visibility weight — how much cloud of this layer fills the view looking that way
     for (const row of rows) for (const L of ["low", "mid", "high"]) { let m = 0; for (const d of [0, ...IR_RINGS]) { const c = row[d]; if (c) m = Math.max(m, c[L] * visW(LYR_H[L], d)); } shape[L].push(f2(m)); }
+    // d37: horizon breaks — small genuine gaps in the FAR field (200 + 300 km rings = the horizon band) toward the
+    // sun. A bearing counts as open only when BOTH far cells are at most half covered; runs wider than ~30° are a
+    // deck edge, not a break, and a uniformly broken deck yields one wide run and is likewise excluded — so what
+    // survives is at most two narrow slots, only where the IR actually shows them (Sean: no fabricated gaps).
+    // 2026-11-13 truth: at both Hampton spots the +15°..+45° far cells read 0.00–0.49 while the corridor centre
+    // stayed 0.70–0.90, and Sean's 06:49 photo shows exactly one faint warm sliver at the deck's edge there.
+    const hzGaps = [];
+    { const opens = FAN.map((b, i) => { if (Math.abs(b) > 45) return 0; const rw = rows[i], c2 = rw[200], c3 = rw[300]; return c2 && c3 ? 1 - Math.max(c2.tot, c3.tot) : 0; });
+      let run = null; const runs = [];
+      opens.forEach((o, i) => { if (o >= 0.5) { if (run) run.push(i); else run = [i]; } else if (run) { runs.push(run); run = null; } }); if (run) runs.push(run);
+      for (const rn of runs) { if (rn.length > 3) continue; hzGaps.push({ b0: FAN[rn[0]], b1: FAN[rn[rn.length - 1]], str: f2(rn.reduce((a, i) => a + opens[i], 0) / rn.length) }); }
+      hzGaps.sort((a, b) => b.str - a.str); hzGaps.length = Math.min(hzGaps.length, 2); }
     let radar = null;
     if (g.Sat.radarAt) { const rp = await Promise.all([0, 40, 120].map(d => { const p = d ? g.Model.offset(sp.lat, sp.lng, az, d) : { lat: sp.lat, lng: sp.lng }; return g.Sat.radarAt(p.lat, p.lng, n).catch(() => null); }));
       const rr = rp.filter(Boolean); if (rr.length) radar = { rain: +Math.max(...rr.map(x => x.rain)).toFixed(2), echo: +Math.max(...rr.map(x => x.echo)).toFixed(2), pts: rp.map(x => x ? +x.rain.toFixed(2) : null) }; }
-    return { cv, thick, irCv, irMid, irLow, shape, radar };
+    return { cv, thick, irCv, irMid, irLow, shape, radar, hzGaps };
   }
   async function irCanvas(sp, ev) {
     const n = NOW(), G = await irGrid(sp, ev, n); if (!G) return null;
@@ -185,7 +197,7 @@
     let irBlock = Math.max(irPath, (0.5 * irCv[0] + 0.5 * irPath) * (1 - irOpen)); if (irPath >= 0.8) irBlock = Math.max(irBlock, irPath); irBlock = +clamp(irBlock).toFixed(2);
     const irGray = +clamp((irBlock - 0.55) / 0.25).toFixed(2);
     return { tSet: ev.tSet, at: n, km: CVK, cv, thick, here: +(0.3 * cv[0] + 0.25 * cv[1] + 0.25 * cv[2] + 0.2 * cv[3]).toFixed(2), west: +((cv[0] + cv[1] + cv[2] + cv[3] + cv[4]) / 5).toFixed(2),
-      far: +(0.5 * cv[5] + 0.5 * cv[6]).toFixed(2), farThick: Math.max(thick[5], thick[6]), irCv, irMid, irLow, irPath, irBlock, irGray, shape: G.shape, radar: G.radar, src: "goes-ir4km-only" };
+      far: +(0.5 * cv[5] + 0.5 * cv[6]).toFixed(2), farThick: Math.max(thick[5], thick[6]), irCv, irMid, irLow, irPath, irBlock, irGray, shape: G.shape, radar: G.radar, hzGaps: G.hzGaps, src: "goes-ir4km-only" };
   }
   async function canvas(sp, ev) {
     const n = NOW(); if (!g.Sat || !g.Sat.canvasPt || n - ev.tSet > 1800 || ev.tSet - n > 14 * 3600) return O.cv[sp.id] || null;   // d24c: present day — re-read the latest visible all day, every refresh
