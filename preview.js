@@ -62,11 +62,21 @@
     const r = rng(spot.id + ev.tSet), s = ev.s, hz = H * 0.66;
     const hi = (s.high || 0) / 100, md = (s.mid || 0) / 100, lo = (s.low || 0) / 100, blk = ev.slotBlock;
     const G = { key, veil: [], cirrus: [], mid: [], low: [], bank: [], stars: [], rain: [], ripples: [] };
+    // d35 (pilot spots): satellite SHAPE from the IR canvas — per-layer cloud fraction on a fan of bearings ±90° around
+    // the event azimuth (15° steps), already visibility-weighted in obs.js. A puff's screen x maps to an azimuth through
+    // the same px/deg scale the sun uses, and each layer's blob density follows sector ÷ overall cover, so the rendered
+    // deck sits where the satellite actually shows it instead of spread evenly. No shape → behaviour exactly as before.
+    const SH = ev.satCanvas && ev.satCanvas.shape, pxD = H * 0.05;
+    const sFrac = (arr, x) => { const u = ((x - W / 2) / pxD + 90) / SH.step; if (u < 0 || u > arr.length - 1) return 0; const i = Math.min(arr.length - 2, Math.floor(u)); return arr[i] + (arr[i + 1] - arr[i]) * (u - i); };
+    const sKeep = (arr, x, base) => clamp(sFrac(arr, x) / Math.max(base, 0.08), 0, 1.3);
+    G.shAt = SH ? ev.satCanvas.at : 0;
     for (let i = 0; i < 14; i++) G.veil.push({ x: r() * W, y: H * (0.04 + r() * 0.38), rx: W * (0.25 + r() * 0.35), ry: H * (0.02 + r() * 0.03), a: 0.35 + r() * 0.5 });
     const nHi = Math.round(hi * 44);
     for (let i = 0; i < nHi; i++) {
       const y = H * (0.03 + Math.pow(r(), 1.3) * 0.42), len = W * (0.18 + r() * 0.4) * (1 - y / H * 0.6);
-      G.cirrus.push({ x: r() * W * 1.1 - W * 0.1, y, len, bend: (r() - 0.5) * H * 0.08, w: (1.5 + r() * 4) * H / 300, a: 0.25 + r() * 0.4, hairs: Array.from({ length: 5 }, () => [r(), (r() - 0.5) * 14 * H / 300, r()]) });
+      const cx = r() * W * 1.1 - W * 0.1;
+      if (SH && r() > sKeep(SH.high, cx + len / 2, hi)) continue;   // d35: cirrus only where the IR shape has high cloud
+      G.cirrus.push({ x: cx, y, len, bend: (r() - 0.5) * H * 0.08, w: (1.5 + r() * 4) * H / 300, a: 0.25 + r() * 0.4, hairs: Array.from({ length: 5 }, () => [r(), (r() - 0.5) * 14 * H / 300, r()]) });
     }
     // altocumulus: perspective rows (big puffs overhead → small near horizon)
     if (md > 0.04) {
@@ -75,13 +85,13 @@
         const f = k / rows, y = H * (0.12 + f * 0.4) + (r() - 0.5) * 8, sc = (1 - f * 0.65) * H / 300, rad = (11 + r() * 5) * sc;
         let x = -rad * 2 + r() * rad * 2;
         while (x < W + rad * 2) {
-          if (r() < 0.25 + md * 0.75) G.mid.push({ x, y: y + (r() - 0.5) * rad * 0.8, rx: rad * (1.4 + r() * 0.9), ry: rad * (0.55 + r() * 0.3), a: 0.55 + r() * 0.35 });
+          if (r() < (0.25 + md * 0.75) * (SH ? sKeep(SH.mid, x, md) : 1)) G.mid.push({ x, y: y + (r() - 0.5) * rad * 0.8, rx: rad * (1.4 + r() * 0.9), ry: rad * (0.55 + r() * 0.3), a: 0.55 + r() * 0.35 });
           x += rad * (1.9 + r() * 1.4) / Math.max(0.5, md + 0.25);
         }
       }
     }
     const nLo = Math.round(lo * 30);
-    for (let i = 0; i < nLo; i++) { const sc = H / 300; G.low.push({ x: r() * W, y: hz - H * (0.03 + r() * 0.18 * (0.4 + lo)), rx: (34 + r() * 60) * sc, ry: (9 + r() * 12) * sc, a: 0.7 + r() * 0.25 }); }
+    for (let i = 0; i < nLo; i++) { const sc = H / 300, lx = r() * W; if (SH && r() > sKeep(SH.low, lx, lo)) continue; G.low.push({ x: lx, y: hz - H * (0.03 + r() * 0.18 * (0.4 + lo)), rx: (34 + r() * 60) * sc, ry: (9 + r() * 12) * sc, a: 0.7 + r() * 0.25 }); }
     // western low-cloud bank along the sunset line (what blocks the light)
     if (blk > 0.18) {
       const span = W * (0.35 + blk * 0.9), thick = H * (0.025 + blk * 0.13);
@@ -106,7 +116,7 @@
     const W = canvas.clientWidth || 600, H = canvas.clientHeight || 340;
     if (canvas.width !== Math.round(W * dpr) || canvas.height !== Math.round(H * dpr)) { canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr); }
     const ctx = canvas.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    if (!canvas._g || canvas._g.key !== spot.id + ev.tSet + W + "x" + H) canvas._g = geometry(W, H, spot, ev);
+    if (!canvas._g || canvas._g.key !== spot.id + ev.tSet + W + "x" + H || (ev.satCanvas && ev.satCanvas.shape && canvas._g.shAt !== ev.satCanvas.at)) canvas._g = geometry(W, H, spot, ev);   // d35: rebuild when a satellite shape lands
     const G = canvas._g, s = ev.s;
     const elev = sunPos(t, spot.lat, spot.lng).elev;
     const hi = (s.high || 0) / 100, md = (s.mid || 0) / 100, lo = (s.low || 0) / 100, blk = ev.slotBlock;

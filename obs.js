@@ -137,15 +137,61 @@
   // and after a reload. Fed into the model as observed mid cloud wherever it exceeds the model's own low+mid cover.
   O.cv = lsGet("ag-obs-cv") || {};
   const CVK = [0, 20, 40, 80, 120, 200, 300];
+  // d35 (Preview pilot — Buckroe Beach / Fort Monroe ONLY; Sean verifies here before any wider rollout): the dark-hours
+  // INFRARED canvas. The visible canvas can never serve a sunrise (it needs the sun ≥ 2.5° up — the gate in canvas()
+  // below) and the pre-baked snapshot is sunset-only, so on Nov 13 2026 a broad mid deck over Fort Monroe that GOES IR
+  // showed clearly (~90 % cover overhead) rendered as a clear sky because the model had 0 %. For the pilot spots, when
+  // the visible read can't run, the canvas entry is built from live GOES IR instead — sampled over a WIDE area (a ±90°
+  // fan of bearings × rings to 300 km, not just the cell overhead), each layer tapered by how far it can actually be
+  // seen from the viewpoint (los.js convention: d_vis = √(2R·h) — low 1.5 km ≈ 135 km, mid 4.5 km ≈ 240 km, high
+  // 10 km ≈ 360 km), plus NEXRAD radar as a second witness (rain near the spot = thick low-based cloud, whatever the
+  // IR palette says). The entry is tagged src "goes-ir4km-only" so satW's existing IR discount (×0.8) and the reason
+  // wording apply unchanged, and it carries a per-bearing SHAPE (cloud fraction by layer across the fan) that
+  // preview.js uses to place the rendered clouds where the IR actually shows them. Sunset keeps the visible-led
+  // read; there the IR grid only adds the shape + radar floor (visible + IR, per Sean).
+  const IR_PILOT = { oldpoint: 1, saltponds: 1 };
+  const FAN = [-90, -75, -60, -45, -30, -15, 0, 15, 30, 45, 60, 75, 90], IR_RINGS = [20, 40, 80, 120, 200, 300], LYR_H = { low: 1.5, mid: 4.5, high: 10 };
+  const visW = (h, d) => { if (!d) return 1; const dv = Math.sqrt(2 * 6371 * h); return clamp(1 - Math.max(0, d - 0.55 * dv) / (0.45 * dv)); };   // full weight to 55 % of the layer's visible range, tapering to zero at the range
+  async function irGrid(sp, ev, n) {
+    if (!g.Sat || !g.Sat.samplePt) return null;
+    const az = ev.sunsetAz, cell = async (b, d) => { const p = d ? g.Model.offset(sp.lat, sp.lng, az + b, d) : { lat: sp.lat, lng: sp.lng };
+      const ir = await g.Sat.samplePt("ir", p.lat, p.lng).catch(() => null);
+      return ir ? { low: ir.coolGrey, mid: ir.cold, high: ir.deep, mh: clamp(ir.cold + ir.deep), tot: clamp(ir.coolGrey + ir.cold + ir.deep) } : null; };   // palette split: coolGrey = warm (low) tops, cold = cold (mid) tops, deep = very cold (high) tops
+    const spot = await cell(0, 0); if (!spot) return null;
+    const rows = [], jobs = []; let ok = 1, tot = 1;
+    for (const b of FAN) { const row = { 0: spot }; rows.push(row); for (const d of IR_RINGS) { if (Math.abs(b) > 45 && d !== 40 && d !== 120 && d !== 300) continue; tot++; jobs.push(cell(b, d).then(v => { row[d] = v; if (v) ok++; })); } }
+    await Promise.all(jobs);
+    if (ok / tot < 0.6) return null;
+    const f2 = x => +x.toFixed(2), cor = rows[(FAN.length - 1) / 2], at = (row, d) => row[d] || spot;
+    const cv = [], thick = [], irCv = [], irMid = [], irLow = [];
+    for (const d of CVK) { const c = at(cor, d); cv.push(f2(clamp(c.low * visW(LYR_H.low, d) + c.mid * visW(LYR_H.mid, d) + c.high * visW(LYR_H.high, d))));
+      thick.push(f2(clamp(c.high + 0.5 * c.mid))); irCv.push(f2(c.tot)); irMid.push(f2(c.mh)); irLow.push(f2(c.low)); }
+    const shape = { az, step: 15, low: [], mid: [], high: [] };   // per-bearing visible cover by layer: max over rings of fraction × visibility weight — how much cloud of this layer fills the view looking that way
+    for (const row of rows) for (const L of ["low", "mid", "high"]) { let m = 0; for (const d of [0, ...IR_RINGS]) { const c = row[d]; if (c) m = Math.max(m, c[L] * visW(LYR_H[L], d)); } shape[L].push(f2(m)); }
+    let radar = null;
+    if (g.Sat.radarAt) { const rp = await Promise.all([0, 40, 120].map(d => { const p = d ? g.Model.offset(sp.lat, sp.lng, az, d) : { lat: sp.lat, lng: sp.lng }; return g.Sat.radarAt(p.lat, p.lng, n).catch(() => null); }));
+      const rr = rp.filter(Boolean); if (rr.length) radar = { rain: +Math.max(...rr.map(x => x.rain)).toFixed(2), echo: +Math.max(...rr.map(x => x.echo)).toFixed(2), pts: rp.map(x => x ? +x.rain.toFixed(2) : null) }; }
+    return { cv, thick, irCv, irMid, irLow, shape, radar };
+  }
+  async function irCanvas(sp, ev) {
+    const n = NOW(), G = await irGrid(sp, ev, n); if (!G) return null;
+    const { cv, thick, irCv, irMid, irLow } = G;
+    if (G.radar && G.radar.rain >= 0.1) for (const j of [0, 1, 2]) { cv[j] = Math.max(cv[j], 0.85); thick[j] = Math.max(thick[j], 0.55); irLow[j] = Math.max(irLow[j], +(0.7 * irCv[j]).toFixed(2)); }   // radar rain overhead/near = thick low-based cloud, even if the IR palette under-reads it
+    return { tSet: ev.tSet, at: n, km: CVK, cv, thick, here: +(0.3 * cv[0] + 0.25 * cv[1] + 0.25 * cv[2] + 0.2 * cv[3]).toFixed(2), west: +((cv[0] + cv[1] + cv[2] + cv[3] + cv[4]) / 5).toFixed(2),
+      far: +(0.5 * cv[5] + 0.5 * cv[6]).toFixed(2), farThick: Math.max(thick[5], thick[6]), irCv, irMid, irLow, shape: G.shape, radar: G.radar, src: "goes-ir4km-only" };
+  }
   async function canvas(sp, ev) {
     const n = NOW(); if (!g.Sat || !g.Sat.canvasPt || n - ev.tSet > 1800 || ev.tSet - n > 14 * 3600) return O.cv[sp.id] || null;   // d24c: present day — re-read the latest visible all day, every refresh
-    if (g.Model.sunPos(n, sp.lat, sp.lng).elev < 2.5) return O.cv[sp.id] || null;   // low sun: the visible image is too dim to trust → keep the last good-light read (or the snapshot's)
+    if (g.Model.sunPos(n, sp.lat, sp.lng).elev < 2.5) {   // low sun: the visible image is too dim to trust → keep the last good-light read (or the snapshot's); d35: pilot spots build the IR canvas instead
+      if (IR_PILOT[sp.id]) { const o = await irCanvas(sp, ev).catch(() => null); if (o) { O.cv[sp.id] = o; const keep = {}; for (const k in O.cv) if (n - O.cv[k].tSet < 86400) keep[k] = O.cv[k]; lsSet("ag-obs-cv", keep); return o; } }
+      return O.cv[sp.id] || null; }
     const az = ev.sunsetAz, r = await Promise.all(CVK.map(d => { const p = d ? g.Model.offset(sp.lat, sp.lng, az, d) : { lat: sp.lat, lng: sp.lng }; return g.Sat.canvasPt(p.lat, p.lng, 18); }));
     if (r.filter(Boolean).length < 5) return O.cv[sp.id] || null;
     const v = r.map(x => x ? x.cv : 0), th = r.map(x => x ? x.thick : 0);
     const o = { tSet: ev.tSet, at: n, km: CVK, cv: v.map(x => +x.toFixed(2)), thick: th.map(x => +x.toFixed(2)),
       here: 0.3 * v[0] + 0.25 * v[1] + 0.25 * v[2] + 0.2 * v[3], west: (v[0] + v[1] + v[2] + v[3] + v[4]) / 5, far: 0.5 * v[5] + 0.5 * v[6], farThick: Math.max(th[5], th[6]) };
     const P = O.cv[sp.id]; if (P && P.irMid && P.tSet === o.tSet && n - P.at < 2400) Object.assign(o, { irCv: P.irCv, irMid: P.irMid, irLow: P.irLow }); if (P && P.storms && P.tSet === o.tSet) { o.storms = P.storms; if (P.stormsAnti) o.stormsAnti = P.stormsAnti; }   // d24t: radar storm cells from the snapshot if (P && P.antiIrMid && P.tSet === o.tSet && n - P.at < 2400) for (const k in P) if (/^(anti|side|over|storms)/.test(k)) o[k] = P[k];   // d24j: keep the opposite-sky/overhead reads too   // keep the 15-min snapshot's IR heights
+    if (IR_PILOT[sp.id]) { const G = await irGrid(sp, ev, n).catch(() => null); if (G) { o.shape = G.shape; o.radar = G.radar; if (G.radar && G.radar.rain >= 0.1) for (const j of [0, 1, 2]) { o.cv[j] = Math.max(o.cv[j], 0.85); o.thick[j] = Math.max(o.thick[j], 0.55); } } }   // d35: sunset = visible cover + IR shape/radar (pilot spots)
     O.cv[sp.id] = o; const keep = {}; for (const k in O.cv) if (n - O.cv[k].tSet < 86400) keep[k] = O.cv[k]; lsSet("ag-obs-cv", keep);
     return o;
   }
