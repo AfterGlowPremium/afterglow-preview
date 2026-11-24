@@ -447,7 +447,10 @@
       <div class="ring" style="--p:${b.ev.score};--c:${lb.c}"><b>${b.ev.score}</b><i>${lb.t}</i></div></div>
       <div class="hero-why">${b.ev.reasons[0]} Best minute ~${fmtTime(b.ev.timing.peak, b.tz)}.</div><div class="conf ${conf.c}">${conf.t}</div>`;
     $("#hero").onclick = () => openDetail(b.spot.id);
-    heroMovie(b);
+    // FREEZE TEST 2026-11-24 (Preview only, Sean): hero movie loop disabled — one static frame instead.
+    // Diagnosis: since the iOS update the continuous WebGL hero loop saturates the main thread on iPhone
+    // (native scrollers like the day strip still move, but map pan and button taps, which need JS, die).
+    try { const cv = document.getElementById("hero-cv"); if (cv && window.Preview) { const W = Math.max(64, cv.clientWidth || 360), H = Math.max(40, cv.clientHeight || 200); cv.width = W; cv.height = H; const tmp = document.createElement("canvas"); tmp.width = W; tmp.height = H; Preview.draw(tmp, b.spot, b.ev, b.ev.timing.peak); cv.getContext("2d").drawImage(tmp, 0, 0, W, H); const el = document.getElementById("hero-t"); if (el) el.textContent = fmtTime(b.ev.timing.peak, b.tz); } } catch (e) {}
   }
   // d26n: hero "movie" — the top spot's forecast scene playing golden hour → afterglow (sunrise: blue hour → golden), looped, ~12 fps,
   // low resolution; starts after the forecast is ready, pauses off-screen, in a hidden tab or while a spot is open.
