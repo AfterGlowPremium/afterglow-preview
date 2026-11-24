@@ -62,26 +62,11 @@
     const r = rng(spot.id + ev.tSet), s = ev.s, hz = H * 0.66;
     const hi = (s.high || 0) / 100, md = (s.mid || 0) / 100, lo = (s.low || 0) / 100, blk = ev.slotBlock;
     const G = { key, veil: [], cirrus: [], mid: [], low: [], bank: [], stars: [], rain: [], ripples: [] };
-    // d35 (pilot spots): satellite SHAPE from the IR canvas — per-layer cloud fraction on a fan of bearings ±90° around
-    // the event azimuth (15° steps), already visibility-weighted in obs.js. A puff's screen x maps to an azimuth through
-    // the same px/deg scale the sun uses, and each layer's blob density follows sector ÷ overall cover, so the rendered
-    // deck sits where the satellite actually shows it instead of spread evenly. No shape → behaviour exactly as before.
-    const SH = ev.satCanvas && ev.satCanvas.shape, pxD = H * 0.05;
-    const sFrac = (arr, x) => { const u = ((x - W / 2) / pxD + 90) / SH.step; if (u < 0 || u > arr.length - 1) return 0; const i = Math.min(arr.length - 2, Math.floor(u)); return arr[i] + (arr[i + 1] - arr[i]) * (u - i); };
-    const sKeep = (arr, x, base) => clamp(sFrac(arr, x) / Math.max(base, 0.08), 0, 1.3);
-    G.shAt = SH ? ev.satCanvas.at : 0;
-    // d37: IR-observed horizon breaks (obs.js hzGaps, bearings relative to the event azimuth) as screen ranges —
-    // the horizon bank and low puffs leave those slots open, and draw() lays a faint warm sliver in them.
-    const HZG = ev.satCanvas && ev.satCanvas.hzGaps;
-    G.hzGaps = HZG && HZG.length ? HZG.map(g => ({ x0: W / 2 + g.b0 * pxD, x1: W / 2 + g.b1 * pxD, str: g.str })) : null;
-    const inGap = x => G.hzGaps ? G.hzGaps.some(g => x >= g.x0 && x <= g.x1) : false;
     for (let i = 0; i < 14; i++) G.veil.push({ x: r() * W, y: H * (0.04 + r() * 0.38), rx: W * (0.25 + r() * 0.35), ry: H * (0.02 + r() * 0.03), a: 0.35 + r() * 0.5 });
     const nHi = Math.round(hi * 44);
     for (let i = 0; i < nHi; i++) {
       const y = H * (0.03 + Math.pow(r(), 1.3) * 0.42), len = W * (0.18 + r() * 0.4) * (1 - y / H * 0.6);
-      const cx = r() * W * 1.1 - W * 0.1;
-      if (SH && r() > sKeep(SH.high, cx + len / 2, hi)) continue;   // d35: cirrus only where the IR shape has high cloud
-      G.cirrus.push({ x: cx, y, len, bend: (r() - 0.5) * H * 0.08, w: (1.5 + r() * 4) * H / 300, a: 0.25 + r() * 0.4, hairs: Array.from({ length: 5 }, () => [r(), (r() - 0.5) * 14 * H / 300, r()]) });
+      G.cirrus.push({ x: r() * W * 1.1 - W * 0.1, y, len, bend: (r() - 0.5) * H * 0.08, w: (1.5 + r() * 4) * H / 300, a: 0.25 + r() * 0.4, hairs: Array.from({ length: 5 }, () => [r(), (r() - 0.5) * 14 * H / 300, r()]) });
     }
     // altocumulus: perspective rows (big puffs overhead → small near horizon)
     if (md > 0.04) {
@@ -90,19 +75,18 @@
         const f = k / rows, y = H * (0.12 + f * 0.4) + (r() - 0.5) * 8, sc = (1 - f * 0.65) * H / 300, rad = (11 + r() * 5) * sc;
         let x = -rad * 2 + r() * rad * 2;
         while (x < W + rad * 2) {
-          if (r() < (0.25 + md * 0.75) * (SH ? sKeep(SH.mid, x, md) : 1)) G.mid.push({ x, y: y + (r() - 0.5) * rad * 0.8, rx: rad * (1.4 + r() * 0.9), ry: rad * (0.55 + r() * 0.3), a: 0.55 + r() * 0.35 });
+          if (r() < 0.25 + md * 0.75) G.mid.push({ x, y: y + (r() - 0.5) * rad * 0.8, rx: rad * (1.4 + r() * 0.9), ry: rad * (0.55 + r() * 0.3), a: 0.55 + r() * 0.35 });
           x += rad * (1.9 + r() * 1.4) / Math.max(0.5, md + 0.25);
         }
       }
     }
     const nLo = Math.round(lo * 30);
-    for (let i = 0; i < nLo; i++) { const sc = H / 300, lx = r() * W; if (SH && r() > sKeep(SH.low, lx, lo)) continue; if (inGap(lx)) continue; G.low.push({ x: lx, y: hz - H * (0.03 + r() * 0.18 * (0.4 + lo)), rx: (34 + r() * 60) * sc, ry: (9 + r() * 12) * sc, a: 0.7 + r() * 0.25 }); }
+    for (let i = 0; i < nLo; i++) { const sc = H / 300; G.low.push({ x: r() * W, y: hz - H * (0.03 + r() * 0.18 * (0.4 + lo)), rx: (34 + r() * 60) * sc, ry: (9 + r() * 12) * sc, a: 0.7 + r() * 0.25 }); }
     // western low-cloud bank along the sunset line (what blocks the light)
     if (blk > 0.18) {
       const span = W * (0.35 + blk * 0.9), thick = H * (0.025 + blk * 0.13);
       for (let x = W / 2 - span / 2; x < W / 2 + span / 2; x += (8 + r() * 14) * H / 300) {
         if (r() < 0.25 * (1 - blk)) continue;   // gaps in a broken bank
-        if (inGap(x)) continue;   // d37: no bank puff inside an IR-observed horizon break
         const ry = thick * (0.25 + r() * 0.65); G.bank.push({ x, y: hz - ry * 0.5 - r() * thick * 0.35, rx: (10 + r() * 22) * H / 300, ry, a: 0.75 + r() * 0.2, soft: 1 });
       }
     }
@@ -122,7 +106,7 @@
     const W = canvas.clientWidth || 600, H = canvas.clientHeight || 340;
     if (canvas.width !== Math.round(W * dpr) || canvas.height !== Math.round(H * dpr)) { canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr); }
     const ctx = canvas.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    if (!canvas._g || canvas._g.key !== spot.id + ev.tSet + W + "x" + H || (ev.satCanvas && ev.satCanvas.shape && canvas._g.shAt !== ev.satCanvas.at)) canvas._g = geometry(W, H, spot, ev);   // d35: rebuild when a satellite shape lands
+    if (!canvas._g || canvas._g.key !== spot.id + ev.tSet + W + "x" + H) canvas._g = geometry(W, H, spot, ev);
     const G = canvas._g, s = ev.s;
     const elev = sunPos(t, spot.lat, spot.lng).elev;
     const hi = (s.high || 0) / 100, md = (s.mid || 0) / 100, lo = (s.low || 0) / 100, blk = ev.slotBlock;
@@ -130,7 +114,7 @@
     const lightIn = clamp(1 - blk * 1.05);          // how much sunlight gets under the western cloud
     const skyVivid = clamp(ev.clean * (1 - 0.75 * Math.max(lo, blk)) * (1 - 0.5 * Math.max(0, hi + md - 1.3)));
     const app = elev + 0.83; // refraction + semi-diameter: official sunset = upper limb touching horizon
-    const hz = H * 0.66, pxDeg = H * 0.05, sunX = W * 0.5, sunY = hz - app * pxDeg, sunR = H * 0.1094;   // d28i: 4x; d28zzf: Sean — 10% smaller; d32: 5% smaller again
+    const hz = H * 0.66, pxDeg = H * 0.05, sunX = W * 0.5, sunY = hz - app * pxDeg, sunR = H * 0.128;   // d28i: 4x
     const dull = ramp(elev, DULL);
 
     // 1) sky
@@ -214,13 +198,6 @@
       for (let i = 0; i < 11; i++) { const ang = Math.PI * (1.1 + i * 0.075 + ry() * 0.03); ctx.fillStyle = `rgba(255,200,150,${a * (0.5 + ry())})`; ctx.beginPath(); ctx.moveTo(sunX, Math.max(sunY, hz - 4)); ctx.lineTo(sunX + Math.cos(ang) * W, hz + Math.sin(ang) * W); ctx.lineTo(sunX + Math.cos(ang + 0.03) * W, hz + Math.sin(ang + 0.03) * W); ctx.fill(); }
       ctx.restore();
     }
-    // d37: faint warm sliver through each IR-observed horizon break — local light in the slot only, laid down
-    // before the low cloud so the remaining deck overlaps its edges. The deck's gray state, gapW and score are
-    // untouched (obs.js / sceneAt unchanged); the sliver fades with the light and with the block itself.
-    if (G.hzGaps && blk > 0.3) { const sl = clamp((elev + 6) / 8) * blk; if (sl > 0.02) { const sc2 = mix(ramp(elev, LIGHT), [255, 176, 110], 0.35);
-      for (const g of G.hzGaps) { const cx = (g.x0 + g.x1) / 2, rw = Math.max((g.x1 - g.x0) / 2, H * 0.02);
-        blob(ctx, cx, hz - H * 0.008, rw, H * 0.03, sc2, 0.3 * g.str * sl);
-        blob(ctx, cx, hz - H * 0.002, rw * 0.55, H * 0.012, mix(sc2, [255, 240, 205], 0.4), 0.35 * g.str * sl); } } }
     // 5) low cloud: dark undersides with bright rims while the sun can still reach them
     const lowCol = mix(mix(shade, [40, 38, 58], 0.45), L.low.c, L.low.lit * 0.25);
     for (const p of [...G.bank, ...G.low]) {
@@ -306,28 +283,18 @@
         cg.addColorStop(0, rgba(mix(lc, [255, 250, 230], 0.4), gl * mirror * 0.9)); cg.addColorStop(0.5, rgba(lc, gl * mirror * 0.35)); cg.addColorStop(1, rgba(lc, 0));
         ctx.fillStyle = cg; ctx.fillRect(sunX - cw, hz, cw * 2, WH);
       }
-      // d33 (Preview change #1): glitter character follows ripple SIZE + wind direction (same sea state as chop).
-      // Fine ripples (3–6 mph) → many tiny dense flecks in a tight column; coarse chop → fewer, wider flashes over a
-      // wider field. Waves travelling ACROSS the sun line smear the column wider (tSunC → 0) and push flecks sideways;
-      // along it (tSunC → 1) the column stays tight. gkC = 0 in a calm → exact pre-d33 look.
-      const ripK = SEA ? SEA.ripK || 0 : 0, dirK = SEA ? SEA.dirK || 0 : 0, gkC = clamp((chop - 0.02) / 0.23);
-      let tSunC = 0.5, driftC = 0;
-      if (SEA && SEA.wdir != null && window.Model && Model.sunPos) { const trA = (SEA.wdir + 180 - Model.sunPos(t, spot.lat, spot.lng).az) * Math.PI / 180; tSunC = Math.abs(Math.cos(trA)); driftC = Math.sin(trA) * dirK; }
-      const colK = (1 + ((0.85 + 0.65 * ripK) - 1) * gkC) * (1 + 0.3 * (1 - tSunC) * dirK * gkC);
-      const wK = 1 + ((0.75 + 1.05 * ripK) - 1) * gkC;
-      const spread = (0.35 + 2.6 * chop) * colK;
+      const spread = 0.35 + 2.6 * chop;
       for (const rp of G.ripples) {
         if (rp.w < chop * 0.35 && chop > 0.5) continue;   // broken path when rough
-        if (ripK > 0.5 && ((rp.w * 7.31 + rp.y * 3.77) % 1) < 0.4 * ripK * gkC) continue;   // d33: coarse chop → fewer flecks, the wider flashes carry it
-        const yy = hz + 2 + rp.y * WH, d = (yy - hz) / WH, w = (20 + rp.w * 50) * (0.4 + d * 2) * H / 300 * spread * wK;
-        ctx.fillStyle = rgba(lc, gl * (0.25 + 0.5 * (1 - mirror)) * (1 - d * 0.6)); ctx.fillRect(sunX - w / 2 + rp.j * (10 + 60 * chop) * d * colK + Math.sin(ph * 6.283 + rp.y * 40) * (chop * 6 + driftC * 12 * d), yy, w, (1 + chop * 1.4) * (1 + 0.4 * ripK * gkC));   // d33: flecks sway sideways with the across-sun wind component (same phase clock as the wobble — ph is epoch-scale, never multiply it raw)
+        const yy = hz + 2 + rp.y * WH, d = (yy - hz) / WH, w = (20 + rp.w * 50) * (0.4 + d * 2) * H / 300 * spread;
+        ctx.fillStyle = rgba(lc, gl * (0.25 + 0.5 * (1 - mirror)) * (1 - d * 0.6)); ctx.fillRect(sunX - w / 2 + rp.j * (10 + 60 * chop) * d + Math.sin(ph * 6.283 + rp.y * 40) * chop * 6, yy, w, 1 + chop * 1.4);
       }
       // wavelets: dark troughs + sky-lit crests; count, length and contrast scale with chop
       const nW = Math.round(G.waves.length * clamp(0.04 + chop * 1.05));
       for (let i = 0; i < nW; i++) {
         const wv = G.waves[i], d = Math.pow(wv.y, 1.7), yy = hz + 2 + d * (WH - 3);
         const len = (6 + wv.w * 30) * (0.3 + d * 2.4) * H / 300 * (1.4 - 0.6 * chop), th = (0.5 + d * 2.4) * (0.35 + chop);
-        const x = ((wv.x * W + (ph * (8 + 30 * wv.s) * (0.3 + d)) * (dirK > 0.5 && driftC ? Math.sign(driftC) : (wv.k > 0.5 ? 1 : -1))) % W + W) % W;   // d33: wavelets travel downwind when the wind direction is known
+        const x = ((wv.x * W + (ph * (8 + 30 * wv.s) * (0.3 + d)) * (wv.k > 0.5 ? 1 : -1)) % W + W) % W;
         ctx.fillStyle = `rgba(0,0,12,${(0.06 + 0.3 * chop) * (0.5 + d)})`; ctx.fillRect(x - len / 2, yy + th * 0.6, len, th);
         ctx.fillStyle = rgba(mix(hor, [255, 255, 255], 0.2), (0.06 + 0.4 * chop) * (0.4 + d) * (0.5 + 0.5 * clamp((elev + 5) / 6))); ctx.fillRect(x - len * 0.4, yy, len * 0.8, Math.max(0.6, th * 0.6));
       }
@@ -340,7 +307,7 @@
           const c = G.caps[i], d = Math.pow(c.y, 1.5), yy = hz + 3 + d * (WH - 6);
           const on = ((((i * 7919 + life * 104729) >>> 0) % 1000) / 1000) < 0.55 + 0.4 * caps; if (!on) continue;
           const age = (ph * 3) % 1, wdt = (2 + c.w * 7) * (0.25 + d * 1.8) * H / 300 * (0.7 + 0.5 * caps) * (0.6 + 0.4 * Math.sin(age * 3.14));
-          const x = ((c.x * W + ph * 22 * (0.3 + d) * (dirK > 0.5 && driftC ? Math.sign(driftC) * (0.3 + Math.abs(c.k - 0.3)) : (c.k - 0.3))) % W + W) % W;   // d33: caps drift downwind when direction is known
+          const x = ((c.x * W + ph * 22 * (0.3 + d) * (c.k - 0.3)) % W + W) % W;
           ctx.fillStyle = rgba(cc, (0.3 + 0.4 * c.s) * (0.6 + 0.4 * caps) * (1 - 0.5 * age));
           ctx.beginPath(); ctx.ellipse(x, yy, wdt, Math.max(0.5, wdt * 0.1), 0, 0, 6.283); ctx.fill();
           if (caps > 0.55 && c.s > 0.7) { ctx.fillStyle = rgba(cc, 0.18 * caps); ctx.beginPath(); ctx.ellipse(x + wdt * 0.6, yy + wdt * 0.08, wdt * 1.5, wdt * 0.14, 0, 0, 6.283); ctx.fill(); }   // streaks / spray
