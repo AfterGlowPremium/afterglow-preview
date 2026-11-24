@@ -379,6 +379,10 @@
   const markers = {};
   window.__agRender = () => renderMarkers();
   function renderMarkers() {
+    // FREEZE TEST 3 2026-11-24 (Preview only, Sean): NO map pins at all — test if the ~92 pin DOM nodes / their
+    // refresh cycle are what locks the map on iPhone since iOS 27.2.1 (tests 1-2: hero loop off + single tile
+    // layer still locked, and test 2 locked at the moment of trying to select). List below the map still works.
+    return;
     // 95+ pins pulse; ?demo=hot shows the pulse on the top 3 spots (pin label forced to ≥ 96 for the demo only — scores elsewhere untouched)
     const hotDemo = /[?&]demo=hot\b/.test(location.search) ? new Set(state.results.slice().sort((a, b) => b.ev.score - a.ev.score).slice(0, 3).map(x => x.spot.id)) : null;
     state.results.forEach(r => {
