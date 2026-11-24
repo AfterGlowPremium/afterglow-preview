@@ -340,9 +340,10 @@
   const map = window.__agMap = L.map("map", { zoomControl: false, attributionControl: true, minZoom: 4 }).setView([34.5, -77.5], 5);
   { const mc = document.getElementById("map"); map.on("movestart zoomstart", () => mc.classList.add("moving")); map.on("moveend zoomend", () => mc.classList.remove("moving")); }   // d14: pause pin animations while panning
   L.control.zoom({ position: "bottomright" }).addTo(map);
-  L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}", { attribution: "Tiles © Esri — Esri, HERE, Garmin, © OpenStreetMap contributors", maxZoom: 16, updateWhenZooming: false, keepBuffer: 3 }).addTo(map);
+  L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}", { attribution: "Tiles © Esri — Esri, HERE, Garmin, © OpenStreetMap contributors", maxZoom: 16, updateWhenZooming: false, keepBuffer: 1 }).addTo(map);   // FREEZE TEST 2 2026-11-24 (Preview only): tile buffer 3 -> 1
   map.createPane("labels"); map.getPane("labels").style.zIndex = 450; map.getPane("labels").style.pointerEvents = "none";
-  L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}", { pane: "labels", maxZoom: 16, updateWhenZooming: false, keepBuffer: 3 }).addTo(map);
+  // FREEZE TEST 2 2026-11-24 (Preview only): second (labels) tile layer NOT loaded — one tile layer only
+  // L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}", { pane: "labels", maxZoom: 16, updateWhenZooming: false, keepBuffer: 3 }).addTo(map);
   const overlays = {
     vis: L.tileLayer(Sat.tileUrl("vis"), { opacity: 0.7, attribution: "GOES-East via Iowa Env. Mesonet", maxNativeZoom: 8, updateWhenZooming: false }),
     cirrus: L.tileLayer(Sat.tileUrl("cirrus"), { opacity: 0.7, attribution: "GOES-East via Iowa Env. Mesonet", maxNativeZoom: 8, updateWhenZooming: false }),

@@ -679,7 +679,7 @@ html.ag-desk .stage .ev-toggle{margin-top:11px}
 html.ag-desk .stage .ev-toggle a{font-size:13px;padding:8px 14px}
 /* 95+ pins: smooth glowing pulse (~1.2 s) on a composited pseudo-element — transform + opacity only, no repaint; pauses while the map moves */
 .pin.hot{z-index:2}
-.pin.hot::before{content:"";position:absolute;inset:-3px;border-radius:50%;pointer-events:none;border:2px solid #fff;box-shadow:0 0 14px 4px var(--c),inset 0 0 8px var(--c);opacity:0;transform:scale(1);will-change:transform,opacity;animation:hotpulse 1.2s cubic-bezier(.4,0,.2,1) infinite}
+.pin.hot::before{content:"";position:absolute;inset:-3px;border-radius:50%;pointer-events:none;border:2px solid #fff;box-shadow:0 0 14px 4px var(--c),inset 0 0 8px var(--c);opacity:0;transform:scale(1);will-change:transform,opacity;animation:none} /* FREEZE TEST 2 2026-11-24 (Preview only): infinite pin pulse animation off */
 @keyframes hotpulse{0%{opacity:.95;transform:scale(1)}70%{opacity:0;transform:scale(1.75)}100%{opacity:0;transform:scale(1.75)}}
 #map.moving .pin.hot::before{animation-play-state:paused!important}
 @media (prefers-reduced-motion:reduce){.pin.hot::before{animation:none!important;opacity:1;transform:scale(1.22);border-color:rgba(255,255,255,.9)}}
